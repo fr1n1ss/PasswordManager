@@ -8,5 +8,6 @@ namespace PasswordManagerAPI.Services
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
         //Добавляем модели
         public DbSet<User> Users { get; set; }
+        public DbSet<Account> Accounts { get; set; }
     }
 }
