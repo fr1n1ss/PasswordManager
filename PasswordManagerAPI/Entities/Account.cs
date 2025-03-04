@@ -1,5 +1,9 @@
-﻿namespace PasswordManagerAPI.Entities
+﻿using Microsoft.EntityFrameworkCore;
+
+namespace PasswordManagerAPI.Entities
 {
+    [Index(nameof(UserID), nameof(ServiceName), nameof(Login), IsUnique = true)]
+    [PrimaryKey(nameof(ID))]
     public class Account
     {
         public Account() { }
@@ -9,12 +13,13 @@
             EncryptedPassword = password;
             Description = description;
         }
-        public int Id { get; set; }
+        public int ID { get; set; }
+        public int UserID { get; set; }
+        public string ServiceName { get; set; }
         public string Login {  get; set; }
         public string EncryptedPassword { get; set; }
         public string? Description { get; set; }
         public string Salt { get; set; }
-        public string UserID { get; set; }
 
     }
 }

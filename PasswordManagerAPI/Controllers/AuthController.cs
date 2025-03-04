@@ -28,7 +28,7 @@ namespace PasswordManagerAPI.Controllers
         {
             var user = _context.Users.FirstOrDefault(u => u.Username == model.Username);
 
-            if (user == null || !VerifyPassword(model.PasswordHash, user.PasswordHash, user.Salt))
+            if (user == null || !VerifyPassword(model.Password, user.PasswordHash, user.Salt))
             {
                 return Unauthorized(new { message = "Неверный логин или пароль" });
             }
