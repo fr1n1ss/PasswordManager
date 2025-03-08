@@ -20,6 +20,7 @@ namespace PasswordManagerAPI.Entities
         public string EncryptedPassword { get; set; }
         public string? Description { get; set; }
         public string Salt { get; set; }
+        public DateTime CreationDate { get; set; }
 
     }
 }
