@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PasswordManagerAPI.Services;
+using RSAEncryptions;
 using System.Text;
 
 namespace PasswordManagerAPI
@@ -45,7 +46,13 @@ namespace PasswordManagerAPI
             });
 
             builder.Services.AddControllers();
+
+            builder.Services.AddScoped<IAccountService, AccountService>();
+            builder.Services.AddScoped<RSAEncryption>();
+
             builder.Services.AddEndpointsApiExplorer();
+
+
             builder.Services.AddSwaggerGen(options =>
             {
                 options.SwaggerDoc("v1", new OpenApiInfo { Title = "Password Manager API", Version = "v1" });

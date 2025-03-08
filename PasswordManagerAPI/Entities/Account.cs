@@ -7,9 +7,10 @@ namespace PasswordManagerAPI.Entities
     public class Account
     {
         public Account() { }
-        public Account(string login, string password, string? description)
+        public Account(string login, string serviceName, string password, string? description)
         {
             Login = login;
+            ServiceName = serviceName;
             EncryptedPassword = password;
             Description = description;
         }

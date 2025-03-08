@@ -16,34 +16,40 @@ namespace PasswordManagerAPI.Services
             _rsaEncryption = rsaEncryption;
         }
 
-        public async Task<Account> AddAccountAsync(int userID, string login, string serviceName, string password, string? description)
+        public Account AddAccount(int userId, string login, string serviceName, string password, string? description)
         {
-            var user = await _context.Users.FindAsync(userID);
-
-            var account = await _context.Accounts.FirstOrDefaultAsync(a => a.UserID == userID && a.Login == login && a.ServiceName == serviceName);
-
+            // Проверка пользователя (синхронно)
+            var user = _context.Users
+                .AsNoTracking()
+                .FirstOrDefault(u => u.Id == userId);
             if (user == null)
-                throw new ArgumentNullException("User with this userID not exist");
+                throw new ArgumentException("User with this userId not found, братишка! 😭");
+                
+            // Проверка на дубликат аккаунта (синхронно)
+            var existingAccount = _context.Accounts
+                .AsNoTracking()
+                .FirstOrDefault(a => a.UserID == userId && a.Login == login && a.ServiceName == serviceName);
+            if (existingAccount != null)
+                throw new ArgumentException("Account with these parameters already exists, чел! 🤔");
 
-            if(account != null)
-                throw new ArgumentException("Account with these parameters already exists");
-
+            // Шифруем пароль
             var encryptedPassword = _rsaEncryption.EncryptText(password);
 
-            account = new Account
+            // Создаём новый аккаунт
+            var account = new Account
             {
-                UserID = userID,
+                UserID = userId,
                 Login = login,
                 EncryptedPassword = encryptedPassword,
                 ServiceName = serviceName,
                 Description = description,
                 Salt = GenerateSalt(),
-                CreationDate = DateTime.Now
+                CreationDate = DateTime.UtcNow
             };
 
+            // Добавляем и сохраняем (синхронно)
             _context.Accounts.Add(account);
-
-            await _context.SaveChangesAsync();
+            _context.SaveChanges();
 
             return account;
         }
@@ -76,16 +82,16 @@ namespace PasswordManagerAPI.Services
             return account;
         }
 
-        public async Task<List<Account>> GetUserPasswordsAsync(int userId)
+        public async Task<List<Account>> GetUserAccountsAsync(int userId)
         {
-            var passwords = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
+            var accounts = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
 
-            foreach(var account in passwords)
+            foreach(var account in accounts)
             {
                 account.EncryptedPassword = _rsaEncryption.DecryptText(account.EncryptedPassword);
             }
 
-            return passwords;
+            return accounts;
         }
 
         public async Task UpdateAccountAsync(int userId, int accountId, string? newServiceName, string newPassword)
@@ -111,6 +117,8 @@ namespace PasswordManagerAPI.Services
             _context.Accounts.Update(account);
 
             await _context.SaveChangesAsync();
+
+
         }
 
         private string GenerateSalt()
