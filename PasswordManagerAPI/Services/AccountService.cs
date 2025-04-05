@@ -3,12 +3,13 @@ using RSAEncryptions;
 using PasswordManagerAPI.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using System.Numerics;
 namespace PasswordManagerAPI.Services
 {
     public class AccountService : IAccountService
     {
         private readonly AppDbContext _context;
-        private readonly RSAEncryption _rsaEncryption;
+        private RSAEncryption _rsaEncryption;
 
         public AccountService(AppDbContext context, RSAEncryption rsaEncryption)
         {
@@ -16,26 +17,21 @@ namespace PasswordManagerAPI.Services
             _rsaEncryption = rsaEncryption;
         }
 
-        public Account AddAccount(int userId, string login, string serviceName, string password, string? description)
+        public Account AddAccount(int userId, string login, string serviceName, string password, string? description, string masterPassword)
         {
-            // Проверка пользователя (синхронно)
-            var user = _context.Users
-                .AsNoTracking()
-                .FirstOrDefault(u => u.Id == userId);
+            var user = _context.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId);
             if (user == null)
-                throw new ArgumentException("User with this userId not found, братишка! 😭");
+                throw new ArgumentException("User with this userId not found");
                 
-            // Проверка на дубликат аккаунта (синхронно)
-            var existingAccount = _context.Accounts
-                .AsNoTracking()
-                .FirstOrDefault(a => a.UserID == userId && a.Login == login && a.ServiceName == serviceName);
+            var existingAccount = _context.Accounts.AsNoTracking().FirstOrDefault(a => a.UserID == userId && a.Login == login && a.ServiceName == serviceName);
             if (existingAccount != null)
-                throw new ArgumentException("Account with these parameters already exists, чел! 🤔");
+                throw new ArgumentException("Account with these parameters already exists");
 
-            // Шифруем пароль
+            var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
+            _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
+
             var encryptedPassword = _rsaEncryption.EncryptText(password);
 
-            // Создаём новый аккаунт
             var account = new Account
             {
                 UserID = userId,
@@ -66,11 +62,6 @@ namespace PasswordManagerAPI.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<Account>> GetAccountsAsync(int userID)
-        {
-            return await _context.Accounts.Where(u => u.UserID == userID).ToListAsync();
-        }
-
         public async Task<Account> GetAccountByIdAsync(int userId, int accountId)
         {
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
@@ -82,11 +73,20 @@ namespace PasswordManagerAPI.Services
             return account;
         }
 
-        public async Task<List<Account>> GetUserAccountsAsync(int userId)
+        public async Task<List<Account>> GetUserAccountsAsync(int userId, string masterPassword)
         {
             var accounts = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
-            foreach(var account in accounts)
+            if(accounts == null)
+                throw new ArgumentNullException("Account with this ID not found");
+            if(user == null)
+                throw new ArgumentNullException("User with this ID not found");
+
+            var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
+            _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
+
+            foreach (var account in accounts)
             {
                 account.EncryptedPassword = _rsaEncryption.DecryptText(account.EncryptedPassword);
             }

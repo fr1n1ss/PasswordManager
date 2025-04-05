@@ -3,6 +3,7 @@ using Microsoft.IdentityModel.Tokens;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
+using RSAEncryptions;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -42,6 +43,7 @@ namespace PasswordManagerAPI.Controllers
         {
             var user = _context.Users.FirstOrDefault(u => u.Username == model.Username);
 
+
             if (user != null)
                 return BadRequest("User already exists.");
 
@@ -53,8 +55,15 @@ namespace PasswordManagerAPI.Controllers
             
             if(model.Email == null || model.Email == string.Empty)
                 return BadRequest("No email was entered");
+            if (model.MasterPassword == null || model.MasterPassword == string.Empty)
+                return BadRequest("No master password was entered");
+
+            var rsa = new RSAEncryption();
 
             var salt = GenerateSalt();
+
+            string encryptedPrivateKey = RsaKeyManager.EncryptPrivateKey(rsa.PrivateKey, model.MasterPassword, salt);
+
 
             user = new User
             {
@@ -62,7 +71,9 @@ namespace PasswordManagerAPI.Controllers
                 Email = model.Email,
                 Salt = salt,
                 PasswordHash = HashPassword(model.Password, salt),
-
+                EncryptedPrivateKey = encryptedPrivateKey,
+                PublicKey = rsa.PublicKey.ToString(),
+                Modulus = rsa.Modulus.ToString()
             };
 
             _context.Users.Add(user);
