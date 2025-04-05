@@ -32,7 +32,7 @@ namespace PasswordManagerAPI.Controllers
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-                var newAccount = _accountService.AddAccount(userId, account.Login, account.ServiceName, account.Password, account.Description);
+                var newAccount = _accountService.AddAccount(userId, account.Login, account.ServiceName, account.Password, account.Description, account.MasterPassword);
 
                 return Ok(newAccount);
             }
@@ -69,14 +69,14 @@ namespace PasswordManagerAPI.Controllers
         #region GET
         [HttpGet("GetAccounts")]
 
-        public async Task<IActionResult> GetAccountsAsync()
+        public async Task<IActionResult> GetAccountsAsync(string masterPassword)
         {
             try
             {
 
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var accounts = await _accountService.GetUserAccountsAsync(userId);
+                var accounts = await _accountService.GetUserAccountsAsync(userId, masterPassword);
 
                 return Ok(accounts);
             }
@@ -123,6 +123,8 @@ namespace PasswordManagerAPI.Controllers
             }
         }
         #endregion
+
+
 
     }
 }

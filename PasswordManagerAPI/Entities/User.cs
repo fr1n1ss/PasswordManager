@@ -30,5 +30,11 @@ namespace PasswordManagerAPI.Entities
         public string PasswordHash { get; set; }
         [Required]
         public string Salt { get; set; }
+        [Required]
+        public string EncryptedPrivateKey { get; set; }
+        [Required]
+        public string PublicKey { get; set; }
+        [Required]
+        public string Modulus { get; set; }
     }
 }

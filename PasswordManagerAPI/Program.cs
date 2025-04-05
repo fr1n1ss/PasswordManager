@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PasswordManagerAPI.Services;
 using RSAEncryptions;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Text;
 
 namespace PasswordManagerAPI
@@ -43,6 +44,12 @@ namespace PasswordManagerAPI
                     policy => policy.AllowAnyOrigin()
                                     .AllowAnyMethod()
                                     .AllowAnyHeader());
+                options.AddPolicy("AllowTauri", builder =>
+                {
+                    builder.WithOrigins("http://localhost:3000")
+                           .AllowAnyMethod()
+                           .AllowAnyHeader();
+                });
             });
 
             builder.Services.AddControllers();
@@ -82,6 +89,7 @@ namespace PasswordManagerAPI
                 });
             });
 
+
             var app = builder.Build();
 
             if (app.Environment.IsDevelopment())
@@ -91,6 +99,8 @@ namespace PasswordManagerAPI
             }
 
             app.UseCors("AllowAll");
+
+            app.UseCors("AllowTauri");
 
             app.UseHttpsRedirection();
 
