@@ -1,15 +1,16 @@
 <script lang="ts">
     import { navigate } from 'svelte-routing';
-    import { register } from '../services/api.ts';
+    import { register } from '../services/api';
   
     let username = '';
     let password = '';
     let email = '';
+    let masterPassword = '';
     let message = '';
   
     async function handleSubmit() {
       try {
-        const response = await register(username, password, email);
+        const response = await register(username, password, email, masterPassword);
         message = response;
         setTimeout(() => navigate('/login'), 2000);
       } catch (err: any) {
@@ -35,6 +36,10 @@
       <div class="form-group">
         <label for="password">Пароль:</label>
         <input id="password" type="password" bind:value={password} required />
+      </div>
+      <div class="form-group">
+        <label for="masterPassword">Мастер-пароль:</label>
+        <input id="masterPassword" type="password" bind:value={masterPassword} required />
       </div>
       <button type="submit">Зарегистрироваться</button>
     </form>
