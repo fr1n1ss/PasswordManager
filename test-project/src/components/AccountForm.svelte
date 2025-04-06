@@ -8,13 +8,15 @@
   let login = '';
   let password = '';
   let description = '';
+  let masterPassword = '';
 
   function handleSubmit() {
-    dispatch('submit', { serviceName, login, password, description });
+    dispatch('submit', { serviceName, login, password, description, masterPassword });
     serviceName = '';
     login = '';
     password = '';
     description = '';
+    masterPassword = '';
   }
 </script>
 
@@ -36,6 +38,10 @@
     <div class="form-group">
       <label for="description">Описание:</label>
       <input id="description" type="text" bind:value={description} />
+    </div>
+    <div class="form-group">
+      <label for="masterPassword">Мастер-пароль:</label>
+      <input id="masterPassword" type="password" bind:value={masterPassword} />
     </div>
     <button type="submit">Добавить</button>
   </form>

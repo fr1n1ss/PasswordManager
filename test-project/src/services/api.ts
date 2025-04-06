@@ -24,21 +24,21 @@ export const login = async (username: string, password: string) => {
   return token;
 };
 
-export const register = async (username: string, password: string, email: string) => {
-  const response = await api.post('/auth/register', { username, password, email });
+export const register = async (username: string, password: string, email: string, masterPassword: string) => {
+  const response = await api.post('/auth/register', { username, password, email, masterPassword });
   return response.data;
 };
 
-export const getAccounts = async () => {
-  const response = await api.get('/accounts/GetAccounts');
+export const getAccounts = async (masterPassword: string) => {
+  const response = await api.get('/accounts/GetAccounts', {params: {masterPassword}});
   return response.data;
 };
 
-export const addAccount = async (account: { serviceName: string; login: string; password: string; description?: string }) => {
+export const addAccount = async (account: { serviceName: string; login: string; password: string; description?: string, masterPassword: string }) => {
   const response = await api.post('/accounts/AddAccount', account);
   return response.data;
 };
 
-export const deleteAccount = async (accountId: number) => {
+export const deleteAccount = async (accountId: number, masterPassword: string) => {
   await api.delete(`/accounts/DeleteAccount?accountId=${accountId}`);
 };

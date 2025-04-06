@@ -54,7 +54,7 @@
     text-align: left;
   }
   th {
-    background-color: #f0f0f0;
+    background-color: rgba(0, 0, 0, 0.5);
   }
   button {
     background-color: #ff3e00;

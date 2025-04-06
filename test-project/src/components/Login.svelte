@@ -30,7 +30,7 @@
         <label for="password">Пароль:</label>
         <input id="password" type="password" bind:value={password} required />
       </div>
-      <button type="submit">Войти</button>
+      <button type="submit"><a href=""></a>Войти</button>
     </form>
     <p>Нет аккаунта? <a href="/register">Зарегистрируйся</a></p>
   </div>
