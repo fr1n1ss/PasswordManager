@@ -44,7 +44,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("UpdateAccountAsync")]
-        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newServiceName, string newPassword)
+        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newLogin,string? newServiceName, string? newPassword, string masterPassword)
         {
             if (string.IsNullOrEmpty(newPassword))
                 return BadRequest("Not all required fields are filled in");
@@ -53,7 +53,7 @@ namespace PasswordManagerAPI.Controllers
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _accountService.UpdateAccountAsync(userId, accountId, newServiceName, newPassword);
+                await _accountService.UpdateAccountAsync(userId, accountId, newLogin, newServiceName, newPassword, masterPassword);
 
                 return Ok();
             }
@@ -87,13 +87,13 @@ namespace PasswordManagerAPI.Controllers
 
         }
         [HttpGet("GetAccountById")]
-        public async Task<IActionResult> GetAccountByIdAsync(int accountId)
+        public async Task<IActionResult> GetAccountByIdAsync(int accountId, string masterPassword)
         {
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var account = await _accountService.GetAccountByIdAsync(userId, accountId);
+                var account = await _accountService.GetAccountByIdAsync(userId, accountId, masterPassword);
 
                 return Ok(account);
             }

@@ -27,8 +27,7 @@ namespace PasswordManagerAPI.Services
             if (existingAccount != null)
                 throw new ArgumentException("Account with these parameters already exists");
 
-            var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
-            _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
+            UpdateRSA(user, masterPassword);
 
             var encryptedPassword = _rsaEncryption.EncryptText(password);
 
@@ -43,7 +42,6 @@ namespace PasswordManagerAPI.Services
                 CreationDate = DateTime.UtcNow
             };
 
-            // Добавляем и сохраняем (синхронно)
             _context.Accounts.Add(account);
             _context.SaveChanges();
 
@@ -62,11 +60,19 @@ namespace PasswordManagerAPI.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<Account> GetAccountByIdAsync(int userId, int accountId)
+        public async Task<Account> GetAccountByIdAsync(int userId, int accountId, string masterPassword)
         {
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
             if (account == null)
                 throw new ArgumentNullException("Account with this ID not found");
+
+            if(user == null)
+                throw new ArgumentNullException("User with this ID not found");
+
+            UpdateRSA(user, masterPassword);
 
             account.EncryptedPassword = _rsaEncryption.DecryptText(account.EncryptedPassword);
 
@@ -83,8 +89,7 @@ namespace PasswordManagerAPI.Services
             if(user == null)
                 throw new ArgumentNullException("User with this ID not found");
 
-            var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
-            _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
+            UpdateRSA(user, masterPassword);
 
             foreach (var account in accounts)
             {
@@ -94,12 +99,23 @@ namespace PasswordManagerAPI.Services
             return accounts;
         }
 
-        public async Task UpdateAccountAsync(int userId, int accountId, string? newServiceName, string newPassword)
+        public async Task UpdateAccountAsync(int userId, int accountId, string? newLogin, string? newServiceName, string? newPassword, string masterPassword)
         {
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
 
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
             if (account == null)
                 throw new ArgumentNullException("Account with this ID not found");
+            if (user == null)
+                throw new ArgumentNullException("User with this ID not found");
+
+            UpdateRSA(user, masterPassword);
+
+            if (!string.IsNullOrEmpty(newLogin))
+            {
+                account.Login = newLogin;
+            }
 
             if (!string.IsNullOrEmpty(newPassword))
             {
@@ -111,14 +127,12 @@ namespace PasswordManagerAPI.Services
                 account.ServiceName = newServiceName;
             }
 
-            if(!string.IsNullOrEmpty(newPassword) || !string.IsNullOrEmpty(newServiceName))
+            if(!string.IsNullOrEmpty(newPassword) || !string.IsNullOrEmpty(newServiceName) || !string.IsNullOrEmpty(newLogin))
                 account.CreationDate = DateTime.Now;
 
             _context.Accounts.Update(account);
 
             await _context.SaveChangesAsync();
-
-
         }
 
         private string GenerateSalt()
@@ -129,6 +143,11 @@ namespace PasswordManagerAPI.Services
                 rng.GetBytes(saltBytes);
             }
             return Convert.ToBase64String(saltBytes);
+        }
+        private void UpdateRSA(User user, string masterPassword)
+        {
+            var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
+            _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
         }
     }
 }

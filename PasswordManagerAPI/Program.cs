@@ -20,6 +20,8 @@ namespace PasswordManagerAPI
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlServer(connectionString));
 
+            builder.WebHost.UseUrls("http://0.0.0.0:5163");
+
             //Настройка JWT-аутентификации
             var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "default_key");
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
