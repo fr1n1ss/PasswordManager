@@ -34,10 +34,15 @@ export const getAccounts = async (masterPassword: string) => {
   return response.data;
 };
 
-export const addAccount = async (account: { serviceName: string; login: string; password: string; description?: string, masterPassword: string }) => {
+export const addAccount = async (account: { serviceName: string, login: string, password: string, description?: string, masterPassword: string }) => {
   const response = await api.post('/accounts/AddAccount', account);
   return response.data;
 };
+
+export const updateAccount = async(newAccount:{serviceName?: string, login?: string, password?: string, description?: string, masterPassword: string}) => {
+  const response = await api.post('/accounts/UpdateAccount', newAccount);
+  return response.data
+}
 
 export const deleteAccount = async (accountId: number, masterPassword: string) => {
   await api.delete(`/accounts/DeleteAccount?accountId=${accountId}`);

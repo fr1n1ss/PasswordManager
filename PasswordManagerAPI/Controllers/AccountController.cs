@@ -30,7 +30,7 @@ namespace PasswordManagerAPI.Controllers
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-                var newAccount = _accountService.AddAccount(userId, account.Login, account.ServiceName, account.Password, account.Description, account.MasterPassword);
+                var newAccount = _accountService.AddAccount(userId, account.Login, account.ServiceName, account.Password, account.URL, account.Description, account.MasterPassword);
 
                 return Ok(newAccount);
             }
@@ -44,7 +44,7 @@ namespace PasswordManagerAPI.Controllers
 
         #region PUT
         [HttpPut("UpdateAccount")]
-        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newLogin, string? newServiceName, string? newPassword, string masterPassword)
+        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newLogin, string? newServiceName, string? newPassword, string? newUrl, string? newDescription, string masterPassword)
         {
             if (string.IsNullOrEmpty(masterPassword))
                 return BadRequest("Not all required fields are filled in");
@@ -53,7 +53,7 @@ namespace PasswordManagerAPI.Controllers
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _accountService.UpdateAccountAsync(userId, accountId, newLogin, newServiceName, newPassword, masterPassword);
+                await _accountService.UpdateAccountAsync(userId, accountId, newLogin, newServiceName, newPassword, newUrl, newDescription, masterPassword);
 
                 return Ok();
             }
