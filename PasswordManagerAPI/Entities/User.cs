@@ -21,7 +21,7 @@ namespace PasswordManagerAPI.Entities
         }
 
         public int Id { get; set; }
-        [Required] //Запрет на пустые значения
+        [Required] 
         [MaxLength(25)]
         public string Username { get; set; }
         [Required]

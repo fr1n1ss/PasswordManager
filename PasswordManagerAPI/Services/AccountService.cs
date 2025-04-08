@@ -4,6 +4,7 @@ using PasswordManagerAPI.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Numerics;
+using Microsoft.AspNetCore.Http.HttpResults;
 namespace PasswordManagerAPI.Services
 {
     public class AccountService : IAccountService
@@ -17,7 +18,7 @@ namespace PasswordManagerAPI.Services
             _rsaEncryption = rsaEncryption;
         }
 
-        public Account AddAccount(int userId, string login, string serviceName, string password, string? description, string masterPassword)
+        public Account AddAccount(int userId, string login, string serviceName, string password, string url, string? description, string masterPassword)
         {
             var user = _context.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId);
             if (user == null)
@@ -26,6 +27,9 @@ namespace PasswordManagerAPI.Services
             var existingAccount = _context.Accounts.AsNoTracking().FirstOrDefault(a => a.UserID == userId && a.Login == login && a.ServiceName == serviceName);
             if (existingAccount != null)
                 throw new ArgumentException("Account with these parameters already exists");
+
+            if (!ValidURL(url))
+                throw new ArgumentException("URL is invalid");
 
             UpdateRSA(user, masterPassword);
 
@@ -38,7 +42,7 @@ namespace PasswordManagerAPI.Services
                 EncryptedPassword = encryptedPassword,
                 ServiceName = serviceName,
                 Description = description,
-                Salt = GenerateSalt(),
+                URL = url,
                 CreationDate = DateTime.UtcNow
             };
 
@@ -99,8 +103,10 @@ namespace PasswordManagerAPI.Services
             return accounts;
         }
 
-        public async Task UpdateAccountAsync(int userId, int accountId, string? newLogin, string? newServiceName, string? newPassword, string masterPassword)
+        public async Task UpdateAccountAsync(int userId, int accountId, string? newLogin, string? newServiceName, string? newPassword, string? newUrl, string? newDescription, string masterPassword)
         {
+            var wasChanged = false;
+
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -108,46 +114,57 @@ namespace PasswordManagerAPI.Services
             if (account == null)
                 throw new ArgumentNullException("Account with this ID not found");
             if (user == null)
-                throw new ArgumentNullException("User with this ID not found");
+                throw new ArgumentNullException("User with this ID not found");        
 
             UpdateRSA(user, masterPassword);
 
             if (!string.IsNullOrEmpty(newLogin))
             {
                 account.Login = newLogin;
+                wasChanged = true;
             }
 
             if (!string.IsNullOrEmpty(newPassword))
             {
                 account.EncryptedPassword = _rsaEncryption.EncryptText(newPassword);
+                wasChanged = true;
             }
 
             if (!string.IsNullOrEmpty(newServiceName))
             {
                 account.ServiceName = newServiceName;
+                wasChanged = true;
             }
 
-            if(!string.IsNullOrEmpty(newPassword) || !string.IsNullOrEmpty(newServiceName) || !string.IsNullOrEmpty(newLogin))
+            if (!string.IsNullOrEmpty(newDescription))
+            {
+                account.Description = newDescription;
+                wasChanged = true;
+            }
+
+            if(!string.IsNullOrEmpty(newUrl) && ValidURL(newUrl))
+            {
+                account.URL = newUrl;
+                wasChanged = true;
+            }
+
+            if(wasChanged)
                 account.CreationDate = DateTime.Now;
 
             _context.Accounts.Update(account);
 
             await _context.SaveChangesAsync();
-        }
 
-        private string GenerateSalt()
-        {
-            byte[] saltBytes = new byte[16];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(saltBytes);
-            }
-            return Convert.ToBase64String(saltBytes);
         }
         private void UpdateRSA(User user, string masterPassword)
         {
             var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
             _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
+        }
+        private bool ValidURL(string url)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out Uri? uriResult)
+                   && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps);
         }
     }
 }
