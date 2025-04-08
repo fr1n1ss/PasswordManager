@@ -1,6 +1,5 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace RSAEncryptions
@@ -11,7 +10,7 @@ namespace RSAEncryptions
         public BigInteger PrivateKey { get; private set; }
         public BigInteger Modulus { get; private set; }
 
-        private static readonly char[] CustomAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@".ToCharArray(); // 64 символа
+        private static readonly char[] CustomAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@".ToCharArray();
 
         public RSAEncryption()
         {
@@ -20,31 +19,14 @@ namespace RSAEncryptions
 
         private void GenerateKeys()
         {
-            BigInteger p = GenerateLargePrime();
-            BigInteger q = GenerateLargePrime();
+            BigInteger p = GenerateLargePrime(512);
+            BigInteger q = GenerateLargePrime(512);
+
             Modulus = p * q;
             BigInteger phi = (p - 1) * (q - 1);
 
-            PublicKey = 65537; // Стандартное значение e
+            PublicKey = 65537;
             PrivateKey = ModInverse(PublicKey, phi);
-        }
-
-        private BigInteger GenerateLargePrime()
-        {
-            Random random = new();
-            while (true)
-            {
-                BigInteger num = random.Next(1000, 5000);
-                if (IsPrime(num)) return num;
-            }
-        }
-
-        private bool IsPrime(BigInteger n)
-        {
-            if (n < 2) return false;
-            for (BigInteger i = 2; i * i <= n; i++)
-                if (n % i == 0) return false;
-            return true;
         }
 
         private BigInteger ModInverse(BigInteger a, BigInteger m)
@@ -216,6 +198,91 @@ namespace RSAEncryptions
             PublicKey = publicKey;
             PrivateKey = privateKey;
             Modulus = modulus;
+        }
+        private BigInteger GenerateLargePrime(int bitLength = 512)
+        {
+            BigInteger number;
+
+            do
+            {
+                number = GenerateRandomOddBigInteger(bitLength);
+            } while (!IsProbablyPrime(number, 20));
+
+            return number;
+        }
+
+        private BigInteger GenerateRandomOddBigInteger(int bitLength)
+        {
+            int byteLength = (bitLength + 7) / 8;
+            byte[] bytes = new byte[byteLength];
+
+            RandomNumberGenerator.Fill(bytes);
+
+            // Устанавливаем старший бит, чтобы число было заданной длины
+            bytes[bytes.Length - 1] |= (byte)(1 << ((bitLength - 1) % 8));
+            // Делаем число нечётным
+            bytes[0] |= 0x01;
+
+            return new BigInteger(bytes, isUnsigned: true, isBigEndian: true);
+        }
+
+        private bool IsProbablyPrime(BigInteger n, int k)
+        {
+            if (n <= 1) return false;
+            if (n == 2 || n == 3) return true;
+            if (n % 2 == 0) return false;
+
+            BigInteger d = n - 1;
+            int r = 0;
+            while (d % 2 == 0)
+            {
+                d /= 2;
+                r++;
+            }
+
+            for (int i = 0; i < k; i++)
+            {
+                BigInteger a = RandomBigInteger(2, n - 2);
+                BigInteger x = BigInteger.ModPow(a, d, n);
+                if (x == 1 || x == n - 1)
+                    continue;
+
+                bool continueOuter = false;
+                for (int j = 0; j < r - 1; j++)
+                {
+                    x = BigInteger.ModPow(x, 2, n);
+                    if (x == n - 1)
+                    {
+                        continueOuter = true;
+                        break;
+                    }
+                }
+
+                if (continueOuter)
+                    continue;
+
+                return false;
+            }
+
+            return true;
+        }
+
+        private BigInteger RandomBigInteger(BigInteger min, BigInteger max)
+        {
+            if (min >= max)
+                throw new ArgumentException("min must be less than max");
+
+            BigInteger result;
+            int byteLength = max.ToByteArray().Length;
+            byte[] bytes = new byte[byteLength];
+
+            do
+            {
+                RandomNumberGenerator.Fill(bytes);
+                result = new BigInteger(bytes, isUnsigned: true, isBigEndian: true);
+            } while (result < min || result >= max);
+
+            return result;
         }
     }
 }
