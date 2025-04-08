@@ -19,8 +19,8 @@ namespace PasswordManagerAPI.Entities
         public string ServiceName { get; set; }
         public string Login {  get; set; }
         public string EncryptedPassword { get; set; }
+        public string URL { get; set; }
         public string? Description { get; set; }
-        public string Salt { get; set; }
         public DateTime CreationDate { get; set; }
 
     }

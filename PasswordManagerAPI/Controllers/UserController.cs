@@ -23,14 +23,21 @@ namespace PasswordManagerAPI.Controllers
             _context = context;
         }
 
-        // GET: api/user
+        [HttpPost("CreateUser")]
+        public async Task<ActionResult<User>> CreateUser(User user)
+        {
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetUserFromID), new { id = user.Id }, user);
+        }
+
         [HttpGet("GetAllUsers")]
         public async Task<ActionResult<IEnumerable<User>>> GetAllUsers()
         {
             return await _context.Users.ToListAsync();
         }
 
-        // GET: api/user/5
         [HttpGet("GetUserFromID/{id}")]
         public async Task<ActionResult<User>> GetUserFromID(int id)
         {
@@ -44,17 +51,6 @@ namespace PasswordManagerAPI.Controllers
             return user;
         }
 
-        // POST: api/user
-        [HttpPost("CreateUser")]
-        public async Task<ActionResult<User>> CreateUser(User user)
-        {
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetUserFromID), new { id = user.Id }, user);
-        }
-
-        // PUT: api/user/5
         [HttpPut("UpdateUser/{id}")]
         public async Task<IActionResult> UpdateUser(int id, User user)
         {
@@ -84,7 +80,6 @@ namespace PasswordManagerAPI.Controllers
             return NoContent();
         }
 
-        // DELETE: api/user/5
         [HttpDelete("DeleteUser/{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {

@@ -11,19 +11,17 @@ namespace PasswordManagerAPI.Controllers
     [ApiController]
     public class AccountController : ControllerBase
     {
-        private readonly AppDbContext _context;
         private readonly IConfiguration _config;
         private readonly IAccountService _accountService;
-        public AccountController(AppDbContext context, IConfiguration config, IAccountService accountService)
+        public AccountController(IConfiguration config, IAccountService accountService)
         {
-            _context = context;
             _config = config;
             _accountService = accountService;
         }
 
         #region POST
         [HttpPost("AddAccount")]
-        public IActionResult AddAccountAsync([FromBody] AccountModel account)
+        public IActionResult AddAccount([FromBody] AccountModel account)
         {
 
             if (string.IsNullOrEmpty(account.Login) || string.IsNullOrEmpty(account.ServiceName) || string.IsNullOrEmpty(account.Password))
@@ -42,11 +40,13 @@ namespace PasswordManagerAPI.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        #endregion
 
-        [HttpPost("UpdateAccountAsync")]
-        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newLogin,string? newServiceName, string? newPassword, string masterPassword)
+        #region PUT
+        [HttpPut("UpdateAccount")]
+        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newLogin, string? newServiceName, string? newPassword, string masterPassword)
         {
-            if (string.IsNullOrEmpty(newPassword))
+            if (string.IsNullOrEmpty(masterPassword))
                 return BadRequest("Not all required fields are filled in");
 
             try
