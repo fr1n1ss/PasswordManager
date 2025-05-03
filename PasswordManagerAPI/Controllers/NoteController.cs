@@ -7,32 +7,32 @@ using PasswordManagerAPI.Services;
 namespace PasswordManagerAPI.Controllers
 {
     [Authorize]
-    [Route("api/accounts")]
+    [Route("api/notes")]
     [ApiController]
-    public class AccountController : ControllerBase
+    public class NoteController : ControllerBase
     {
         private readonly IConfiguration _config;
-        private readonly IAccountService _accountService;
-        public AccountController(IConfiguration config, IAccountService accountService)
+        private readonly INoteService _noteService;
+        public NoteController(IConfiguration config, INoteService noteService)
         {
             _config = config;
-            _accountService = accountService;
+            _noteService = noteService;
         }
 
         #region POST
-        [HttpPost("AddAccount")]
-        public IActionResult AddAccount([FromBody] AccountModel account)
+        [HttpPost("AddNote")]
+        public IActionResult AddNote([FromBody] NoteModel note)
         {
 
-            if (string.IsNullOrEmpty(account.Login) || string.IsNullOrEmpty(account.ServiceName) || string.IsNullOrEmpty(account.Password))
+            if (string.IsNullOrEmpty(note.Title) || string.IsNullOrEmpty(note.Content))
                 return BadRequest("Not all required fields are filled in");
 
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-                var newAccount = _accountService.AddAccount(userId, account.Login, account.ServiceName, account.Password, account.URL, account.Description, account.MasterPassword);
+                var newNote = _noteService.AddNote(userId, note.Title, note.Content, note.MasterPassword);
 
-                return Ok(newAccount);
+                return Ok(newNote);
             }
 
             catch (Exception ex)
@@ -43,8 +43,8 @@ namespace PasswordManagerAPI.Controllers
         #endregion
 
         #region PUT
-        [HttpPut("UpdateAccount")]
-        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newLogin, string? newServiceName, string? newPassword, string? newUrl, string? newDescription, string masterPassword)
+        [HttpPut("UpdateNoteAsync")]
+        public async Task<IActionResult> UpdateNodeAsync(int noteId, string? newTitle, string? newContent, string masterPassword)
         {
             if (string.IsNullOrEmpty(masterPassword))
                 return BadRequest("Not all required fields are filled in");
@@ -53,7 +53,7 @@ namespace PasswordManagerAPI.Controllers
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _accountService.UpdateAccountAsync(userId, accountId, newLogin, newServiceName, newPassword, newUrl, newDescription, masterPassword);
+                await _noteService.UpdateNoteAsync(userId, noteId, newTitle, newContent, masterPassword);
 
                 return Ok();
             }
@@ -67,37 +67,37 @@ namespace PasswordManagerAPI.Controllers
         #endregion
 
         #region GET
-        [HttpGet("GetAccounts")]
+        [HttpGet("GetNotesAsync")]
 
-        public async Task<IActionResult> GetAccountsAsync(string masterPassword)
+        public async Task<IActionResult> GetNotesAsync(string masterPassword)
         {
             try
             {
 
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var accounts = await _accountService.GetUserAccountsAsync(userId, masterPassword);
+                var notes = await _noteService.GetUserNotesAsync(userId, masterPassword);
 
-                return Ok(accounts);
+                return Ok(notes);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 return BadRequest(e.Message);
             }
 
         }
-        [HttpGet("GetAccountById")]
-        public async Task<IActionResult> GetAccountByIdAsync(int accountId, string masterPassword)
+        [HttpGet("GetNoteByIdAsync")]
+        public async Task<IActionResult> GetNoteByIdAsync(int noteId, string masterPassword)
         {
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var account = await _accountService.GetAccountByIdAsync(userId, accountId, masterPassword);
+                var note = await _noteService.GetNoteByIdAsync(userId, noteId, masterPassword);
 
-                return Ok(account);
+                return Ok(note);
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 return BadRequest(e.Message);
             }
@@ -106,22 +106,25 @@ namespace PasswordManagerAPI.Controllers
         #endregion
 
         #region DELETE
-        [HttpDelete("DeleteAccount")]
-        public async Task<IActionResult> DeleteAccountAsync(int accountId)
+        [HttpDelete("DeleteNoteAsync")]
+        public async Task<IActionResult> DeleteNoteAsync(int noteId)
         {
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _accountService.DeleteAccountAsync(userId, accountId);
+                await _noteService.DeleteNoteAsync(userId, noteId);
 
                 return Ok();
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 return BadRequest(e.Message);
             }
         }
         #endregion
+
+
+
     }
 }
