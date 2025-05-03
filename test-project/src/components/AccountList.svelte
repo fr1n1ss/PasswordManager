@@ -10,61 +10,93 @@
   }
 </script>
 
-<div>
-  <h2>Список аккаунтов</h2>
-  {#if accounts.length === 0}
-    <p>Нет аккаунтов. <a href="/add-account">Добавь первый!</a></p>
-  {:else}
-    <table>
-      <thead>
-        <tr>
-          <th>Сервис</th>
-          <th>Логин</th>
-          <th>Пароль</th>
-          <th>Описание</th>
-          <th>Действия</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each accounts as account}
-          <tr>
-            <td>{account.serviceName}</td>
-            <td>{account.login}</td>
-            <td>{account.password}</td>
-            <td>{account.description || '-'}</td>
-            <td>
-              <button on:click={() => handleDelete(account.id)}>Удалить</button>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  {/if}
+<div class="account-list-container">
+  <div class="account-list">
+    {#if accounts.length === 0}
+      <p>Нет аккаунтов. <a href="/add-account">Добавь первый!</a></p>
+    {:else}
+      {#each accounts as account}
+        <div class="card">
+          <h3>{account.serviceName}</h3>
+          <p>{account.login}</p>
+          <button on:click={() => handleDelete(account.id)}>Удалить</button>
+        </div>
+      {/each}
+    {/if}
+  </div>
 </div>
 
 <style>
-  table {
+  .account-list-container {
+    display: flex;
+    justify-content: center;
     width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
   }
-  th, td {
-    border: 1px solid #ccc;
-    padding: 8px;
-    text-align: left;
+
+  .account-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    padding-bottom: 80px;
+    width: 100%;
+    /* Убрали max-width, чтобы сетка растягивалась на всю ширину */
   }
-  th {
-    background-color: rgba(0, 0, 0, 0.5);
+
+  .card {
+    background-color: var(--background-secondary);
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    color: var(--text-primary);
+    transition: transform 0.2s;
+    box-sizing: border-box;
   }
-  button {
-    background-color: #ff3e00;
-    color: white;
+
+  .card:hover {
+    transform: scale(1.02);
+  }
+
+  .card h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    font-weight: bold;
+  }
+
+  .card p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 15px;
+    word-break: break-all;
+  }
+
+  .card button {
+    background-color: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
     padding: 5px 10px;
-    border: none;
-    border-radius: 4px;
+    border-radius: 5px;
     cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s, color 0.2s;
   }
-  button:hover {
-    background-color: #e03600;
+
+  .card button:hover {
+    background-color: var(--accent);
+    color: #FFFFFF;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  p {
+    color: var(--text-primary);
+    text-align: center;
+    font-size: 16px;
   }
 </style>

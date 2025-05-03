@@ -15,6 +15,8 @@
   let masterPassword = '';
   let error: string | null = null;
   let showMasterPasswordModal = false;
+  let searchQuery = '';
+  let sortOption = 'от А до Я';
 
   onMount(() => {
     if (isAuthenticated) {
@@ -37,7 +39,7 @@
         id: account.id,
         serviceName: account.serviceName,
         login: account.login,
-        password: account.encryptedPassword, 
+        password: account.encryptedPassword,
         description: account.description
       }));
       showMasterPasswordModal = false;
@@ -88,40 +90,99 @@
   function handleLogout() {
     localStorage.removeItem('token');
     isAuthenticated = false;
-    masterPassword = ''; // Сбрасываем мастер-пароль
-    accounts = []; // Очищаем аккаунты
+    masterPassword = '';
+    accounts = [];
     navigate('/login');
   }
 
   function handleMasterPasswordSubmit(event: CustomEvent<string>) {
+    console.log('Master password submitted:', event.detail);
     masterPassword = event.detail;
     loadAccounts();
   }
 
   function handleMasterPasswordCancel() {
     showMasterPasswordModal = false;
-    navigate('/'); // Или перенаправь куда-то ещё
+    navigate('/');
+  }
+
+  function handleSearch() {
+    if (searchQuery) {
+      accounts = accounts.filter(account =>
+        account.serviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        account.login.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    } else {
+      loadAccounts();
+    }
+  }
+
+  function handleSort() {
+    if (sortOption === 'от А до Я') {
+      accounts = [...accounts].sort((a, b) => a.serviceName.localeCompare(b.serviceName));
+    } else {
+      accounts = [...accounts].sort((a, b) => b.serviceName.localeCompare(a.serviceName));
+    }
   }
 </script>
 
 <Router>
-  <div class="container">
+  <div class="app">
     {#if isAuthenticated}
       {#if showMasterPasswordModal}
         <MasterPasswordModal on:submit={handleMasterPasswordSubmit} on:cancel={handleMasterPasswordCancel} />
       {/if}
-      <header>
-        <h1>Password Manager</h1>
-        {#if error}
-          <p style="color: red;">{error}</p>
-        {/if}
+      <!-- Боковая панель -->
+      <aside class="sidebar">
+        <div class="logo">
+          <span class="lock-icon">🔒</span>
+          <h1>Менеджер паролей</h1>
+        </div>
         <nav>
-          <Link to="/">Список аккаунтов</Link>
-          <Link to="/add-account">Добавить аккаунт</Link>
-          <button on:click={handleLogout}>Выйти</button>
+          <ul>
+            <li><Link to="/">Скрыть</Link></li>
+            <li><Link to="/">Все элементы</Link></li>
+            <li><Link to="/">Избранное</Link></li>
+            <li><Link to="/">Пароли</Link></li>
+            <li><Link to="/">Заметки</Link></li>
+          </ul>
         </nav>
-      </header>
-      <main>
+      </aside>
+
+      <!-- Основной контент -->
+      <main class="main-content">
+        <!-- Профиль -->
+        <header class="header">
+          <div class="profile">
+            <span class="avatar">👤</span>
+            <span class="username">username</span>
+            <button class="logout" on:click={handleLogout}>Выйти</button>
+          </div>
+        </header>
+
+        <!-- Поиск и сортировка -->
+        <div class="search-filter">
+          <div class="search">
+            <span class="search-icon">🔍</span>
+            <input type="text" placeholder="Быстрый поиск..." bind:value={searchQuery} on:input={handleSearch} />
+          </div>
+          <div class="sort">
+            <label for="sort-select">Сортировка:</label>
+            <select id="sort-select" bind:value={sortOption} on:change={handleSort}>
+              <option value="от А до Я">от А до Я</option>
+              <option value="от Я до А">от Я до А</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Ошибка -->
+        {#if error}
+          <div class="error-container">
+            <p class="error">{error}</p>
+          </div>
+        {/if}
+
+        <!-- Маршруты -->
         <Route path="/add-account">
           <AccountForm on:submit={handleAddAccount} />
         </Route>
@@ -129,8 +190,13 @@
           <AccountList {accounts} on:delete={handleDeleteAccount} />
         </Route>
       </main>
+
+      <!-- Кнопка добавления -->
+      <button class="add-button" on:click={() => navigate('/add-account')}>
+        +
+      </button>
     {:else}
-      <main>
+      <main class="auth-content">
         <Route path="/login">
           <Login />
         </Route>
@@ -146,42 +212,242 @@
 </Router>
 
 <style>
-  .container {
-    padding: 20px;
-    max-width: 800px;
-    margin: 0 auto;
+  :root {
+    --background-primary: #1F252A;
+    --background-secondary: #2A3B47;
+    --accent: #00A3FF;
+    --text-primary: #D3D7DB;
+    --text-secondary: #A3A3A3;
+    --sidebar-width: 10em;
+    --sidebar-left-offset: 20px;
   }
-  header {
-    text-align: center;
-    margin-bottom: 20px;
+
+  :global(html, body) {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    background-color: var(--background-primary);
+    box-sizing: border-box;
   }
-  nav {
+
+  :global(*, *:before, *:after) {
+    box-sizing: border-box;
+  }
+
+  .app {
     display: flex;
+    height: 100vh;
+    width: 100%;
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+    font-family: 'Arial', sans-serif;
+    min-width: 800px; /* Минимальная ширина окна */
+    min-height: 600px; /* Минимальная высота окна */
+  }
+
+  .sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--background-secondary);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+    position: fixed;
+    left: var(--sidebar-left-offset);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .lock-icon {
+    font-size: 24px;
+  }
+
+  .sidebar h1 {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 0;
+  }
+
+  .sidebar nav ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
     gap: 15px;
+  }
+
+  .sidebar nav ul li {
+    font-size: 16px;
+  }
+
+  .sidebar nav ul li :global(a) {
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+
+  .sidebar nav ul li :global(a:hover) {
+    color: var(--text-primary);
+  }
+
+  .main-content {
+    margin-left: calc(var(--sidebar-width) + var(--sidebar-left-offset) + 20px); /* Учитываем ширину и отступ боковой панели */
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: calc(100% - var(--sidebar-width) - var(--sidebar-left-offset) - 20px); /* Растягиваем на оставшуюся ширину */
+    overflow-y: auto;
+  }
+
+  .header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+    width: 100%;
+  }
+
+  .profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .avatar {
+    font-size: 24px;
+    background-color: var(--background-secondary);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
     justify-content: center;
   }
-  nav a {
-    color: #ff3e00;
-    text-decoration: none;
-    font-weight: bold;
+
+  .username {
+    font-size: 16px;
+    color: var(--text-primary);
   }
-  nav a:hover {
-    text-decoration: underline;
-  }
-  nav button {
-    background-color: #ff3e00;
-    color: white;
-    padding: 5px 10px;
+
+  .logout {
+    background: none;
     border: none;
-    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .logout:hover {
+    color: var(--text-primary);
+  }
+
+  .search-filter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .search {
+    display: flex;
+    align-items: center;
+    background-color: var(--background-secondary);
+    border-radius: 20px;
+    padding: 8px 12px;
+    width: 300px;
+    max-width: 100%;
+    flex: 1;
+  }
+
+  .search-icon {
+    font-size: 16px;
+    margin-right: 10px;
+    color: var(--text-secondary);
+  }
+
+  .search input {
+    border: none;
+    outline: none;
+    font-size: 14px;
+    width: 100%;
+    background-color: transparent;
+    color: var(--text-primary);
+  }
+
+  .search input::placeholder {
+    color: var(--text-secondary);
+  }
+
+  .sort {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sort label {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  .sort select {
+    background-color: var(--background-secondary);
+    color: var(--text-primary);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 14px;
     cursor: pointer;
   }
-  nav button:hover {
-    background-color: #e03600;
+
+  .add-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--accent);
+    color: #FFFFFF;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
   }
-  main {
-    border: 1px solid #ccc;
-    padding: 20px;
-    border-radius: 5px;
+
+  .add-button:hover {
+    background-color: #0088CC;
+  }
+
+  .auth-content {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--background-primary);
+    min-height: 100vh;
+    width: 100%;
+  }
+
+  .error-container {
+    text-align: center;
+    margin-bottom: 20px;
+    width: 100%;
+  }
+
+  .error {
+    color: var(--error);
+    font-size: 14px;
   }
 </style>
