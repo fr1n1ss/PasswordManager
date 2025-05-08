@@ -78,3 +78,99 @@ h2 {
     margin-bottom: 1rem;
     display: none;
 }
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden; /* Запрещаем прокрутку фона */
+}
+
+.modal-content {
+    background-color: #1f2937;
+    padding: 25px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    max-height: 80vh; /* Ограничиваем высоту окна */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    color: white;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content h2 {
+    margin: 0 0 25px;
+    font-size: 22px;
+    font-weight: 600;
+    color: white;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.modal-field {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+}
+
+.modal-label {
+    font-size: 14px;
+    color: #9ca3af;
+    margin-bottom: 6px;
+}
+
+.modal-field span {
+    font-size: 16px;
+    color: white;
+    word-break: break-word;
+    display: block;
+    max-height: 40vh; /* Ограничиваем высоту содержимого */
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.modal-field span#modal-note-content {
+    flex-grow: 1; /* Растягиваем содержимое */
+    max-height: 40vh; /* Ограничиваем высоту */
+    overflow-y: auto;
+}
+
+.modal-close-btn,
+.modal-delete-btn,
+.modal-update-btn {
+    background-color: #3b82f6;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 15px;
+    font-size: 16px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.modal-close-btn:hover,
+.modal-update-btn:hover {
+    background-color: #2563eb;
+}
+
+.modal-delete-btn {
+    background-color: #991b1b;
+}
+
+.modal-delete-btn:hover {
+    background-color: #7f1d1d;
+}

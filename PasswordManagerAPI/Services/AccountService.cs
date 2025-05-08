@@ -2,6 +2,7 @@
 using RSAEncryptions;
 using PasswordManagerAPI.Entities;
 using Microsoft.EntityFrameworkCore;
+using PasswordManagerAPI.Models;
 using System.Security.Cryptography;
 using System.Numerics;
 using Microsoft.AspNetCore.Http.HttpResults;

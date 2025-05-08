@@ -1,4 +1,5 @@
 import { getUserNotes, deleteNote, updateNote } from '../services/api.ts';
+
 interface Note {
     id: number;
     userID: number;
@@ -10,6 +11,14 @@ interface Note {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing notes...');
+
+    // Проверка, загружены ли данные
+    const isDataLoaded = sessionStorage.getItem('isDataLoaded');
+    if (!isDataLoaded) {
+        console.warn('Data not loaded. Redirecting to loading page...');
+        window.location.href = '/pages/loading-page.html';
+        return;
+    }
 
     // Извлечение информации о пользователе
     const username = sessionStorage.getItem('username');
@@ -45,19 +54,23 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Notes retrieved from sessionStorage:', notes);
 
     // Рендеринг заметок
-    notesCards.innerHTML = notes
-        .map((note: Note) => `
-            <div class="card" onclick="openNoteModal(${note.id})">
-                <div class="card-logo">
-                    <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+    if (notes.length === 0) {
+        console.log('No notes to display');
+        notesCards.innerHTML = '';
+    } else {
+        notesCards.innerHTML = notes
+            .map((note: Note) => `
+                <div class="card" onclick="openNoteModal(${note.id})">
+                    <div class="card-logo">
+                        <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                    </div>
+                    <div class="card-details">
+                        <h3>${note.title}</h3>
+                    </div>
                 </div>
-                <div class="card-details">
-                    <h3>${note.title}</h3>
-                </div>
-            </div>
-        `)
-        .join('');
-
+            `)
+            .join('');
+    }
     errorContainer.style.display = 'none';
 
     // Модальное окно для заметок
@@ -146,18 +159,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // Обновляем список заметок
             const updatedNotes = await getUserNotes(sessionStorage.getItem('masterPassword') || '');
             sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
-            notesCards.innerHTML = updatedNotes
-                .map((note: Note) => `
-                    <div class="card" onclick="openNoteModal(${note.id})">
-                        <div class="card-logo">
-                            <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+            if (updatedNotes.length === 0) {
+                notesCards.innerHTML = '';
+            } else {
+                notesCards.innerHTML = updatedNotes
+                    .map((note: Note) => `
+                        <div class="card" onclick="openNoteModal(${note.id})">
+                            <div class="card-logo">
+                                <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                            </div>
+                            <div class="card-details">
+                                <h3>${note.title}</h3>
+                            </div>
                         </div>
-                        <div class="card-details">
-                            <h3>${note.title}</h3>
-                        </div>
-                    </div>
-                `)
-                .join('');
+                    `)
+                    .join('');
+            }
         } catch (error: any) {
             console.error('Error deleting note:', error.message);
             alert('Ошибка при удалении заметки: ' + error.message);
@@ -212,18 +229,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionStorage.setItem('notes', JSON.stringify(notes));
                 toggleNoteEditMode(false);
                 // Обновляем список заметок на странице
-                notesCards.innerHTML = notes
-                    .map((note: Note) => `
-                        <div class="card" onclick="openNoteModal(${note.id})">
-                            <div class="card-logo">
-                                <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                if (notes.length === 0) {
+                    notesCards.innerHTML = '';
+                } else {
+                    notesCards.innerHTML = notes
+                        .map((note: Note) => `
+                            <div class="card" onclick="openNoteModal(${note.id})">
+                                <div class="card-logo">
+                                    <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                                </div>
+                                <div class="card-details">
+                                    <h3>${note.title}</h3>
+                                </div>
                             </div>
-                            <div class="card-details">
-                                <h3>${note.title}</h3>
-                            </div>
-                        </div>
-                    `)
-                    .join('');
+                        `)
+                        .join('');
+                }
             } catch (error: any) {
                 console.error('Error updating note:', error.message);
                 alert('Ошибка при обновлении заметки: ' + error.message);
@@ -257,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem('email');
         sessionStorage.removeItem('accounts');
         sessionStorage.removeItem('notes');
+        sessionStorage.removeItem('isDataLoaded');
         window.location.href = '/pages/login-page.html';
     });
 

@@ -1,0 +1,138 @@
+/* Переменные цветов */
+:root {
+    --background-primary: #1F252A;
+    --background-secondary: #2A3B47;
+    --accent: #00A3FF;
+    --text-primary: #D3D7DB;
+    --text-secondary: #A3A3A3;
+}
+
+/* Базовые стили */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    font-family: 'Montserrat', sans-serif;
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+}
+
+/* Стили для контейнера загрузки */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    text-align: center;
+}
+
+/* Стили для спиннера */
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #000;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Стили для текста загрузки */
+.loading-text {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+}
+
+/* Стили для контейнера ошибок */
+.error-container {
+    display: none;
+    color: var(--accent);
+    margin-top: 20px;
+}
+
+/* Стили для модального окна */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex; /* Всегда flex для центрирования */
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: var(--background-secondary);
+    padding: 20px;
+    border-radius: 5px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: var(--text-primary);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+    color: var(--text-primary);
+}
+
+.modal-content p {
+    margin: 10px 0;
+    color: var(--text-secondary);
+}
+
+.modal-content input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: none;
+    border-radius: 5px;
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+
+.modal-content button {
+    padding: 10px 20px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+.modal-content .retry-btn {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.modal-content .retry-btn:hover {
+    background-color: color-mix(in srgb, #4CAF50 90%, #FFFFFF);
+}
+
+.modal-content .logout-btn {
+    background-color: #f44336;
+    color: white;
+}
+
+.modal-content .logout-btn:hover {
+    background-color: color-mix(in srgb, #f44336 90%, #FFFFFF);
+}

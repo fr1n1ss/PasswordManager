@@ -1,4 +1,4 @@
-import { getAccounts, getUserInfo, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote } from '../services/api.ts';
+import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote } from '../services/api.ts';
 
 console.log('Script loaded');
 
@@ -25,28 +25,30 @@ interface Note {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM loaded, initializing...');
 
-    // Получение информации о пользователе
-    try {
-        const user = await getUserInfo();
-        const usernameElement = document.querySelector('.username');
-        const emailElement = document.querySelector('.user-email');
+    // Проверка, загружены ли данные
+    const isDataLoaded = sessionStorage.getItem('isDataLoaded');
+    if (!isDataLoaded) {
+        console.warn('Data not loaded. Redirecting to loading page...');
+        window.location.href = '/pages/loading-page.html';
+        return;
+    }
 
-        if (usernameElement && user.username) {
-            usernameElement.textContent = user.username;
-            sessionStorage.setItem('username', user.username);
-        }
-        if (emailElement && user.email) {
-            emailElement.textContent = user.email;
-            sessionStorage.setItem('email', user.email);
-        }
-    } catch (error) {
-        console.error('Ошибка при получении информации о пользователе', error);
+    // Получение информации о пользователе из sessionStorage
+    const username = sessionStorage.getItem('username');
+    const email = sessionStorage.getItem('email');
+    const usernameElement = document.querySelector('.username');
+    const emailElement = document.querySelector('.user-email');
+
+    if (usernameElement && username) {
+        usernameElement.textContent = username;
+    }
+    if (emailElement && email) {
+        emailElement.textContent = email;
     }
 
     const passwordCards = document.getElementById('passwordCards')!;
     const notesCards = document.getElementById('notesCards')!;
     const errorContainer = document.getElementById('errorContainer')!;
-    const errorMessage = document.getElementById('errorMessage')!;
 
     // Получение мастер-пароля
     const masterPassword = sessionStorage.getItem('masterPassword');
@@ -55,80 +57,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/pages/login-page.html';
         return;
     }
-    console.log('Using masterPassword:', masterPassword);
 
-    // Загрузка аккаунтов
-    console.log('Loading accounts...');
+    // Загрузка аккаунтов из sessionStorage
+    const accountsStr = sessionStorage.getItem('accounts');
     let accounts: Account[] = [];
-    try {
-        accounts = await getAccounts(masterPassword) as Account[];
-        console.log('Accounts received:', accounts);
-        if (accounts.length > 0) {
-            console.log('First account structure:', accounts[0]);
+    if (accountsStr) {
+        accounts = JSON.parse(accountsStr);
+        console.log('Accounts retrieved from sessionStorage:', accounts);
+        if (accounts.length === 0) {
+            console.log('No accounts to display');
+            passwordCards.innerHTML = '';
         } else {
-            console.log('No accounts found');
+            passwordCards.innerHTML = accounts
+                .map((account: Account) => {
+                    const logoUrl = account.url
+                        ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                        : 'https://via.placeholder.com/32';
+                    return `
+                        <div class="card" onclick="openAccountModal(${account.id})">
+                            <div class="card-logo">
+                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                            </div>
+                            <div class="card-details">
+                                <h3>${account.serviceName}</h3>
+                            </div>
+                        </div>
+                    `;
+                })
+                .join('');
         }
-        sessionStorage.setItem('accounts', JSON.stringify(accounts));
-        passwordCards.innerHTML = accounts
-            .map((account: Account) => {
-                const logoUrl = account.url
-                    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                    : 'https://via.placeholder.com/32';
-                return `
-                    <div class="card" onclick="openAccountModal(${account.id})">
+    }
+
+    // Загрузка заметок из sessionStorage
+    const notesStr = sessionStorage.getItem('notes');
+    let notes: Note[] = [];
+    if (notesStr) {
+        notes = JSON.parse(notesStr);
+        console.log('Notes retrieved from sessionStorage:', notes);
+        if (notes.length === 0) {
+            console.log('No notes to display');
+            notesCards.innerHTML = '';
+        } else {
+            notesCards.innerHTML = notes
+                .map((note: Note) => `
+                    <div class="card" onclick="openNoteModal(${note.id})">
                         <div class="card-logo">
-                            <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                            <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
                         </div>
                         <div class="card-details">
-                            <h3>${account.serviceName}</h3>
+                            <h3>${note.title}</h3>
                         </div>
                     </div>
-                `;
-            })
-            .join('');
-    } catch (error: any) {
-        console.error('Error loading accounts:', error.message, error.response?.status);
-        errorContainer.style.display = 'block';
-        errorMessage.textContent = `Ошибка загрузки аккаунтов: ${error.message}`;
-        return;
-    }
-
-    // Загрузка заметок
-    console.log('Loading notes...');
-    let notes: Note[] = [];
-    try {
-        notes = await getUserNotes(masterPassword) as Note[];
-        console.log('Notes received:', notes);
-        if (notes.length > 0) {
-            console.log('First note structure:', notes[0]);
-        } else {
-            console.log('No notes found');
-        }
-        sessionStorage.setItem('notes', JSON.stringify(notes));
-        notesCards.innerHTML = notes
-            .map((note: Note) => `
-                <div class="card" onclick="openNoteModal(${note.id})">
-                    <div class="card-logo">
-                        <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
-                    </div>
-                    <div class="card-details">
-                        <h3>${note.title}</h3>
-                    </div>
-                </div>
-            `)
-            .join('');
-        errorContainer.style.display = 'none';
-    } catch (error: any) {
-        console.error('Error loading notes:', error.message, error.response?.status);
-        if (error.response?.status !== 400 || error.response?.data?.message !== 'No notes found') {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = `Ошибка загрузки заметок: ${error.message}`;
-        } else {
-            console.log('No notes found, treating as empty list');
-            notesCards.innerHTML = '';
-            errorContainer.style.display = 'none';
+                `)
+                .join('');
         }
     }
+    errorContainer.style.display = 'none';
 
     // Модальное окно для аккаунтов
     const accountModalHtml = `
@@ -171,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <h2 id="modal-note-title"></h2>
                 <div class="modal-field">
                     <span class="modal-label">Содержимое:</span>
-                    <span id="modal-note-content"></span>
+                    <span id="modal-note-content" class="note-text"></span>
                 </div>
                 <div class="modal-field">
                     <span class="modal-label">Дата создания:</span>
@@ -217,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         url.textContent = account.url || 'Не указан';
         creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
         console.log('Account modal displayed');
     };
 
@@ -244,7 +228,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
         updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
         console.log('Note modal displayed');
     };
 
@@ -292,23 +276,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Обновляем список аккаунтов
             accounts = await getAccounts(masterPassword) as Account[];
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
-            passwordCards.innerHTML = accounts
-                .map((account: Account) => {
-                    const logoUrl = account.url
-                        ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                        : 'https://via.placeholder.com/32';
-                    return `
-                        <div class="card" onclick="openAccountModal(${account.id})">
-                            <div class="card-logo">
-                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
+            if (accounts.length === 0) {
+                passwordCards.innerHTML = '';
+            } else {
+                passwordCards.innerHTML = accounts
+                    .map((account: Account) => {
+                        const logoUrl = account.url
+                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                            : 'https://via.placeholder.com/32';
+                        return `
+                            <div class="card" onclick="openAccountModal(${account.id})">
+                                <div class="card-logo">
+                                    <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                                </div>
+                                <div class="card-details">
+                                    <h3>${account.serviceName}</h3>
+                                </div>
                             </div>
-                            <div class="card-details">
-                                <h3>${account.serviceName}</h3>
-                            </div>
-                        </div>
-                    `;
-                })
-                .join('');
+                        `;
+                    })
+                    .join('');
+            }
         } catch (error: any) {
             console.error('Error deleting account:', error.message);
             alert('Ошибка при удалении аккаунта: ' + error.message);
@@ -330,18 +318,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Обновляем список заметок
             notes = await getUserNotes(masterPassword) as Note[];
             sessionStorage.setItem('notes', JSON.stringify(notes));
-            notesCards.innerHTML = notes
-                .map((note: Note) => `
-                    <div class="card" onclick="openNoteModal(${note.id})">
-                        <div class="card-logo">
-                            <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+            if (notes.length === 0) {
+                notesCards.innerHTML = '';
+            } else {
+                notesCards.innerHTML = notes
+                    .map((note: Note) => `
+                        <div class="card" onclick="openNoteModal(${note.id})">
+                            <div class="card-logo">
+                                <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                            </div>
+                            <div class="card-details">
+                                <h3>${note.title}</h3>
+                            </div>
                         </div>
-                        <div class="card-details">
-                            <h3>${note.title}</h3>
-                        </div>
-                    </div>
-                `)
-                .join('');
+                    `)
+                    .join('');
+            }
         } catch (error: any) {
             console.error('Error deleting note:', error.message);
             alert('Ошибка при удалении заметки: ' + error.message);
@@ -416,23 +408,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sessionStorage.setItem('accounts', JSON.stringify(accounts));
                 toggleAccountEditMode(false);
                 // Обновляем список аккаунтов на странице
-                passwordCards.innerHTML = accounts
-                    .map((account: Account) => {
-                        const logoUrl = account.url
-                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                            : 'https://via.placeholder.com/32';
-                        return `
-                            <div class="card" onclick="openAccountModal(${account.id})">
-                                <div class="card-logo">
-                                    <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                if (accounts.length === 0) {
+                    passwordCards.innerHTML = '';
+                } else {
+                    passwordCards.innerHTML = accounts
+                        .map((account: Account) => {
+                            const logoUrl = account.url
+                                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                                : 'https://via.placeholder.com/32';
+                            return `
+                                <div class="card" onclick="openAccountModal(${account.id})">
+                                    <div class="card-logo">
+                                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                                    </div>
+                                    <div class="card-details">
+                                        <h3>${account.serviceName}</h3>
+                                    </div>
                                 </div>
-                                <div class="card-details">
-                                    <h3>${account.serviceName}</h3>
-                                </div>
-                            </div>
-                        `;
-                    })
-                    .join('');
+                            `;
+                        })
+                        .join('');
+                }
             } catch (error: any) {
                 console.error('Error updating account:', error.message);
                 alert('Ошибка при обновлении аккаунта: ' + error.message);
@@ -488,18 +484,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sessionStorage.setItem('notes', JSON.stringify(notes));
                 toggleNoteEditMode(false);
                 // Обновляем список заметок на странице
-                notesCards.innerHTML = notes
-                    .map((note: Note) => `
-                        <div class="card" onclick="openNoteModal(${note.id})">
-                            <div class="card-logo">
-                                <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                if (notes.length === 0) {
+                    notesCards.innerHTML = '';
+                } else {
+                    notesCards.innerHTML = notes
+                        .map((note: Note) => `
+                            <div class="card" onclick="openNoteModal(${note.id})">
+                                <div class="card-logo">
+                                    <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                                </div>
+                                <div class="card-details">
+                                    <h3>${note.title}</h3>
+                                </div>
                             </div>
-                            <div class="card-details">
-                                <h3>${note.title}</h3>
-                            </div>
-                        </div>
-                    `)
-                    .join('');
+                        `)
+                        .join('');
+                }
             } catch (error: any) {
                 console.error('Error updating note:', error.message);
                 alert('Ошибка при обновлении заметки: ' + error.message);
@@ -533,6 +533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.removeItem('email');
         sessionStorage.removeItem('accounts');
         sessionStorage.removeItem('notes');
+        sessionStorage.removeItem('isDataLoaded');
         window.location.href = '/pages/login-page.html';
     });
 

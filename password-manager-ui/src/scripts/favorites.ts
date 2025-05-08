@@ -30,7 +30,6 @@ interface FavoritesResponse {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM loaded, initializing favorites...');
 
-    // Извлечение информации о пользователе из sessionStorage
     const username = sessionStorage.getItem('username');
     const email = sessionStorage.getItem('email');
     const usernameElement = document.querySelector('.username');
@@ -52,7 +51,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const errorContainer = document.getElementById('errorContainer')!;
     const errorMessage = document.getElementById('errorMessage')!;
 
-    // Получение мастер-пароля
     const masterPassword = sessionStorage.getItem('masterPassword');
     if (!masterPassword) {
         console.warn('Master password not found. Redirecting to login...');
@@ -60,14 +58,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Загрузка избранного
     let favorites: FavoritesResponse;
     try {
         console.log('Fetching favorites...');
         favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
         console.log('Favorites received:', favorites);
 
-        // Рендеринг аккаунтов
         passwordCards.innerHTML = favorites.accounts
             .map((account: Account) => {
                 const logoUrl = account.url
@@ -86,7 +82,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             })
             .join('');
 
-        // Рендеринг заметок
         notesCards.innerHTML = favorites.notes
             .map((note: Note) => `
                 <div class="card" onclick="openNoteModal(${note.id})">
@@ -108,7 +103,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Модальное окно для аккаунтов
     const accountModalHtml = `
         <div id="account-modal" class="modal">
             <div class="modal-content">
@@ -142,7 +136,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.insertAdjacentHTML('beforeend', accountModalHtml);
     console.log('Account modal created');
 
-    // Модальное окно для заметок
     const noteModalHtml = `
         <div id="note-modal" class="modal">
             <div class="modal-content">
@@ -168,7 +161,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.insertAdjacentHTML('beforeend', noteModalHtml);
     console.log('Note modal created');
 
-    // Функция открытия модального окна для аккаунтов
     let currentAccountId: number | null = null;
     (window as any).openAccountModal = (accountId: number) => {
         console.log('Opening account modal for ID:', accountId);
@@ -180,7 +172,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         currentAccountId = accountId;
 
-        const modal = document.getElementById('account-modal')!;
         const serviceName = document.getElementById('modal-service-name')!;
         const login = document.getElementById('modal-login')!;
         const encryptedPassword = document.getElementById('modal-encrypted-password')!;
@@ -195,11 +186,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         url.textContent = account.url || 'Не указан';
         creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'block';
         console.log('Account modal displayed');
     };
 
-    // Функция открытия модального окна для заметок
     let currentNoteId: number | null = null;
     (window as any).openNoteModal = (noteId: number) => {
         console.log('Opening note modal for ID:', noteId);
@@ -222,11 +211,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
         updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
         console.log('Note modal displayed');
     };
 
-    // Закрытие модальных окон
     const accountModal = document.getElementById('account-modal')!;
     const noteModal = document.getElementById('note-modal')!;
     const closeButtons = document.querySelectorAll('.modal-close-btn');
@@ -235,7 +223,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Closing modal');
             accountModal.style.display = 'none';
             noteModal.style.display = 'none';
-            // Сбрасываем режим редактирования
             toggleAccountEditMode(false);
             toggleNoteEditMode(false);
         });
@@ -255,7 +242,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Логика удаления аккаунта
     const accountDeleteBtn = document.getElementById('account-delete-btn')!;
     accountDeleteBtn.addEventListener('click', async () => {
         if (!currentAccountId) {
@@ -267,7 +253,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             await deleteAccount(currentAccountId);
             console.log('Account deleted successfully');
             accountModal.style.display = 'none';
-            // Обновляем список избранных аккаунтов
             favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
             passwordCards.innerHTML = favorites.accounts
                 .map((account: Account) => {
@@ -292,7 +277,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Логика удаления заметки
     const noteDeleteBtn = document.getElementById('note-delete-btn')!;
     noteDeleteBtn.addEventListener('click', async () => {
         if (!currentNoteId) {
@@ -304,7 +288,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             await deleteNote(currentNoteId);
             console.log('Note deleted successfully');
             noteModal.style.display = 'none';
-            // Обновляем список избранных заметок
             favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
             notesCards.innerHTML = favorites.notes
                 .map((note: Note) => `
@@ -324,7 +307,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Логика редактирования аккаунта
     let isAccountEditMode = false;
     const accountUpdateBtn = document.getElementById('account-update-btn')!;
     const toggleAccountEditMode = (enable: boolean) => {
@@ -384,13 +366,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('Updating account:', updatedAccount);
                 await updateAccount({id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword: masterPassword});
                 console.log('Account updated successfully');
-                // Обновляем локальный массив
                 const accountIndex = favorites.accounts.findIndex(acc => acc.id === currentAccountId);
                 if (accountIndex !== -1) {
                     favorites.accounts[accountIndex] = { ...favorites.accounts[accountIndex], ...updatedAccount };
                 }
                 toggleAccountEditMode(false);
-                // Обновляем список аккаунтов на странице
                 passwordCards.innerHTML = favorites.accounts
                     .map((account: Account) => {
                         const logoUrl = account.url
@@ -415,7 +395,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Логика редактирования заметки
     let isNoteEditMode = false;
     const noteUpdateBtn = document.getElementById('note-update-btn')!;
     const toggleNoteEditMode = (enable: boolean) => {
@@ -455,13 +434,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('Updating note:', { noteId: currentNoteId, newTitle, newContent });
                 await updateNote(currentNoteId, newTitle, newContent, masterPassword);
                 console.log('Note updated successfully');
-                // Обновляем локальный массив
                 const noteIndex = favorites.notes.findIndex(n => n.id === currentNoteId);
                 if (noteIndex !== -1) {
                     favorites.notes[noteIndex] = { ...favorites.notes[noteIndex], title: newTitle, encryptedContent: newContent };
                 }
                 toggleNoteEditMode(false);
-                // Обновляем список заметок на странице
                 notesCards.innerHTML = favorites.notes
                     .map((note: Note) => `
                         <div class="card" onclick="openNoteModal(${note.id})">
@@ -481,7 +458,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Обработка выпадающего меню
     const dropdown = document.querySelector('.profile-dropdown')!;
     const menu = document.getElementById('profileMenu')!;
     dropdown.addEventListener('click', () => {
@@ -497,18 +473,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Обработка выхода
     const logoutBtn = document.getElementById('logoutBtn')!;
     logoutBtn.addEventListener('click', () => {
         console.log('Logging out');
         localStorage.removeItem('token');
         sessionStorage.removeItem('masterPassword');
-        sessionStorage.removeItem('username'); // Удаляем при выходе
-        sessionStorage.removeItem('email'); // Удаляем при выходе
+        sessionStorage.removeItem('username');
+        sessionStorage.removeItem('email');
         window.location.href = '/pages/login-page.html';
     });
 
-    // Переключение боковой панели
     const sidebar = document.getElementById('sidebar')!;
     const hideBtn = document.getElementById('hideBtn')!;
     hideBtn.addEventListener('click', () => {

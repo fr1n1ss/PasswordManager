@@ -88,7 +88,7 @@ body {
 .hide-btn {
     position: fixed;
     top: 0px;
-    left: -10px; /* Слегка выглядывает из-за левого края */
+    left: -10px;
     background-color: color-mix(in srgb, var(--background-secondary) 80%, var(--background-primary));
     color: var(--text-primary);
     padding: 10px;
@@ -98,12 +98,12 @@ body {
     transition: left 0.3s ease;
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
-    min-width: 40px; /* Чтобы кнопка не сжималась */
+    min-width: 40px;
     text-align: center;
 }
 
 .sidebar.hidden ~ .hide-btn {
-    left: 10px; /* Полностью видима при скрытой панели */
+    left: 10px;
 }
 
 .hide-btn:hover {
@@ -423,7 +423,7 @@ body {
     z-index: 1000;
 }
 
-.modal[style*="block"] {
+.modal[style*="flex"] {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -437,10 +437,9 @@ body {
     max-width: 450px;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
     color: var(--text-primary);
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    position: relative;
+    max-height: 80vh; /* Ограничиваем высоту */
+    overflow-y: auto; /* Добавляем вертикальную прокрутку */
 }
 
 .modal-content h2 {
@@ -467,6 +466,7 @@ body {
     font-size: 16px;
     color: var(--text-primary);
     word-break: break-word;
+    display: block; /* Убедимся, что span занимает всю ширину */
 }
 
 .modal-close-btn {

@@ -1,4 +1,5 @@
 import { getAccounts, deleteAccount, updateAccount } from '../services/api.ts';
+
 interface Account {
     id: number;
     userID: number;
@@ -12,6 +13,14 @@ interface Account {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing accounts...');
+
+    // Проверка, загружены ли данные
+    const isDataLoaded = sessionStorage.getItem('isDataLoaded');
+    if (!isDataLoaded) {
+        console.warn('Data not loaded. Redirecting to loading page...');
+        window.location.href = '/pages/loading-page.html';
+        return;
+    }
 
     // Извлечение информации о пользователе
     const username = sessionStorage.getItem('username');
@@ -47,24 +56,28 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Accounts retrieved from sessionStorage:', accounts);
 
     // Рендеринг аккаунтов
-    passwordCards.innerHTML = accounts
-        .map((account: Account) => {
-            const logoUrl = account.url
-                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                : 'https://via.placeholder.com/32';
-            return `
-                <div class="card" onclick="openAccountModal(${account.id})">
-                    <div class="card-logo">
-                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
+    if (accounts.length === 0) {
+        console.log('No accounts to display');
+        passwordCards.innerHTML = '';
+    } else {
+        passwordCards.innerHTML = accounts
+            .map((account: Account) => {
+                const logoUrl = account.url
+                    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                    : 'https://via.placeholder.com/32';
+                return `
+                    <div class="card" onclick="openAccountModal(${account.id})">
+                        <div class="card-logo">
+                            <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                        </div>
+                        <div class="card-details">
+                            <h3>${account.serviceName}</h3>
+                        </div>
                     </div>
-                    <div class="card-details">
-                        <h3>${account.serviceName}</h3>
-                    </div>
-                </div>
-            `;
-        })
-        .join('');
-
+                `;
+            })
+            .join('');
+    }
     errorContainer.style.display = 'none';
 
     // Модальное окно для аккаунтов
@@ -165,23 +178,27 @@ document.addEventListener('DOMContentLoaded', () => {
             // Обновляем список аккаунтов
             const updatedAccounts = await getAccounts(sessionStorage.getItem('masterPassword') || '');
             sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
-            passwordCards.innerHTML = updatedAccounts
-                .map((account: Account) => {
-                    const logoUrl = account.url
-                        ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                        : 'https://via.placeholder.com/32';
-                    return `
-                        <div class="card" onclick="openAccountModal(${account.id})">
-                            <div class="card-logo">
-                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
+            if (updatedAccounts.length === 0) {
+                passwordCards.innerHTML = '';
+            } else {
+                passwordCards.innerHTML = updatedAccounts
+                    .map((account: Account) => {
+                        const logoUrl = account.url
+                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                            : 'https://via.placeholder.com/32';
+                        return `
+                            <div class="card" onclick="openAccountModal(${account.id})">
+                                <div class="card-logo">
+                                    <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                                </div>
+                                <div class="card-details">
+                                    <h3>${account.serviceName}</h3>
+                                </div>
                             </div>
-                            <div class="card-details">
-                                <h3>${account.serviceName}</h3>
-                            </div>
-                        </div>
-                    `;
-                })
-                .join('');
+                        `;
+                    })
+                    .join('');
+            }
         } catch (error: any) {
             console.error('Error deleting account:', error.message);
             alert('Ошибка при удалении аккаунта: ' + error.message);
@@ -256,23 +273,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionStorage.setItem('accounts', JSON.stringify(accounts));
                 toggleAccountEditMode(false);
                 // Обновляем список аккаунтов на странице
-                passwordCards.innerHTML = accounts
-                    .map((account: Account) => {
-                        const logoUrl = account.url
-                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                            : 'https://via.placeholder.com/32';
-                        return `
-                            <div class="card" onclick="openAccountModal(${account.id})">
-                                <div class="card-logo">
-                                    <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                if (accounts.length === 0) {
+                    passwordCards.innerHTML = '';
+                } else {
+                    passwordCards.innerHTML = accounts
+                        .map((account: Account) => {
+                            const logoUrl = account.url
+                                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                                : 'https://via.placeholder.com/32';
+                            return `
+                                <div class="card" onclick="openAccountModal(${account.id})">
+                                    <div class="card-logo">
+                                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                                    </div>
+                                    <div class="card-details">
+                                        <h3>${account.serviceName}</h3>
+                                    </div>
                                 </div>
-                                <div class="card-details">
-                                    <h3>${account.serviceName}</h3>
-                                </div>
-                            </div>
-                        `;
-                    })
-                    .join('');
+                            `;
+                        })
+                        .join('');
+                }
             } catch (error: any) {
                 console.error('Error updating account:', error.message);
                 alert('Ошибка при обновлении аккаунта: ' + error.message);
@@ -306,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem('email');
         sessionStorage.removeItem('accounts');
         sessionStorage.removeItem('notes');
+        sessionStorage.removeItem('isDataLoaded');
         window.location.href = '/pages/login-page.html';
     });
 
