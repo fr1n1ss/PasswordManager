@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>МЕНЕДЖЕР ПАРОЛЕЙ - Заметки</title>
+  <link rel="stylesheet" href="../styles/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;900&display=swap" rel="stylesheet">
+  <script type="module" src="../scripts/notes.ts"></script>
+</head>
+<body>
+<div class="container">
+  <button class="hide-btn" id="hideBtn">≪</button>
+  <aside class="sidebar" id="sidebar">
+    <ul>
+      <li><a href="../index.html">Все элементы</a></li>
+      <li><a href="favorite-page.html" onclick="console.log('Navigating to favorite-page.html')">Избранное</a></li>
+      <li><a href="accounts-page.html" onclick="console.log('Navigating to accounts-page.html')">Аккаунты</a></li>
+      <li><a href="notes-page.html" class="active">Заметки</a></li>
+    </ul>
+  </aside>
+  <div class="content-area">
+    <header class="header">
+      <h1 class="title">МЕНЕДЖЕР ПАРОЛЕЙ</h1>
+      <div class="user-info">
+        <div class="profile-photo"></div>
+        <div class="user-details">
+          <span class="username"></span>
+          <span class="user-email"></span>
+        </div>
+        <div class="profile" onclick="toggleDropdown()">
+          <span class="profile-dropdown">▼</span>
+          <div class="dropdown-menu" id="profileMenu">
+            <button id="logoutBtn">Выход</button>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="main-content">
+      <div class="search-container">
+        <input type="text" class="search-bar" placeholder="Поиск...">
+        <select class="sort-dropdown">
+          <option value="name">По названию</option>
+          <option value="date">По дате</option>
+        </select>
+      </div>
+      <h2 class="section-title">Заметки</h2>
+      <div class="notes-cards" id="notesCards"></div>
+      <div class="error-container" id="errorContainer" style="display: none;">
+        <span id="errorMessage" class="error"></span>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

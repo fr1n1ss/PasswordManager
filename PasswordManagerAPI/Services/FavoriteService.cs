@@ -45,6 +45,8 @@ namespace PasswordManagerAPI.Services
 
             var accounts = await _context.Accounts.Where(a => accountIds.Contains(a.ID)).ToListAsync();
 
+
+
             return new FavoriteResult
             {
                 Notes = notes,

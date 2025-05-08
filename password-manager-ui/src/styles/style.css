@@ -8,6 +8,43 @@
     --max-width: 1200px;
 }
 
+.profile {
+    position: relative;
+    display: inline-block;
+}
+
+.profile-dropdown {
+    cursor: pointer;
+    margin-left: 5px;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    display: none;
+    min-width: 120px;
+    z-index: 999;
+}
+
+.dropdown-menu button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.dropdown-menu button:hover {
+    background-color: var(--background-primary);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -31,6 +68,7 @@ body {
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+    position: relative;
 }
 
 .sidebar {
@@ -48,12 +86,24 @@ body {
 }
 
 .hide-btn {
+    position: fixed;
+    top: 0px;
+    left: -10px; /* Слегка выглядывает из-за левого края */
     background-color: color-mix(in srgb, var(--background-secondary) 80%, var(--background-primary));
     color: var(--text-primary);
     padding: 10px;
     border: none;
-    margin-bottom: 20px;
     cursor: pointer;
+    z-index: 10;
+    transition: left 0.3s ease;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+    min-width: 40px; /* Чтобы кнопка не сжималась */
+    text-align: center;
+}
+
+.sidebar.hidden ~ .hide-btn {
+    left: 10px; /* Полностью видима при скрытой панели */
 }
 
 .hide-btn:hover {
@@ -86,7 +136,7 @@ body {
     flex-grow: 1;
     margin-left: var(--sidebar-width);
     width: calc(100% - var(--sidebar-width));
-    transition: margin-left 0.3s ease;
+    transition: margin-left 0.3s ease, width 0.3s ease;
 }
 
 .sidebar.hidden + .content-area {
@@ -109,6 +159,7 @@ body {
     font-size: 32px;
     font-weight: 600;
     color: var(--text-primary);
+    font-family: "Montserrat Black";
 }
 
 .user-info {
@@ -199,6 +250,7 @@ body {
     height: 180px;
     transition: transform 0.2s ease;
     cursor: pointer;
+    box-sizing: border-box;
 }
 
 .card:hover {
@@ -222,8 +274,9 @@ body {
 .card-details {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content: center;
     text-align: left;
+    min-height: 80px;
 }
 
 .card-details h3 {
@@ -365,7 +418,7 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    min-height: 100vh; /* Для случаев с прокруткой */
+    min-height: 100vh;
     background-color: rgba(0, 0, 0, 0.7);
     z-index: 1000;
 }
@@ -384,7 +437,6 @@ body {
     max-width: 450px;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
     color: var(--text-primary);
-    /* Резервное центрирование */
     position: absolute;
     top: 50%;
     left: 50%;
@@ -431,5 +483,39 @@ body {
 }
 
 .modal-close-btn:hover {
+    background-color: color-mix(in srgb, var(--accent) 90%, #FFFFFF);
+}
+
+.modal-delete-btn {
+    background-color: #991b1b;
+    color: #fee2e2;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 25px;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.modal-delete-btn:hover {
+    background-color: color-mix(in srgb, #991b1b 90%, #FFFFFF);
+}
+
+.modal-update-btn {
+    background-color: var(--accent);
+    color: var(--text-primary);
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 25px;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.modal-update-btn:hover {
     background-color: color-mix(in srgb, var(--accent) 90%, #FFFFFF);
 }

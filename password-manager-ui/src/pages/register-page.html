@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Регистрация</title>
+  <link rel="stylesheet" href="../styles/register.css" />
+</head>
+<body>
+<div class="register-container">
+  <form id="registerForm">
+    <h2>Регистрация</h2>
+    <input type="text" id="username" placeholder="Имя пользователя" required />
+    <input type="email" id="email" placeholder="E-mail" required />
+    <input type="password" id="password" placeholder="Пароль" required />
+    <input type="password" id="confirmPassword" placeholder="Повторите пароль" required />
+    <input type="password" id="masterPassword" placeholder="Мастер-пароль" required />
+    <button type="submit" onclick="">Зарегистрироваться</button>
+    <a class="login-link" href="./login-page.html">Уже есть аккаунт? Войти</a>
+  </form>
+  <div id="errorContainer" style="display: none;">
+    <p id="errorMessage" class="error-message"></p>
+  </div>
+</div>
+
+<script type="module" src="../scripts/register.ts"></script>
+</body>
+</html>

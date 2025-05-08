@@ -1,0 +1,80 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f3f4f6;
+    margin: 0;
+    padding: 0;
+}
+
+header {
+    background-color: #1f2937;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.profile-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.profile-dropdown {
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+#profileMenu {
+    position: absolute;
+    top: 3.5rem;
+    right: 1rem;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    display: none;
+    z-index: 100;
+}
+
+#profileMenu button {
+    background: none;
+    border: none;
+    padding: 0.5rem 1rem;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+}
+
+main {
+    padding: 2rem;
+}
+
+.card {
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.card h3 {
+    margin-top: 0;
+}
+
+.card p, .card small {
+    margin: 0.25rem 0;
+}
+
+h2 {
+    margin-top: 2rem;
+    color: #1f2937;
+}
+
+#errorContainer {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: none;
+}

@@ -1,6 +1,6 @@
-import { getAccounts, getUserInfo, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote } from '../services/api.ts';
+import { getUserFavorites, deleteAccount, deleteNote, updateAccount, updateNote } from '../services/api.ts';
 
-console.log('Script loaded');
+console.log('Favorites script loaded');
 
 interface Account {
     id: number;
@@ -22,25 +22,29 @@ interface Note {
     updatedAt: string;
 }
 
+interface FavoritesResponse {
+    accounts: Account[];
+    notes: Note[];
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM loaded, initializing...');
+    console.log('DOM loaded, initializing favorites...');
 
-    // Получение информации о пользователе
-    try {
-        const user = await getUserInfo();
-        const usernameElement = document.querySelector('.username');
-        const emailElement = document.querySelector('.user-email');
+    // Извлечение информации о пользователе из sessionStorage
+    const username = sessionStorage.getItem('username');
+    const email = sessionStorage.getItem('email');
+    const usernameElement = document.querySelector('.username');
+    const emailElement = document.querySelector('.user-email');
 
-        if (usernameElement && user.username) {
-            usernameElement.textContent = user.username;
-            sessionStorage.setItem('username', user.username);
-        }
-        if (emailElement && user.email) {
-            emailElement.textContent = user.email;
-            sessionStorage.setItem('email', user.email);
-        }
-    } catch (error) {
-        console.error('Ошибка при получении информации о пользователе', error);
+    if (usernameElement && username) {
+        usernameElement.textContent = username;
+    } else {
+        console.warn('Username not found in sessionStorage');
+    }
+    if (emailElement && email) {
+        emailElement.textContent = email;
+    } else {
+        console.warn('Email not found in sessionStorage');
     }
 
     const passwordCards = document.getElementById('passwordCards')!;
@@ -51,25 +55,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Получение мастер-пароля
     const masterPassword = sessionStorage.getItem('masterPassword');
     if (!masterPassword) {
-        console.warn('Master password not found in session. Redirecting to login...');
+        console.warn('Master password not found. Redirecting to login...');
         window.location.href = '/pages/login-page.html';
         return;
     }
-    console.log('Using masterPassword:', masterPassword);
 
-    // Загрузка аккаунтов
-    console.log('Loading accounts...');
-    let accounts: Account[] = [];
+    // Загрузка избранного
+    let favorites: FavoritesResponse;
     try {
-        accounts = await getAccounts(masterPassword) as Account[];
-        console.log('Accounts received:', accounts);
-        if (accounts.length > 0) {
-            console.log('First account structure:', accounts[0]);
-        } else {
-            console.log('No accounts found');
-        }
-        sessionStorage.setItem('accounts', JSON.stringify(accounts));
-        passwordCards.innerHTML = accounts
+        console.log('Fetching favorites...');
+        favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
+        console.log('Favorites received:', favorites);
+
+        // Рендеринг аккаунтов
+        passwordCards.innerHTML = favorites.accounts
             .map((account: Account) => {
                 const logoUrl = account.url
                     ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
@@ -86,26 +85,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
             })
             .join('');
-    } catch (error: any) {
-        console.error('Error loading accounts:', error.message, error.response?.status);
-        errorContainer.style.display = 'block';
-        errorMessage.textContent = `Ошибка загрузки аккаунтов: ${error.message}`;
-        return;
-    }
 
-    // Загрузка заметок
-    console.log('Loading notes...');
-    let notes: Note[] = [];
-    try {
-        notes = await getUserNotes(masterPassword) as Note[];
-        console.log('Notes received:', notes);
-        if (notes.length > 0) {
-            console.log('First note structure:', notes[0]);
-        } else {
-            console.log('No notes found');
-        }
-        sessionStorage.setItem('notes', JSON.stringify(notes));
-        notesCards.innerHTML = notes
+        // Рендеринг заметок
+        notesCards.innerHTML = favorites.notes
             .map((note: Note) => `
                 <div class="card" onclick="openNoteModal(${note.id})">
                     <div class="card-logo">
@@ -117,17 +99,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `)
             .join('');
+
         errorContainer.style.display = 'none';
     } catch (error: any) {
-        console.error('Error loading notes:', error.message, error.response?.status);
-        if (error.response?.status !== 400 || error.response?.data?.message !== 'No notes found') {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = `Ошибка загрузки заметок: ${error.message}`;
-        } else {
-            console.log('No notes found, treating as empty list');
-            notesCards.innerHTML = '';
-            errorContainer.style.display = 'none';
-        }
+        console.error('Error loading favorites:', error.message, error.response?.status);
+        errorContainer.style.display = 'block';
+        errorMessage.textContent = `Ошибка загрузки избранного: ${error.message}`;
+        return;
     }
 
     // Модальное окно для аккаунтов
@@ -190,11 +168,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.insertAdjacentHTML('beforeend', noteModalHtml);
     console.log('Note modal created');
 
-    // Открытие модального окна для аккаунтов
+    // Функция открытия модального окна для аккаунтов
     let currentAccountId: number | null = null;
     (window as any).openAccountModal = (accountId: number) => {
         console.log('Opening account modal for ID:', accountId);
-        const account = accounts.find(acc => acc.id === accountId);
+        const account = favorites.accounts.find(acc => acc.id === accountId);
         if (!account) {
             console.error('Account not found:', accountId);
             return;
@@ -221,11 +199,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('Account modal displayed');
     };
 
-    // Открытие модального окна для заметок
+    // Функция открытия модального окна для заметок
     let currentNoteId: number | null = null;
     (window as any).openNoteModal = (noteId: number) => {
         console.log('Opening note modal for ID:', noteId);
-        const note = notes.find(n => n.id === noteId);
+        const note = favorites.notes.find(n => n.id === noteId);
         if (!note) {
             console.error('Note not found:', noteId);
             return;
@@ -289,10 +267,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             await deleteAccount(currentAccountId);
             console.log('Account deleted successfully');
             accountModal.style.display = 'none';
-            // Обновляем список аккаунтов
-            accounts = await getAccounts(masterPassword) as Account[];
-            sessionStorage.setItem('accounts', JSON.stringify(accounts));
-            passwordCards.innerHTML = accounts
+            // Обновляем список избранных аккаунтов
+            favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
+            passwordCards.innerHTML = favorites.accounts
                 .map((account: Account) => {
                     const logoUrl = account.url
                         ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
@@ -327,10 +304,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             await deleteNote(currentNoteId);
             console.log('Note deleted successfully');
             noteModal.style.display = 'none';
-            // Обновляем список заметок
-            notes = await getUserNotes(masterPassword) as Note[];
-            sessionStorage.setItem('notes', JSON.stringify(notes));
-            notesCards.innerHTML = notes
+            // Обновляем список избранных заметок
+            favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
+            notesCards.innerHTML = favorites.notes
                 .map((note: Note) => `
                     <div class="card" onclick="openNoteModal(${note.id})">
                         <div class="card-logo">
@@ -368,7 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
             accountUpdateBtn.textContent = 'Сохранить';
         } else {
-            const account = accounts.find(acc => acc.id === currentAccountId);
+            const account = favorites.accounts.find(acc => acc.id === currentAccountId);
             if (account) {
                 serviceName.textContent = account.serviceName;
                 login.textContent = account.login;
@@ -409,14 +385,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await updateAccount({id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword: masterPassword});
                 console.log('Account updated successfully');
                 // Обновляем локальный массив
-                const accountIndex = accounts.findIndex(acc => acc.id === currentAccountId);
+                const accountIndex = favorites.accounts.findIndex(acc => acc.id === currentAccountId);
                 if (accountIndex !== -1) {
-                    accounts[accountIndex] = { ...accounts[accountIndex], ...updatedAccount };
+                    favorites.accounts[accountIndex] = { ...favorites.accounts[accountIndex], ...updatedAccount };
                 }
-                sessionStorage.setItem('accounts', JSON.stringify(accounts));
                 toggleAccountEditMode(false);
                 // Обновляем список аккаунтов на странице
-                passwordCards.innerHTML = accounts
+                passwordCards.innerHTML = favorites.accounts
                     .map((account: Account) => {
                         const logoUrl = account.url
                             ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
@@ -455,7 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = 'Сохранить';
         } else {
-            const note = notes.find(n => n.id === currentNoteId);
+            const note = favorites.notes.find(n => n.id === currentNoteId);
             if (note) {
                 title.textContent = note.title;
                 content.textContent = note.encryptedContent;
@@ -481,14 +456,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await updateNote(currentNoteId, newTitle, newContent, masterPassword);
                 console.log('Note updated successfully');
                 // Обновляем локальный массив
-                const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+                const noteIndex = favorites.notes.findIndex(n => n.id === currentNoteId);
                 if (noteIndex !== -1) {
-                    notes[noteIndex] = { ...notes[noteIndex], title: newTitle, encryptedContent: newContent };
+                    favorites.notes[noteIndex] = { ...favorites.notes[noteIndex], title: newTitle, encryptedContent: newContent };
                 }
-                sessionStorage.setItem('notes', JSON.stringify(notes));
                 toggleNoteEditMode(false);
                 // Обновляем список заметок на странице
-                notesCards.innerHTML = notes
+                notesCards.innerHTML = favorites.notes
                     .map((note: Note) => `
                         <div class="card" onclick="openNoteModal(${note.id})">
                             <div class="card-logo">
@@ -529,10 +503,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('Logging out');
         localStorage.removeItem('token');
         sessionStorage.removeItem('masterPassword');
-        sessionStorage.removeItem('username');
-        sessionStorage.removeItem('email');
-        sessionStorage.removeItem('accounts');
-        sessionStorage.removeItem('notes');
+        sessionStorage.removeItem('username'); // Удаляем при выходе
+        sessionStorage.removeItem('email'); // Удаляем при выходе
         window.location.href = '/pages/login-page.html';
     });
 

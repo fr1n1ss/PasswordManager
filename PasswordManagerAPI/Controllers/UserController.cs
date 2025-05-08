@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using PasswordManagerAPI.Entities;
+using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
 
 namespace PasswordManagerAPI.Controllers
@@ -30,6 +31,18 @@ namespace PasswordManagerAPI.Controllers
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetUserFromID), new { id = user.Id }, user);
+        }
+        [HttpGet("GetUserInfo")]
+        public async Task<ActionResult<UserModel>> GetUserInfo()
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if(user == null)
+                throw new ArgumentException("User with this userId not found");
+
+            return new UserModel { Username = user.Username, Email = user.Email };
         }
 
         [HttpGet("GetAllUsers")]
@@ -94,5 +107,6 @@ namespace PasswordManagerAPI.Controllers
 
             return NoContent();
         }
+
     }
 }

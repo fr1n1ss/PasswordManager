@@ -43,17 +43,17 @@ namespace PasswordManagerAPI.Controllers
         #endregion
 
         #region PUT
-        [HttpPut("UpdateNoteAsync")]
-        public async Task<IActionResult> UpdateNodeAsync(int noteId, string? newTitle, string? newContent, string masterPassword)
+        [HttpPost("UpdateNoteAsync")]
+        public async Task<IActionResult> UpdateNodeAsync([FromBody] UpdateNoteModel updatedNote)
         {
-            if (string.IsNullOrEmpty(masterPassword))
+            if (string.IsNullOrEmpty(updatedNote.MasterPassword))
                 return BadRequest("Not all required fields are filled in");
 
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _noteService.UpdateNoteAsync(userId, noteId, newTitle, newContent, masterPassword);
+                await _noteService.UpdateNoteAsync(userId, updatedNote.ID, updatedNote.NewTitle, updatedNote.NewContent, updatedNote.MasterPassword);
 
                 return Ok();
             }
