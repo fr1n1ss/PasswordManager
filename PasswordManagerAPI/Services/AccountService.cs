@@ -88,8 +88,8 @@ namespace PasswordManagerAPI.Services
             var accounts = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
-            if(accounts == null)
-                throw new ArgumentNullException("Account with this ID not found");
+            if(accounts.Count == 0)
+                return new List<Account>();
             if(user == null)
                 throw new ArgumentNullException("User with this ID not found");
 

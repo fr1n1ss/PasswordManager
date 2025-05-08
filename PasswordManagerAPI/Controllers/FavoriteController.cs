@@ -42,6 +42,28 @@ namespace PasswordManagerAPI.Controllers
         }
         #endregion
 
+        #region PUT
+
+        [HttpPut("IsFavoriteAsync")]
+
+        public async Task<IActionResult> IsFavoriteAsync(string entityType, int entityId)
+        {
+            try
+            {
+
+                var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+
+                return Ok(await _favoriteService.IsFavoriteAsync(userId, entityType, entityId));
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+
+        }
+
+        #endregion
+
         #region GET
         [HttpGet("GetUserFavoritesAsync")]
 

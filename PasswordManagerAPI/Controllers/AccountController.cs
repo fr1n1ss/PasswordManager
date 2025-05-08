@@ -40,20 +40,18 @@ namespace PasswordManagerAPI.Controllers
                 return BadRequest(ex.Message);
             }
         }
-        #endregion
 
-        #region PUT
-        [HttpPut("UpdateAccount")]
-        public async Task<IActionResult> UpdateAccountAsync(int accountId, string? newLogin, string? newServiceName, string? newPassword, string? newUrl, string? newDescription, string masterPassword)
+        [HttpPost("UpdateAccount")]
+        public async Task<IActionResult> UpdateAccountAsync([FromBody] UpdateAccountModel updatedAccount)
         {
-            if (string.IsNullOrEmpty(masterPassword))
+            if (string.IsNullOrEmpty(updatedAccount.MasterPassword))
                 return BadRequest("Not all required fields are filled in");
 
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _accountService.UpdateAccountAsync(userId, accountId, newLogin, newServiceName, newPassword, newUrl, newDescription, masterPassword);
+                await _accountService.UpdateAccountAsync(userId, updatedAccount.ID, updatedAccount.NewLogin, updatedAccount.NewServiceName, updatedAccount.NewPassword, updatedAccount.NewURL, updatedAccount.NewDescription, updatedAccount.MasterPassword);
 
                 return Ok();
             }

@@ -1,5 +1,4 @@
-﻿
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -58,6 +57,8 @@ namespace PasswordManagerAPI
 
             builder.Services.AddScoped<IAccountService, AccountService>();
             builder.Services.AddScoped<RSAEncryption>();
+            builder.Services.AddScoped<INoteService, NoteService>();
+            builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 
             builder.Services.AddEndpointsApiExplorer();
 
@@ -104,10 +105,10 @@ namespace PasswordManagerAPI
 
             app.UseCors("AllowTauri");
 
-            app.UseHttpsRedirection();
+          //  app.UseHttpsRedirection();
 
             app.UseAuthentication();
-
+            
             app.UseAuthorization();
 
 

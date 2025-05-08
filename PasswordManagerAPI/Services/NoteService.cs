@@ -74,7 +74,7 @@ namespace PasswordManagerAPI.Services
 
             var notes = await _context.Notes.Where(n => n.UserID == userId).ToListAsync();
             if (notes.Count == 0)
-                throw new ArgumentException("Notes for this user not found");
+                return new List<Note>();
 
             UpdateRSA(user, masterPassword);
 
