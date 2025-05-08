@@ -96,3 +96,8 @@ export  const getUserInfo = async  () => {
   const response = await api.get(`/User/GetUserInfo`);
   return response.data;
 }
+
+export  const ping = async () => {
+  const response = await  api.get(`/auth/ping`);
+  return response.data;
+}

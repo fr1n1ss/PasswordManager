@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                             <div class="card-details">
                                 <h3>${account.serviceName}</h3>
+                                <p>${account.login}</p>
                             </div>
                         </div>
                     `;
@@ -101,15 +102,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             notesCards.innerHTML = notes
                 .map((note: Note) => `
                     <div class="card" onclick="openNoteModal(${note.id})">
-                        <div class="card-logo">
-                            <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
-                        </div>
+                        <div class="card-logo"></div>
                         <div class="card-details">
                             <h3>${note.title}</h3>
+                            <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                         </div>
                     </div>
-                `)
-                .join('');
+                `).join('');
         }
     }
     errorContainer.style.display = 'none';
@@ -285,15 +284,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                             ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
                             : 'https://via.placeholder.com/32';
                         return `
-                            <div class="card" onclick="openAccountModal(${account.id})">
-                                <div class="card-logo">
-                                    <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                                </div>
-                                <div class="card-details">
-                                    <h3>${account.serviceName}</h3>
-                                </div>
+                        <div class="card" onclick="openAccountModal(${account.id})">
+                            <div class="card-logo">
+                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
                             </div>
-                        `;
+                            <div class="card-details">
+                                <h3>${account.serviceName}</h3>
+                                <p>${account.login}</p>
+                            </div>
+                        </div>
+                    `;
                     })
                     .join('');
             }
@@ -323,16 +323,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 notesCards.innerHTML = notes
                     .map((note: Note) => `
-                        <div class="card" onclick="openNoteModal(${note.id})">
-                            <div class="card-logo">
-                                <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
-                            </div>
-                            <div class="card-details">
-                                <h3>${note.title}</h3>
-                            </div>
+                    <div class="card" onclick="openNoteModal(${note.id})">
+                        <div class="card-logo"></div>
+                        <div class="card-details">
+                            <h3>${note.title}</h3>
+                            <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                         </div>
-                    `)
-                    .join('');
+                    </div>
+                `).join('');
             }
         } catch (error: any) {
             console.error('Error deleting note:', error.message);
@@ -423,10 +421,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     </div>
                                     <div class="card-details">
                                         <h3>${account.serviceName}</h3>
+                                        <p>${account.login}</p>
                                     </div>
                                 </div>
                             `;
-                        })
+                                })
                         .join('');
                 }
             } catch (error: any) {
@@ -490,15 +489,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     notesCards.innerHTML = notes
                         .map((note: Note) => `
                             <div class="card" onclick="openNoteModal(${note.id})">
-                                <div class="card-logo">
-                                    <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
-                                </div>
+                                <div class="card-logo"></div>
                                 <div class="card-details">
                                     <h3>${note.title}</h3>
+                                    <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                                 </div>
                             </div>
-                        `)
-                        .join('');
+                        `).join('');
                 }
             } catch (error: any) {
                 console.error('Error updating note:', error.message);

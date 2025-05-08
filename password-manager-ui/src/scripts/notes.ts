@@ -60,16 +60,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         notesCards.innerHTML = notes
             .map((note: Note) => `
-                <div class="card" onclick="openNoteModal(${note.id})">
-                    <div class="card-logo">
-                        <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
+                    <div class="card" onclick="openNoteModal(${note.id})">
+                        <div class="card-logo"></div>
+                        <div class="card-details">
+                            <h3>${note.title}</h3>
+                            <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
+                        </div>
                     </div>
-                    <div class="card-details">
-                        <h3>${note.title}</h3>
-                    </div>
-                </div>
-            `)
-            .join('');
+                `).join('');
     }
     errorContainer.style.display = 'none';
 
@@ -122,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
         updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
         console.log('Note modal displayed');
     };
 
@@ -162,18 +160,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (updatedNotes.length === 0) {
                 notesCards.innerHTML = '';
             } else {
-                notesCards.innerHTML = updatedNotes
+                notesCards.innerHTML = notes
                     .map((note: Note) => `
-                        <div class="card" onclick="openNoteModal(${note.id})">
-                            <div class="card-logo">
-                                <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
-                            </div>
-                            <div class="card-details">
-                                <h3>${note.title}</h3>
-                            </div>
+                    <div class="card" onclick="openNoteModal(${note.id})">
+                        <div class="card-logo"></div>
+                        <div class="card-details">
+                            <h3>${note.title}</h3>
+                            <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                         </div>
-                    `)
-                    .join('');
+                    </div>
+                `).join('');
             }
         } catch (error: any) {
             console.error('Error deleting note:', error.message);
@@ -235,15 +231,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     notesCards.innerHTML = notes
                         .map((note: Note) => `
                             <div class="card" onclick="openNoteModal(${note.id})">
-                                <div class="card-logo">
-                                    <img src="https://via.placeholder.com/32" alt="${note.title} icon" />
-                                </div>
+                                <div class="card-logo"></div>
                                 <div class="card-details">
                                     <h3>${note.title}</h3>
+                                    <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                                 </div>
                             </div>
-                        `)
-                        .join('');
+                        `).join('');
                 }
             } catch (error: any) {
                 console.error('Error updating note:', error.message);

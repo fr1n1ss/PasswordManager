@@ -85,5 +85,11 @@ namespace PasswordManagerAPI.Controllers
 
             return Ok("Registration successful! You can log in now.");
         }
+
+        [HttpGet("ping")]
+        public IActionResult Ping()
+        {
+            return Ok(new { status = "ok" });
+        }
     }
 }

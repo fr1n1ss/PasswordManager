@@ -1,4 +1,4 @@
-import { getAccounts, getUserInfo, getUserNotes } from '../services/api.ts';
+import { getAccounts, getUserInfo, getUserNotes, ping } from '../services/api.ts';
 
 interface Account {
     id: number;
@@ -18,6 +18,15 @@ interface Note {
     encryptedContent: string;
     createdAt: string;
     updatedAt: string;
+}
+
+async function checkServerAvailability(): Promise<boolean> {
+    try {
+        const data = await ping();
+        return data.status === 'ok';
+    } catch (error) {
+        return false;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -41,9 +50,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const token = localStorage.getItem('token');
     if (!token) {
+        const isServerAvailable = await checkServerAvailability();
+        if (isServerAvailable) {
+            errorContainer.style.display = 'block';
+            errorMessage.textContent = 'Токен отсутствует. Перенаправляем на страницу логина...';
+            setTimeout(() => window.location.href = '/pages/login-page.html', 2000);
+        } else {
+            errorContainer.style.display = 'block';
+            errorMessage.innerHTML = '<p>Сервер недоступен. Пожалуйста, попробуйте снова.</p> <button class="retry-button" onclick="window.location.reload()">Повторить</button>';
+        }
+        return;
+    }
+
+    const isServerAvailable = await checkServerAvailability();
+    if (!isServerAvailable) {
         errorContainer.style.display = 'block';
-        errorMessage.textContent = 'Токен отсутствует. Перенаправляем на страницу логина...';
-        setTimeout(() => window.location.href = '/pages/login-page.html', 2000);
+        errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже. <button onclick="window.location.reload()">Повторить</button>';
         return;
     }
 
@@ -61,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             setTimeout(() => window.location.href = '/pages/login-page.html', 2000);
         } else {
             errorContainer.style.display = 'block';
-            errorMessage.textContent = 'Сервер недоступен. Пожалуйста, попробуйте позже: ' + error.message + ' (Статус: ' + (error.response?.status || 'нет статуса') + ')';
+            errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже: ' + error.message + ' (Статус: ' + (error.response?.status || 'нет статуса') + ') <button onclick="window.location.reload()">Повторить</button>';
         }
         return;
     }
@@ -115,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 modal.style.display = 'flex';
             } else {
                 errorContainer.style.display = 'block';
-                errorMessage.textContent = 'Ошибка загрузки данных: ' + error.message + ' (Статус: ' + (error.response?.status || 'нет статуса') + ')';
+                errorMessage.innerHTML = 'Ошибка загрузки данных: ' + error.message + ' (Статус: ' + (error.response?.status || 'нет статуса') + ') <button onclick="window.location.reload()">Повторить</button>';
             }
         }
     };

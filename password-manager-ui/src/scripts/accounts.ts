@@ -66,15 +66,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
                     : 'https://via.placeholder.com/32';
                 return `
-                    <div class="card" onclick="openAccountModal(${account.id})">
-                        <div class="card-logo">
-                            <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                        <div class="card" onclick="openAccountModal(${account.id})">
+                            <div class="card-logo">
+                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                            </div>
+                            <div class="card-details">
+                                <h3>${account.serviceName}</h3>
+                                <p>${account.login}</p>
+                            </div>
                         </div>
-                        <div class="card-details">
-                            <h3>${account.serviceName}</h3>
-                        </div>
-                    </div>
-                `;
+                    `;
             })
             .join('');
     }
@@ -187,15 +188,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
                             : 'https://via.placeholder.com/32';
                         return `
-                            <div class="card" onclick="openAccountModal(${account.id})">
-                                <div class="card-logo">
-                                    <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                                </div>
-                                <div class="card-details">
-                                    <h3>${account.serviceName}</h3>
-                                </div>
+                        <div class="card" onclick="openAccountModal(${account.id})">
+                            <div class="card-logo">
+                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
                             </div>
-                        `;
+                            <div class="card-details">
+                                <h3>${account.serviceName}</h3>
+                                <p>${account.login}</p>
+                            </div>
+                        </div>
+                    `;
                     })
                     .join('');
             }
@@ -282,15 +284,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
                                 : 'https://via.placeholder.com/32';
                             return `
-                                <div class="card" onclick="openAccountModal(${account.id})">
-                                    <div class="card-logo">
-                                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                                    </div>
-                                    <div class="card-details">
-                                        <h3>${account.serviceName}</h3>
-                                    </div>
-                                </div>
-                            `;
+                        <div class="card" onclick="openAccountModal(${account.id})">
+                            <div class="card-logo">
+                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                            </div>
+                            <div class="card-details">
+                                <h3>${account.serviceName}</h3>
+                                <p>${account.login}</p>
+                            </div>
+                        </div>
+                    `;
                         })
                         .join('');
                 }
