@@ -307,6 +307,10 @@ body {
     cursor: pointer;
     font-size: 32px;
     border-radius: 10px;
+    height: 180px; /* Фиксированная высота */
+    width: calc(25% - 15px); /* Адаптивная ширина, если используется flex */
+    min-width: 300px; /* Минимальная ширина для предотвращения сильного сжатия */
+    transition: background-color 0.2s ease;
 }
 
 .add-new-card:hover {
@@ -525,4 +529,87 @@ body {
 
 .modal-update-btn:hover {
     background-color: color-mix(in srgb, var(--accent) 90%, #FFFFFF);
+}
+
+/* Круглая кнопка в правом нижнем углу */
+.fab-button {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    background-color: var(--accent);
+    color: var(--text-primary);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 32px;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.fab-button:hover {
+    background-color: color-mix(in srgb, var(--accent) 90%, #FFFFFF);
+    transform: scale(1.1);
+}
+
+/* Стили для модального окна выбора (аккаунт или заметка) */
+#add-choice-modal .modal-content {
+    max-width: 300px;
+}
+
+.choice-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.choice-button {
+    background-color: var(--accent);
+    color: var(--text-primary);
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+
+.choice-button:hover {
+    background-color: color-mix(in srgb, var(--accent) 90%, #FFFFFF);
+}
+
+/* Стили для модальных окон добавления аккаунта и заметки */
+#add-account-modal .modal-content,
+#add-note-modal .modal-content {
+    max-width: 450px;
+}
+
+.modal-field input,
+.modal-field textarea {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    border: none;
+    border-radius: 5px;
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.modal-field textarea {
+    height: 100px;
+    resize: vertical;
+}
+
+.modal-error {
+    color: var(--accent);
+    font-size: 14px;
+    margin-top: 10px;
+    text-align: center;
+    display: none;
 }

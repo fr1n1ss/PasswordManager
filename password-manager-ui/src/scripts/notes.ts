@@ -1,15 +1,16 @@
-import { getUserNotes, deleteNote, updateNote } from '../services/api.ts';
+import { getUserNotes, deleteNote, updateNote, addNote, getNoteById } from '../services/api.ts';
 
 interface Note {
     id: number;
     userID: number;
     title: string;
     encryptedContent: string;
+    decryptedContent?: string; // Добавляем поле для расшифрованного содержимого
     createdAt: string;
     updatedAt: string;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM loaded, initializing notes...');
 
     // Проверка, загружены ли данные
@@ -39,27 +40,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const notesCards = document.getElementById('notesCards')!;
     const errorContainer = document.getElementById('errorContainer')!;
-    const errorMessage = document.getElementById('errorMessage')!;
+    const fabButton = document.getElementById('fabButton')!;
+    const addNoteModal = document.getElementById('add-note-modal')!;
+    const cancelNoteBtn = document.getElementById('cancel-note')!;
+    const submitNoteBtn = document.getElementById('submit-note')!;
+    const noteError = document.getElementById('note-error')!;
 
-    // Извлечение заметок из sessionStorage
-    const notesStr = sessionStorage.getItem('notes');
-    if (!notesStr) {
-        console.error('No notes found in sessionStorage');
-        errorContainer.style.display = 'block';
-        errorMessage.textContent = 'Ошибка: данные заметок не найдены';
+    // Получение мастер-пароля
+    const masterPassword = sessionStorage.getItem('masterPassword');
+    if (!masterPassword) {
+        console.warn('Master password not found in session. Redirecting to login...');
+        window.location.href = '/pages/login-page.html';
         return;
     }
 
-    const notes: Note[] = JSON.parse(notesStr);
-    console.log('Notes retrieved from sessionStorage:', notes);
-
-    // Рендеринг заметок
-    if (notes.length === 0) {
-        console.log('No notes to display');
-        notesCards.innerHTML = '';
-    } else {
-        notesCards.innerHTML = notes
-            .map((note: Note) => `
+    // Загрузка и отображение заметок
+    const loadNotes = async () => {
+        const notesStr = sessionStorage.getItem('notes');
+        let notes: Note[] = [];
+        if (notesStr) {
+            notes = JSON.parse(notesStr);
+        } else {
+            const encryptedNotes = await getUserNotes(masterPassword) as Note[];
+            // Расшифровываем каждую заметку
+            notes = await Promise.all(encryptedNotes.map(async (note) => {
+                try {
+                    const decryptedNote = await getNoteById(note.id, masterPassword);
+                    return { ...note, decryptedContent: decryptedNote.decryptedContent || note.encryptedContent };
+                } catch (error) {
+                    console.error(`Failed to decrypt note ID ${note.id}:`, error);
+                    return { ...note, decryptedContent: note.encryptedContent }; // Используем зашифрованное содержимое в случае ошибки
+                }
+            }));
+            sessionStorage.setItem('notes', JSON.stringify(notes));
+        }
+        console.log('Notes retrieved:', notes);
+        if (notes.length === 0) {
+            console.log('No notes to display');
+            notesCards.innerHTML = '<div class="add-new-card">+</div>';
+        } else {
+            notesCards.innerHTML = notes
+                .map((note: Note) => `
                     <div class="card" onclick="openNoteModal(${note.id})">
                         <div class="card-logo"></div>
                         <div class="card-details">
@@ -67,41 +88,99 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                         </div>
                     </div>
-                `).join('');
-    }
-    errorContainer.style.display = 'none';
+                `)
+                .join('') + '<div class="add-new-card">+</div>';
+        }
+    };
 
-    // Модальное окно для заметок
-    const noteModalHtml = `
-        <div id="note-modal" class="modal">
-            <div class="modal-content">
-                <h2 id="modal-note-title"></h2>
-                <div class="modal-field">
-                    <span class="modal-label">Содержимое:</span>
-                    <span id="modal-note-content"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Дата создания:</span>
-                    <span id="modal-note-creation-date"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Дата обновления:</span>
-                    <span id="modal-note-updated-date"></span>
-                </div>
-                <button class="modal-update-btn" id="note-update-btn">Изменить</button>
-                <button class="modal-delete-btn" id="note-delete-btn">Удалить</button>
-                <button class="modal-close-btn">Закрыть</button>
-            </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', noteModalHtml);
-    console.log('Note modal created');
+    try {
+        await loadNotes();
+        errorContainer.style.display = 'none';
+    } catch (error) {
+        console.error('Error loading notes:', error);
+        errorContainer.style.display = 'block';
+        const errorMessage = document.getElementById('errorMessage')!;
+        errorMessage.textContent = 'Ошибка при загрузке заметок';
+        return;
+    }
+
+    // Модальные окна для заметок
+    let currentNoteId: number | null = null;
+
+    // Функция для скрытия всех модальных окон
+    const closeAllModals = () => {
+        addNoteModal.style.display = 'none';
+        const noteModal = document.getElementById('note-modal')!;
+        noteModal.style.display = 'none';
+        noteError.style.display = 'none';
+    };
+
+    // Обработчик для карточки "+"
+    notesCards.querySelectorAll('.add-new-card').forEach(card => {
+        card.addEventListener('click', () => {
+            closeAllModals();
+            addNoteModal.style.display = 'flex';
+        });
+    });
+
+    // Обработчик для FAB кнопки
+    fabButton.addEventListener('click', () => {
+        closeAllModals();
+        addNoteModal.style.display = 'flex';
+    });
+
+    // Закрытие модального окна при клике на фон
+    addNoteModal.addEventListener('click', (e) => {
+        if (e.target === addNoteModal) {
+            closeAllModals();
+        }
+    });
+
+    // Отмена добавления
+    cancelNoteBtn.addEventListener('click', () => {
+        closeAllModals();
+        (document.getElementById('note-title') as HTMLInputElement).value = '';
+        (document.getElementById('note-content') as HTMLTextAreaElement).value = '';
+    });
+
+    // Добавление заметки
+    submitNoteBtn.addEventListener('click', async () => {
+        const title = (document.getElementById('note-title') as HTMLInputElement).value.trim();
+        const content = (document.getElementById('note-content') as HTMLTextAreaElement).value.trim();
+
+        if (!title || !content) {
+            noteError.style.display = 'block';
+            noteError.textContent = 'Заполните все поля';
+            return;
+        }
+
+        try {
+            console.log('Adding new note:', { title, content });
+            const newNote = await addNote(title, content, masterPassword);
+            console.log('Note added (encrypted response):', newNote);
+            const noteId = newNote.id;
+            if (!noteId) {
+                throw new Error('Note ID is missing in the response');
+            }
+            console.log('Fetching decrypted note with ID:', noteId);
+            const decryptedNote = await getNoteById(noteId, masterPassword);
+            console.log('Decrypted note:', decryptedNote);
+            const updatedNotes = [...JSON.parse(sessionStorage.getItem('notes') || '[]'), { ...newNote, encryptedContent: decryptedNote.encryptedContent || newNote.encryptedContent }];
+            sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
+            await loadNotes();
+            closeAllModals();
+            alert('Заметка успешно добавлена!');
+        } catch (error: any) {
+            noteError.style.display = 'block';
+            noteError.textContent = `Ошибка: ${error.message}`;
+            console.error('Error details:', error.response?.data || error.message);
+        }
+    });
 
     // Открытие модального окна для заметок
-    let currentNoteId: number | null = null;
     (window as any).openNoteModal = (noteId: number) => {
         console.log('Opening note modal for ID:', noteId);
-        const note = notes.find(n => n.id === noteId);
+        const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Note) => n.id === noteId);
         if (!note) {
             console.error('Note not found:', noteId);
             return;
@@ -116,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const updatedDate = document.getElementById('modal-note-updated-date')!;
 
         title.textContent = note.title;
-        content.textContent = note.encryptedContent;
+        content.textContent = note.decryptedContent || note.encryptedContent; // Используем расшифрованное содержимое
         creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
         updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
 
@@ -154,23 +233,19 @@ document.addEventListener('DOMContentLoaded', () => {
             await deleteNote(currentNoteId);
             console.log('Note deleted successfully');
             noteModal.style.display = 'none';
-            // Обновляем список заметок
-            const updatedNotes = await getUserNotes(sessionStorage.getItem('masterPassword') || '');
-            sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
-            if (updatedNotes.length === 0) {
-                notesCards.innerHTML = '';
-            } else {
-                notesCards.innerHTML = notes
-                    .map((note: Note) => `
-                    <div class="card" onclick="openNoteModal(${note.id})">
-                        <div class="card-logo"></div>
-                        <div class="card-details">
-                            <h3>${note.title}</h3>
-                            <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
-                        </div>
-                    </div>
-                `).join('');
-            }
+            const notes = await getUserNotes(masterPassword) as Note[];
+            // Расшифровываем заметки после удаления
+            const decryptedNotes = await Promise.all(notes.map(async (note) => {
+                try {
+                    const decryptedNote = await getNoteById(note.id, masterPassword);
+                    return { ...note, decryptedContent: decryptedNote.decryptedContent || note.encryptedContent };
+                } catch (error) {
+                    console.error(`Failed to decrypt note ID ${note.id}:`, error);
+                    return { ...note, decryptedContent: note.encryptedContent };
+                }
+            }));
+            sessionStorage.setItem('notes', JSON.stringify(decryptedNotes));
+            await loadNotes();
         } catch (error: any) {
             console.error('Error deleting note:', error.message);
             alert('Ошибка при удалении заметки: ' + error.message);
@@ -192,10 +267,10 @@ document.addEventListener('DOMContentLoaded', () => {
             content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = 'Сохранить';
         } else {
-            const note = notes.find(n => n.id === currentNoteId);
+            const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Note) => n.id === currentNoteId);
             if (note) {
                 title.textContent = note.title;
-                content.textContent = note.encryptedContent;
+                content.textContent = note.decryptedContent || note.encryptedContent; // Используем расшифрованное содержимое
                 creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
                 updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
             }
@@ -215,30 +290,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement).value;
             try {
                 console.log('Updating note:', { noteId: currentNoteId, newTitle, newContent });
-                await updateNote(currentNoteId, newTitle, newContent, sessionStorage.getItem('masterPassword') || '');
+                await updateNote(currentNoteId, newTitle, newContent, masterPassword);
                 console.log('Note updated successfully');
-                // Обновляем локальный массив
-                const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+                const updatedNote = await getNoteById(currentNoteId, masterPassword);
+                const notes = JSON.parse(sessionStorage.getItem('notes') || '[]');
+                const noteIndex = notes.findIndex((n: Note) => n.id === currentNoteId);
                 if (noteIndex !== -1) {
-                    notes[noteIndex] = { ...notes[noteIndex], title: newTitle, encryptedContent: newContent };
+                    notes[noteIndex] = { ...notes[noteIndex], title: newTitle, encryptedContent: updatedNote.encryptedContent, decryptedContent: updatedNote.decryptedContent || updatedNote.encryptedContent };
                 }
                 sessionStorage.setItem('notes', JSON.stringify(notes));
                 toggleNoteEditMode(false);
-                // Обновляем список заметок на странице
-                if (notes.length === 0) {
-                    notesCards.innerHTML = '';
-                } else {
-                    notesCards.innerHTML = notes
-                        .map((note: Note) => `
-                            <div class="card" onclick="openNoteModal(${note.id})">
-                                <div class="card-logo"></div>
-                                <div class="card-details">
-                                    <h3>${note.title}</h3>
-                                    <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
-                                </div>
-                            </div>
-                        `).join('');
-                }
+                await loadNotes();
             } catch (error: any) {
                 console.error('Error updating note:', error.message);
                 alert('Ошибка при обновлении заметки: ' + error.message);

@@ -1,14 +1,4 @@
-import { login, ping } from '../services/api.ts';
-
-async function checkServerAvailability(): Promise<boolean> {
-    try {
-        const data = await ping();
-        return data.status === 'ok';
-    } catch (error) {
-        return false;
-    }
-}
-
+import { login } from '../services/api.ts';
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm') as HTMLFormElement;
     const usernameInput = document.getElementById('username') as HTMLInputElement;

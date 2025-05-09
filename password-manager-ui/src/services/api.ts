@@ -34,7 +34,12 @@ export const getAccounts = async (masterPassword: string) => {
   return response.data;
 };
 
-export const addAccount = async (account: { serviceName: string, login: string, password: string, description?: string, masterPassword: string }) => {
+export  const getAccountById = async (accountId: number, masterPassword: string) =>{
+  const response = await api.get(`/accounts/GetAccountById?accountId=${accountId}&masterPassword=${masterPassword}`)
+  return response.data;
+}
+
+export const addAccount = async (account: { serviceName: string, login: string, password: string, url:string, description?: string, masterPassword: string }) => {
   const response = await api.post('/accounts/AddAccount', account);
   return response.data;
 };
@@ -59,7 +64,7 @@ export const getUserNotes = async (masterPassword: string) => {
 };
 
 export const getNoteById = async (noteId: number, masterPassword: string) => {
-  const response = await api.get(`/notes/GetNoteByIdAsync`, {params: { noteId, masterPassword }});
+  const response = await api.get(`notes/GetNoteByIdAsync?noteId=${noteId}&masterPassword=${masterPassword}`);
   return response.data;
 };
 

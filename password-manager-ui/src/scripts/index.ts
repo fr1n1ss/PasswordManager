@@ -1,4 +1,4 @@
-import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote } from '../services/api.ts';
+import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote, addAccount, addNote, getAccountById } from '../services/api.ts';
 
 console.log('Script loaded');
 
@@ -49,6 +49,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const passwordCards = document.getElementById('passwordCards')!;
     const notesCards = document.getElementById('notesCards')!;
     const errorContainer = document.getElementById('errorContainer')!;
+    const fabButton = document.getElementById('fabButton')!;
+    const addChoiceModal = document.getElementById('add-choice-modal')!;
+    const addAccountModal = document.getElementById('add-account-modal')!;
+    const addNoteModal = document.getElementById('add-note-modal')!;
+    const chooseAccountBtn = document.getElementById('chooseAccount')!;
+    const chooseNoteBtn = document.getElementById('chooseNote')!;
+    const cancelAccountBtn = document.getElementById('cancel-account')!;
+    const cancelNoteBtn = document.getElementById('cancel-note')!;
+    const submitAccountBtn = document.getElementById('submit-account')!;
+    const submitNoteBtn = document.getElementById('submit-note')!;
+    const accountError = document.getElementById('account-error')!;
+    const noteError = document.getElementById('note-error')!;
 
     // Получение мастер-пароля
     const masterPassword = sessionStorage.getItem('masterPassword');
@@ -58,15 +70,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Загрузка аккаунтов из sessionStorage
-    const accountsStr = sessionStorage.getItem('accounts');
-    let accounts: Account[] = [];
-    if (accountsStr) {
-        accounts = JSON.parse(accountsStr);
-        console.log('Accounts retrieved from sessionStorage:', accounts);
+    // Загрузка и отображение аккаунтов
+    const loadAccounts = async () => {
+        const accountsStr = sessionStorage.getItem('accounts');
+        let accounts: Account[] = [];
+        if (accountsStr) {
+            accounts = JSON.parse(accountsStr);
+        } else {
+            accounts = await getAccounts(masterPassword) as Account[];
+            sessionStorage.setItem('accounts', JSON.stringify(accounts));
+        }
+        console.log('Accounts retrieved:', accounts);
         if (accounts.length === 0) {
             console.log('No accounts to display');
-            passwordCards.innerHTML = '';
+            passwordCards.innerHTML = '<div class="add-new-card">+</div>';
         } else {
             passwordCards.innerHTML = accounts
                 .map((account: Account) => {
@@ -85,19 +102,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     `;
                 })
-                .join('');
+                .join('') + '<div class="add-new-card">+</div>';
         }
-    }
+    };
 
-    // Загрузка заметок из sessionStorage
-    const notesStr = sessionStorage.getItem('notes');
-    let notes: Note[] = [];
-    if (notesStr) {
-        notes = JSON.parse(notesStr);
-        console.log('Notes retrieved from sessionStorage:', notes);
+    // Загрузка и отображение заметок
+    const loadNotes = async () => {
+        const notesStr = sessionStorage.getItem('notes');
+        let notes: Note[] = [];
+        if (notesStr) {
+            notes = JSON.parse(notesStr);
+        } else {
+            notes = await getUserNotes(masterPassword) as Note[];
+            sessionStorage.setItem('notes', JSON.stringify(notes));
+        }
+        console.log('Notes retrieved:', notes);
         if (notes.length === 0) {
             console.log('No notes to display');
-            notesCards.innerHTML = '';
+            notesCards.innerHTML = '<div class="add-new-card">+</div>';
         } else {
             notesCards.innerHTML = notes
                 .map((note: Note) => `
@@ -108,76 +130,146 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                         </div>
                     </div>
-                `).join('');
+                `)
+                .join('') + '<div class="add-new-card">+</div>';
         }
-    }
+    };
+
+    await Promise.all([loadAccounts(), loadNotes()]);
     errorContainer.style.display = 'none';
 
-    // Модальное окно для аккаунтов
-    const accountModalHtml = `
-        <div id="account-modal" class="modal">
-            <div class="modal-content">
-                <h2 id="modal-service-name"></h2>
-                <div class="modal-field">
-                    <span class="modal-label">Логин:</span>
-                    <span id="modal-login"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Пароль:</span>
-                    <span id="modal-encrypted-password"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Описание:</span>
-                    <span id="modal-description"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">URL:</span>
-                    <span id="modal-url"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Дата создания:</span>
-                    <span id="modal-creation-date"></span>
-                </div>
-                <button class="modal-update-btn" id="account-update-btn">Изменить</button>
-                <button class="modal-delete-btn" id="account-delete-btn">Удалить</button>
-                <button class="modal-close-btn">Закрыть</button>
-            </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', accountModalHtml);
-    console.log('Account modal created');
-
-    // Модальное окно для заметок
-    const noteModalHtml = `
-        <div id="note-modal" class="modal">
-            <div class="modal-content">
-                <h2 id="modal-note-title"></h2>
-                <div class="modal-field">
-                    <span class="modal-label">Содержимое:</span>
-                    <span id="modal-note-content" class="note-text"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Дата создания:</span>
-                    <span id="modal-note-creation-date"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Дата обновления:</span>
-                    <span id="modal-note-updated-date"></span>
-                </div>
-                <button class="modal-update-btn" id="note-update-btn">Изменить</button>
-                <button class="modal-delete-btn" id="note-delete-btn">Удалить</button>
-                <button class="modal-close-btn">Закрыть</button>
-            </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', noteModalHtml);
-    console.log('Note modal created');
-
-    // Открытие модального окна для аккаунтов
+    // Модальные окна для аккаунтов и заметок уже есть, добавим функционал добавления
     let currentAccountId: number | null = null;
+    let currentNoteId: number | null = null;
+
+    // Функция для скрытия всех модальных окон
+    const closeAllModals = () => {
+        addChoiceModal.style.display = 'none';
+        addAccountModal.style.display = 'none';
+        addNoteModal.style.display = 'none';
+        accountError.style.display = 'none';
+        noteError.style.display = 'none';
+    };
+
+    // Обработчик для карточки "+"
+    passwordCards.querySelectorAll('.add-new-card').forEach(card => {
+        card.addEventListener('click', () => {
+            closeAllModals();
+            addAccountModal.style.display = 'flex';
+        });
+    });
+    notesCards.querySelectorAll('.add-new-card').forEach(card => {
+        card.addEventListener('click', () => {
+            closeAllModals();
+            addNoteModal.style.display = 'flex';
+        });
+    });
+
+    // Обработчик для круглой кнопки
+    fabButton.addEventListener('click', () => {
+        closeAllModals();
+        addChoiceModal.style.display = 'flex';
+    });
+
+    // Обработчики выбора типа
+    chooseAccountBtn.addEventListener('click', () => {
+        closeAllModals();
+        addAccountModal.style.display = 'flex';
+    });
+
+    chooseNoteBtn.addEventListener('click', () => {
+        closeAllModals();
+        addNoteModal.style.display = 'flex';
+    });
+
+    // Закрытие модальных окон при клике на фон
+    [addChoiceModal, addAccountModal, addNoteModal].forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeAllModals();
+            }
+        });
+    });
+
+    // Отмена добавления
+    cancelAccountBtn.addEventListener('click', () => {
+        closeAllModals();
+        (document.getElementById('account-service-name') as HTMLInputElement).value = '';
+        (document.getElementById('account-login') as HTMLInputElement).value = '';
+        (document.getElementById('account-password') as HTMLInputElement).value = '';
+        (document.getElementById('account-description') as HTMLTextAreaElement).value = '';
+        (document.getElementById('account-url') as HTMLTextAreaElement).value = '';
+    });
+
+    cancelNoteBtn.addEventListener('click', () => {
+        closeAllModals();
+        (document.getElementById('note-title') as HTMLInputElement).value = '';
+        (document.getElementById('note-content') as HTMLTextAreaElement).value = '';
+    });
+
+    // Добавление аккаунта
+    submitAccountBtn.addEventListener('click', async () => {
+        const serviceName = (document.getElementById('account-service-name') as HTMLInputElement).value.trim();
+        const login = (document.getElementById('account-login') as HTMLInputElement).value.trim();
+        const password = (document.getElementById('account-password') as HTMLInputElement).value.trim();
+        const description = (document.getElementById('account-description') as HTMLTextAreaElement).value.trim();
+        const url = (document.getElementById('account-url') as HTMLTextAreaElement).value.trim();
+
+        if (!serviceName || !login || !password) {
+            accountError.style.display = 'block';
+            accountError.textContent = 'Заполните все обязательные поля';
+            return;
+        }
+
+        try {
+            const newAccount = await addAccount({ serviceName: serviceName, login: login, password: password, url: url, description: description, masterPassword: masterPassword});
+            console.log('Account added (encrypted response):', newAccount);
+            // Получаем расшифрованный аккаунт по ID
+            const accountId = newAccount.id; // Предполагаем, что id возвращается как число
+            console.log('Fetching decrypted account with ID:', accountId);
+            const decryptedAccount = await getAccountById(accountId, masterPassword);
+            console.log('Decrypted account:', decryptedAccount);
+            // Обновляем локальное хранилище с расшифрованным паролем
+            const accounts = [...JSON.parse(sessionStorage.getItem('accounts') || '[]'), decryptedAccount];
+            sessionStorage.setItem('accounts', JSON.stringify(accounts));
+            await loadAccounts();
+            closeAllModals();
+            alert('Аккаунт успешно добавлен!');
+        } catch (error: any) {
+            accountError.style.display = 'block';
+            accountError.textContent = `Ошибка: ${error.message}`;
+            console.error('Error details:', error.response?.data || error.message);
+        }
+    });
+
+    // Добавление заметки
+    submitNoteBtn.addEventListener('click', async () => {
+        const title = (document.getElementById('note-title') as HTMLInputElement).value.trim();
+        const content = (document.getElementById('note-content') as HTMLTextAreaElement).value.trim();
+
+        if (!title || !content) {
+            noteError.style.display = 'block';
+            noteError.textContent = 'Заполните все поля';
+            return;
+        }
+
+        try {
+            const newNote = await addNote(title, content, masterPassword);
+            console.log('Note added:', newNote);
+            sessionStorage.setItem('notes', JSON.stringify([...JSON.parse(sessionStorage.getItem('notes') || '[]'), newNote]));
+            await loadNotes();
+            closeAllModals();
+            alert('Заметка успешно добавлена!');
+        } catch (error: any) {
+            noteError.style.display = 'block';
+            noteError.textContent = `Ошибка: ${error.message}`;
+        }
+    });
+
+    // Остальная логика (модальные окна, удаление, редактирование) осталась без изменений
     (window as any).openAccountModal = (accountId: number) => {
         console.log('Opening account modal for ID:', accountId);
-        const account = accounts.find(acc => acc.id === accountId);
+        const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === accountId);
         if (!account) {
             console.error('Account not found:', accountId);
             return;
@@ -204,11 +296,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('Account modal displayed');
     };
 
-    // Открытие модального окна для заметок
-    let currentNoteId: number | null = null;
     (window as any).openNoteModal = (noteId: number) => {
         console.log('Opening note modal for ID:', noteId);
-        const note = notes.find(n => n.id === noteId);
+        const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Note) => n.id === noteId);
         if (!note) {
             console.error('Note not found:', noteId);
             return;
@@ -231,7 +321,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('Note modal displayed');
     };
 
-    // Закрытие модальных окон
     const accountModal = document.getElementById('account-modal')!;
     const noteModal = document.getElementById('note-modal')!;
     const closeButtons = document.querySelectorAll('.modal-close-btn');
@@ -240,7 +329,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Closing modal');
             accountModal.style.display = 'none';
             noteModal.style.display = 'none';
-            // Сбрасываем режим редактирования
             toggleAccountEditMode(false);
             toggleNoteEditMode(false);
         });
@@ -272,31 +360,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             await deleteAccount(currentAccountId);
             console.log('Account deleted successfully');
             accountModal.style.display = 'none';
-            // Обновляем список аккаунтов
-            accounts = await getAccounts(masterPassword) as Account[];
+            const accounts = await getAccounts(masterPassword) as Account[];
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
-            if (accounts.length === 0) {
-                passwordCards.innerHTML = '';
-            } else {
-                passwordCards.innerHTML = accounts
-                    .map((account: Account) => {
-                        const logoUrl = account.url
-                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                            : 'https://via.placeholder.com/32';
-                        return `
-                        <div class="card" onclick="openAccountModal(${account.id})">
-                            <div class="card-logo">
-                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                            </div>
-                            <div class="card-details">
-                                <h3>${account.serviceName}</h3>
-                                <p>${account.login}</p>
-                            </div>
-                        </div>
-                    `;
-                    })
-                    .join('');
-            }
+            await loadAccounts();
         } catch (error: any) {
             console.error('Error deleting account:', error.message);
             alert('Ошибка при удалении аккаунта: ' + error.message);
@@ -315,30 +381,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             await deleteNote(currentNoteId);
             console.log('Note deleted successfully');
             noteModal.style.display = 'none';
-            // Обновляем список заметок
-            notes = await getUserNotes(masterPassword) as Note[];
+            const notes = await getUserNotes(masterPassword) as Note[];
             sessionStorage.setItem('notes', JSON.stringify(notes));
-            if (notes.length === 0) {
-                notesCards.innerHTML = '';
-            } else {
-                notesCards.innerHTML = notes
-                    .map((note: Note) => `
-                    <div class="card" onclick="openNoteModal(${note.id})">
-                        <div class="card-logo"></div>
-                        <div class="card-details">
-                            <h3>${note.title}</h3>
-                            <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
-                        </div>
-                    </div>
-                `).join('');
-            }
+            await loadNotes();
         } catch (error: any) {
             console.error('Error deleting note:', error.message);
             alert('Ошибка при удалении заметки: ' + error.message);
         }
     });
 
-    // Логика редактирования аккаунта
     let isAccountEditMode = false;
     const accountUpdateBtn = document.getElementById('account-update-btn')!;
     const toggleAccountEditMode = (enable: boolean) => {
@@ -358,7 +409,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
             accountUpdateBtn.textContent = 'Сохранить';
         } else {
-            const account = accounts.find(acc => acc.id === currentAccountId);
+            const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === currentAccountId);
             if (account) {
                 serviceName.textContent = account.serviceName;
                 login.textContent = account.login;
@@ -396,38 +447,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             try {
                 console.log('Updating account:', updatedAccount);
-                await updateAccount({id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword: masterPassword});
+                await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
                 console.log('Account updated successfully');
-                // Обновляем локальный массив
-                const accountIndex = accounts.findIndex(acc => acc.id === currentAccountId);
-                if (accountIndex !== -1) {
-                    accounts[accountIndex] = { ...accounts[accountIndex], ...updatedAccount };
-                }
+                const accounts = await getAccounts(masterPassword) as Account[];
                 sessionStorage.setItem('accounts', JSON.stringify(accounts));
                 toggleAccountEditMode(false);
-                // Обновляем список аккаунтов на странице
-                if (accounts.length === 0) {
-                    passwordCards.innerHTML = '';
-                } else {
-                    passwordCards.innerHTML = accounts
-                        .map((account: Account) => {
-                            const logoUrl = account.url
-                                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                                : 'https://via.placeholder.com/32';
-                            return `
-                                <div class="card" onclick="openAccountModal(${account.id})">
-                                    <div class="card-logo">
-                                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                                    </div>
-                                    <div class="card-details">
-                                        <h3>${account.serviceName}</h3>
-                                        <p>${account.login}</p>
-                                    </div>
-                                </div>
-                            `;
-                                })
-                        .join('');
-                }
+                await loadAccounts();
             } catch (error: any) {
                 console.error('Error updating account:', error.message);
                 alert('Ошибка при обновлении аккаунта: ' + error.message);
@@ -435,7 +460,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Логика редактирования заметки
     let isNoteEditMode = false;
     const noteUpdateBtn = document.getElementById('note-update-btn')!;
     const toggleNoteEditMode = (enable: boolean) => {
@@ -450,7 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = 'Сохранить';
         } else {
-            const note = notes.find(n => n.id === currentNoteId);
+            const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Account) => n.id === currentNoteId);
             if (note) {
                 title.textContent = note.title;
                 content.textContent = note.encryptedContent;
@@ -475,28 +499,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('Updating note:', { noteId: currentNoteId, newTitle, newContent });
                 await updateNote(currentNoteId, newTitle, newContent, masterPassword);
                 console.log('Note updated successfully');
-                // Обновляем локальный массив
-                const noteIndex = notes.findIndex(n => n.id === currentNoteId);
-                if (noteIndex !== -1) {
-                    notes[noteIndex] = { ...notes[noteIndex], title: newTitle, encryptedContent: newContent };
-                }
+                const notes = await getUserNotes(masterPassword) as Note[];
                 sessionStorage.setItem('notes', JSON.stringify(notes));
                 toggleNoteEditMode(false);
-                // Обновляем список заметок на странице
-                if (notes.length === 0) {
-                    notesCards.innerHTML = '';
-                } else {
-                    notesCards.innerHTML = notes
-                        .map((note: Note) => `
-                            <div class="card" onclick="openNoteModal(${note.id})">
-                                <div class="card-logo"></div>
-                                <div class="card-details">
-                                    <h3>${note.title}</h3>
-                                    <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
-                                </div>
-                            </div>
-                        `).join('');
-                }
+                await loadNotes();
             } catch (error: any) {
                 console.error('Error updating note:', error.message);
                 alert('Ошибка при обновлении заметки: ' + error.message);

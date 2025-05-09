@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>МЕНЕДЖЕР ПАРОЛЕЙ - Аккаунты</title>
+  <title>Аккаунты</title>
   <link rel="stylesheet" href="/styles/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;900&display=swap" rel="stylesheet">
   <script type="module" src="/scripts/accounts.ts"></script>
@@ -50,6 +50,69 @@
         <span id="errorMessage" class="error"></span>
       </div>
     </main>
+  </div>
+</div>
+
+<!-- Круглая кнопка в правом нижнем углу -->
+<div class="fab-button" id="fabButton">+</div>
+
+<!-- Модальное окно добавления аккаунта -->
+<div class="modal" id="add-account-modal">
+  <div class="modal-content">
+    <h2>Добавить аккаунт</h2>
+    <div class="modal-field">
+      <label class="modal-label">Название сервиса</label>
+      <input type="text" id="account-service-name" placeholder="Введите название сервиса">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Логин</label>
+      <input type="text" id="account-login" placeholder="Введите логин">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Пароль</label>
+      <input type="password" id="account-password" placeholder="Введите пароль">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">URL</label>
+      <input type="text" id="account-url" placeholder="Введите URL">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Описание (опционально)</label>
+      <textarea id="account-description" placeholder="Введите описание"></textarea>
+    </div>
+    <div class="modal-error" id="account-error"></div>
+    <button class="modal-close-btn" id="cancel-account">Отмена</button>
+    <button class="modal-update-btn" id="submit-account">Добавить</button>
+  </div>
+</div>
+
+<!-- Модальное окно аккаунта -->
+<div id="account-modal" class="modal">
+  <div class="modal-content">
+    <h2 id="modal-service-name"></h2>
+    <div class="modal-field">
+      <span class="modal-label">Логин:</span>
+      <span id="modal-login"></span>
+    </div>
+    <div class="modal-field">
+      <span class="modal-label">Пароль:</span>
+      <span id="modal-encrypted-password"></span>
+    </div>
+    <div class="modal-field">
+      <span class="modal-label">Описание:</span>
+      <span id="modal-description"></span>
+    </div>
+    <div class="modal-field">
+      <span class="modal-label">URL:</span>
+      <span id="modal-url"></span>
+    </div>
+    <div class="modal-field">
+      <span class="modal-label">Дата создания:</span>
+      <span id="modal-creation-date"></span>
+    </div>
+    <button class="modal-update-btn" id="account-update-btn">Изменить</button>
+    <button class="modal-delete-btn" id="account-delete-btn">Удалить</button>
+    <button class="modal-close-btn">Закрыть</button>
   </div>
 </div>
 </body>

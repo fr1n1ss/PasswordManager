@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>МЕНЕДЖЕР ПАРОЛЕЙ - Заметки</title>
-  <link rel="stylesheet" href="../styles/style.css">
+  <title>Заметки</title>
+  <link rel="stylesheet" href="/styles/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;900&display=swap" rel="stylesheet">
   <script type="module" src="../scripts/notes.ts"></script>
 </head>
@@ -40,16 +40,59 @@
       <div class="search-container">
         <input type="text" class="search-bar" placeholder="Поиск...">
         <select class="sort-dropdown">
-          <option value="name">По названию</option>
+          <option value="title">По заголовку</option>
           <option value="date">По дате</option>
         </select>
       </div>
       <h2 class="section-title">Заметки</h2>
-      <div class="notes-cards" id="notesCards"></div>
+      <div class="password-cards" id="notesCards"></div>
       <div class="error-container" id="errorContainer" style="display: none;">
         <span id="errorMessage" class="error"></span>
       </div>
     </main>
+  </div>
+</div>
+
+<!-- Круглая кнопка в правом нижнем углу -->
+<div class="fab-button" id="fabButton">+</div>
+
+<!-- Модальное окно добавления заметки -->
+<div class="modal" id="add-note-modal">
+  <div class="modal-content">
+    <h2>Добавить заметку</h2>
+    <div class="modal-field">
+      <label class="modal-label">Заголовок</label>
+      <input type="text" id="note-title" placeholder="Введите заголовок">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Содержимое</label>
+      <textarea id="note-content" placeholder="Введите содержимое"></textarea>
+    </div>
+    <div class="modal-error" id="note-error"></div>
+    <button class="modal-close-btn" id="cancel-note">Отмена</button>
+    <button class="modal-update-btn" id="submit-note">Добавить</button>
+  </div>
+</div>
+
+<!-- Модальное окно заметки -->
+<div id="note-modal" class="modal">
+  <div class="modal-content">
+    <h2 id="modal-note-title"></h2>
+    <div class="modal-field">
+      <span class="modal-label">Содержимое:</span>
+      <span id="modal-note-content"></span>
+    </div>
+    <div class="modal-field">
+      <span class="modal-label">Дата создания:</span>
+      <span id="modal-note-creation-date"></span>
+    </div>
+    <div class="modal-field">
+      <span class="modal-label">Дата обновления:</span>
+      <span id="modal-note-updated-date"></span>
+    </div>
+    <button class="modal-update-btn" id="note-update-btn">Изменить</button>
+    <button class="modal-delete-btn" id="note-delete-btn">Удалить</button>
+    <button class="modal-close-btn">Закрыть</button>
   </div>
 </div>
 </body>

@@ -1,4 +1,4 @@
-import { getAccounts, deleteAccount, updateAccount } from '../services/api.ts';
+import { getAccounts, deleteAccount, updateAccount, addAccount, getAccountById } from '../services/api.ts';
 
 interface Account {
     id: number;
@@ -11,7 +11,7 @@ interface Account {
     creationDate: string;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM loaded, initializing accounts...');
 
     // Проверка, загружены ли данные
@@ -41,31 +41,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const passwordCards = document.getElementById('passwordCards')!;
     const errorContainer = document.getElementById('errorContainer')!;
-    const errorMessage = document.getElementById('errorMessage')!;
+    const fabButton = document.getElementById('fabButton')!;
+    const addAccountModal = document.getElementById('add-account-modal')!;
+    const cancelAccountBtn = document.getElementById('cancel-account')!;
+    const submitAccountBtn = document.getElementById('submit-account')!;
+    const accountError = document.getElementById('account-error')!;
 
-    // Извлечение аккаунтов из sessionStorage
-    const accountsStr = sessionStorage.getItem('accounts');
-    if (!accountsStr) {
-        console.error('No accounts found in sessionStorage');
-        errorContainer.style.display = 'block';
-        errorMessage.textContent = 'Ошибка: данные аккаунтов не найдены';
+    // Получение мастер-пароля
+    const masterPassword = sessionStorage.getItem('masterPassword');
+    if (!masterPassword) {
+        console.warn('Master password not found in session. Redirecting to login...');
+        window.location.href = '/pages/login-page.html';
         return;
     }
 
-    const accounts: Account[] = JSON.parse(accountsStr);
-    console.log('Accounts retrieved from sessionStorage:', accounts);
-
-    // Рендеринг аккаунтов
-    if (accounts.length === 0) {
-        console.log('No accounts to display');
-        passwordCards.innerHTML = '';
-    } else {
-        passwordCards.innerHTML = accounts
-            .map((account: Account) => {
-                const logoUrl = account.url
-                    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                    : 'https://via.placeholder.com/32';
-                return `
+    // Загрузка и отображение аккаунтов
+    const loadAccounts = async () => {
+        const accountsStr = sessionStorage.getItem('accounts');
+        let accounts: Account[] = [];
+        if (accountsStr) {
+            accounts = JSON.parse(accountsStr);
+        } else {
+            accounts = await getAccounts(masterPassword) as Account[];
+            sessionStorage.setItem('accounts', JSON.stringify(accounts));
+        }
+        console.log('Accounts retrieved:', accounts);
+        if (accounts.length === 0) {
+            console.log('No accounts to display');
+            passwordCards.innerHTML = '<div class="add-new-card">+</div>';
+        } else {
+            passwordCards.innerHTML = accounts
+                .map((account: Account) => {
+                    const logoUrl = account.url
+                        ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                        : 'https://via.placeholder.com/32';
+                    return `
                         <div class="card" onclick="openAccountModal(${account.id})">
                             <div class="card-logo">
                                 <img src="${logoUrl}" alt="${account.serviceName} logo" />
@@ -76,50 +86,96 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                     `;
-            })
-            .join('');
-    }
+                })
+                .join('') + '<div class="add-new-card">+</div>';
+        }
+    };
+
+    await loadAccounts();
     errorContainer.style.display = 'none';
 
-    // Модальное окно для аккаунтов
-    const accountModalHtml = `
-        <div id="account-modal" class="modal">
-            <div class="modal-content">
-                <h2 id="modal-service-name"></h2>
-                <div class="modal-field">
-                    <span class="modal-label">Логин:</span>
-                    <span id="modal-login"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Пароль:</span>
-                    <span id="modal-encrypted-password"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Описание:</span>
-                    <span id="modal-description"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">URL:</span>
-                    <span id="modal-url"></span>
-                </div>
-                <div class="modal-field">
-                    <span class="modal-label">Дата создания:</span>
-                    <span id="modal-creation-date"></span>
-                </div>
-                <button class="modal-update-btn" id="account-update-btn">Изменить</button>
-                <button class="modal-delete-btn" id="account-delete-btn">Удалить</button>
-                <button class="modal-close-btn">Закрыть</button>
-            </div>
-        </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', accountModalHtml);
-    console.log('Account modal created');
+    // Модальное окно для аккаунтов уже есть в HTML
+    let currentAccountId: number | null = null;
+
+    // Функция для скрытия всех модальных окон
+    const closeAllModals = () => {
+        addAccountModal.style.display = 'none';
+        const accountModal = document.getElementById('account-modal')!;
+        accountModal.style.display = 'none';
+        accountError.style.display = 'none';
+    };
+
+    // Обработчик для карточки "+"
+    passwordCards.querySelectorAll('.add-new-card').forEach(card => {
+        card.addEventListener('click', () => {
+            closeAllModals();
+            addAccountModal.style.display = 'flex';
+        });
+    });
+
+    // Обработчик для FAB кнопки
+    fabButton.addEventListener('click', () => {
+        closeAllModals();
+        addAccountModal.style.display = 'flex';
+    });
+
+    // Закрытие модального окна добавления при клике на фон
+    addAccountModal.addEventListener('click', (e) => {
+        if (e.target === addAccountModal) {
+            closeAllModals();
+        }
+    });
+
+    // Отмена добавления
+    cancelAccountBtn.addEventListener('click', () => {
+        closeAllModals();
+        (document.getElementById('account-service-name') as HTMLInputElement).value = '';
+        (document.getElementById('account-login') as HTMLInputElement).value = '';
+        (document.getElementById('account-password') as HTMLInputElement).value = '';
+        (document.getElementById('account-description') as HTMLTextAreaElement).value = '';
+        (document.getElementById('account-url') as HTMLInputElement).value = '';
+    });
+
+    // Добавление аккаунта
+    submitAccountBtn.addEventListener('click', async () => {
+        const serviceName = (document.getElementById('account-service-name') as HTMLInputElement).value.trim();
+        const login = (document.getElementById('account-login') as HTMLInputElement).value.trim();
+        const password = (document.getElementById('account-password') as HTMLInputElement).value.trim();
+        const description = (document.getElementById('account-description') as HTMLTextAreaElement).value.trim();
+        const url = (document.getElementById('account-url') as HTMLInputElement).value.trim();
+
+        if (!serviceName || !login || !password) {
+            accountError.style.display = 'block';
+            accountError.textContent = 'Заполните все обязательные поля';
+            return;
+        }
+
+        try {
+            const newAccount = await addAccount({ serviceName, login, password, description, url, masterPassword });
+            console.log('Account added (encrypted response):', newAccount);
+            const accountId = newAccount.id;
+            if (!accountId) {
+                throw new Error('Account ID is missing in the response');
+            }
+            console.log('Fetching decrypted account with ID:', accountId);
+            const decryptedAccount = await getAccountById(accountId, masterPassword);
+            console.log('Decrypted account:', decryptedAccount);
+            const accounts = [...JSON.parse(sessionStorage.getItem('accounts') || '[]'), decryptedAccount];
+            sessionStorage.setItem('accounts', JSON.stringify(accounts));
+            await loadAccounts();
+            closeAllModals();
+            alert('Аккаунт успешно добавлен!');
+        } catch (error: any) {
+            accountError.style.display = 'block';
+            accountError.textContent = `Ошибка: ${error.message}`;
+            console.error('Error details:', error.response?.data || error.message);
+        }
+    });
 
     // Открытие модального окна для аккаунтов
-    let currentAccountId: number | null = null;
     (window as any).openAccountModal = (accountId: number) => {
         console.log('Opening account modal for ID:', accountId);
-        const account = accounts.find(acc => acc.id === accountId);
+        const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === accountId);
         if (!account) {
             console.error('Account not found:', accountId);
             return;
@@ -142,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         url.textContent = account.url || 'Не указан';
         creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
         console.log('Account modal displayed');
     };
 
@@ -156,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             toggleAccountEditMode(false);
         });
     });
+
     accountModal.addEventListener('click', (e) => {
         if (e.target === accountModal) {
             console.log('Closing account modal via click outside');
@@ -176,31 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
             await deleteAccount(currentAccountId);
             console.log('Account deleted successfully');
             accountModal.style.display = 'none';
-            // Обновляем список аккаунтов
-            const updatedAccounts = await getAccounts(sessionStorage.getItem('masterPassword') || '');
-            sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
-            if (updatedAccounts.length === 0) {
-                passwordCards.innerHTML = '';
-            } else {
-                passwordCards.innerHTML = updatedAccounts
-                    .map((account: Account) => {
-                        const logoUrl = account.url
-                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                            : 'https://via.placeholder.com/32';
-                        return `
-                        <div class="card" onclick="openAccountModal(${account.id})">
-                            <div class="card-logo">
-                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                            </div>
-                            <div class="card-details">
-                                <h3>${account.serviceName}</h3>
-                                <p>${account.login}</p>
-                            </div>
-                        </div>
-                    `;
-                    })
-                    .join('');
-            }
+            const accounts = await getAccounts(masterPassword) as Account[];
+            sessionStorage.setItem('accounts', JSON.stringify(accounts));
+            await loadAccounts();
         } catch (error: any) {
             console.error('Error deleting account:', error.message);
             alert('Ошибка при удалении аккаунта: ' + error.message);
@@ -227,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
             accountUpdateBtn.textContent = 'Сохранить';
         } else {
-            const account = accounts.find(acc => acc.id === currentAccountId);
+            const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === currentAccountId);
             if (account) {
                 serviceName.textContent = account.serviceName;
                 login.textContent = account.login;
@@ -265,38 +300,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 console.log('Updating account:', updatedAccount);
-                await updateAccount({id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword: sessionStorage.getItem('masterPassword') || ''});
+                await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
                 console.log('Account updated successfully');
-                // Обновляем локальный массив
-                const accountIndex = accounts.findIndex(acc => acc.id === currentAccountId);
-                if (accountIndex !== -1) {
-                    accounts[accountIndex] = { ...accounts[accountIndex], ...updatedAccount };
-                }
+                const accounts = await getAccounts(masterPassword) as Account[];
                 sessionStorage.setItem('accounts', JSON.stringify(accounts));
                 toggleAccountEditMode(false);
-                // Обновляем список аккаунтов на странице
-                if (accounts.length === 0) {
-                    passwordCards.innerHTML = '';
-                } else {
-                    passwordCards.innerHTML = accounts
-                        .map((account: Account) => {
-                            const logoUrl = account.url
-                                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                                : 'https://via.placeholder.com/32';
-                            return `
-                        <div class="card" onclick="openAccountModal(${account.id})">
-                            <div class="card-logo">
-                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                            </div>
-                            <div class="card-details">
-                                <h3>${account.serviceName}</h3>
-                                <p>${account.login}</p>
-                            </div>
-                        </div>
-                    `;
-                        })
-                        .join('');
-                }
+                await loadAccounts();
             } catch (error: any) {
                 console.error('Error updating account:', error.message);
                 alert('Ошибка при обновлении аккаунта: ' + error.message);
