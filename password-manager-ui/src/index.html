@@ -38,7 +38,7 @@
         </header>
         <main class="main-content">
             <div class="search-container">
-                <input type="text" class="search-bar" placeholder="Поиск...">
+                <input type="text" class="search-bar" placeholder="Поиск..." autocomplete="off">
                 <select class="sort-dropdown">
                     <option value="name">По названию</option>
                     <option value="date">По дате</option>
@@ -145,6 +145,7 @@
             <span class="modal-label">Дата создания:</span>
             <span id="modal-creation-date"></span>
         </div>
+        <button id="account-favorite-btn" class="favorite-btn">Добавить в избранное</button>
         <button class="modal-update-btn" id="account-update-btn">Изменить</button>
         <button class="modal-delete-btn" id="account-delete-btn">Удалить</button>
         <button class="modal-close-btn">Закрыть</button>
@@ -167,6 +168,7 @@
             <span class="modal-label">Дата обновления:</span>
             <span id="modal-note-updated-date"></span>
         </div>
+        <button id="note-favorite-btn" class="favorite-btn">Добавить в избранное</button>
         <button class="modal-update-btn" id="note-update-btn">Изменить</button>
         <button class="modal-delete-btn" id="note-delete-btn">Удалить</button>
         <button class="modal-close-btn">Закрыть</button>

@@ -6,6 +6,7 @@ using PasswordManagerAPI.Models;
 using System.Security.Cryptography;
 using System.Numerics;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 namespace PasswordManagerAPI.Services
 {
     public class AccountService : IAccountService
@@ -59,6 +60,10 @@ namespace PasswordManagerAPI.Services
 
             if(account == null)
                 throw new ArgumentNullException("Account with this ID not found");
+
+            var favorite = await _context.Favorites.FirstOrDefaultAsync(f => f.UserId == userId && f.EntityType == "account" && f.EntityId == account.ID);
+            if (favorite != null)
+                _context.Favorites.Remove(favorite);
 
             _context.Accounts.Remove(account);
 

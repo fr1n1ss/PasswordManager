@@ -1,22 +1,8 @@
-﻿# Используем образ для сборки
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
-
-# Копируем файлы проекта и восстанавливаем зависимости
-COPY *.csproj ./
-RUN dotnet restore
-
-# Копируем остальной код и собираем приложение
-COPY . ./
-RUN dotnet publish -c Release -o out
-
-# Создаём финальный образ для запуска
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
-WORKDIR /app
-COPY --from=build /app/out ./
-
-# Указываем порт, который будет использовать приложение
-EXPOSE 5163
-
-# Запускаем приложение
-ENTRYPOINT ["dotnet", "PasswordManager.dll"]
+COPY ./out .
+COPY certificate.pfx /app/certificate.pfx
+ENV ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificate.pfx
+ENV ASPNETCORE_ENVIRONMENT=Development
+EXPOSE 5163 7163
+ENTRYPOINT ["dotnet", "PasswordManagerAPI.dll"]

@@ -74,7 +74,7 @@ namespace PasswordManagerAPI.Controllers
 
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var favorites = await _favoriteService.GetUserFavoritesAsync(userId);
+                var favorites = await _favoriteService.GetUserFavoritesAsync(userId, masterPassword);
 
                 return Ok(favorites);
             }

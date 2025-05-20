@@ -44,6 +44,10 @@ namespace PasswordManagerAPI.Services
             if(note == null)
                 throw new ArgumentException("Note with this noteId not found");
 
+            var favorite = await _context.Favorites.FirstOrDefaultAsync(f => f.UserId == userId && f.EntityType == "note" && f.EntityId == note.ID);
+            if (favorite != null)
+                _context.Favorites.Remove(favorite);
+
             _context.Notes.Remove(note);
 
             await _context.SaveChangesAsync();

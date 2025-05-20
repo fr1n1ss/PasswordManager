@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -18,15 +18,11 @@ namespace PasswordManagerAPI
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlServer(connectionString));
-
-            builder.WebHost.UseUrls("http://0.0.0.0:5163");
-
-            //Настройка JWT-аутентификации
             var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "default_key");
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
                 {
-                    options.RequireHttpsMetadata = false;
+                    options.RequireHttpsMetadata = true;
                     options.SaveToken = true;
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
@@ -41,15 +37,12 @@ namespace PasswordManagerAPI
 
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("AllowAll",
-                    policy => policy.AllowAnyOrigin()
-                                    .AllowAnyMethod()
-                                    .AllowAnyHeader());
                 options.AddPolicy("AllowTauri", builder =>
                 {
-                    builder.WithOrigins("http://localhost:3000")
+                    builder.WithOrigins("http://localhost:3000", "https://localhost:3000")
                            .AllowAnyMethod()
-                           .AllowAnyHeader();
+                           .AllowAnyHeader()
+                           .AllowCredentials();
                 });
             });
 
@@ -61,7 +54,6 @@ namespace PasswordManagerAPI
             builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 
             builder.Services.AddEndpointsApiExplorer();
-
 
             builder.Services.AddSwaggerGen(options =>
             {
@@ -92,7 +84,6 @@ namespace PasswordManagerAPI
                 });
             });
 
-
             var app = builder.Build();
 
             if (app.Environment.IsDevelopment())
@@ -101,17 +92,10 @@ namespace PasswordManagerAPI
                 app.UseSwaggerUI();
             }
 
-            app.UseCors("AllowAll");
-
+            app.UseHttpsRedirection();
             app.UseCors("AllowTauri");
-
-          //  app.UseHttpsRedirection();
-
             app.UseAuthentication();
-            
             app.UseAuthorization();
-
-
             app.MapControllers();
 
             app.Run();

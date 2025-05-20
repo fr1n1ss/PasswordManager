@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5163/api',
+  baseURL: 'https://localhost:7163/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -79,12 +79,12 @@ export const deleteNote = async (noteId: number) => {
 
 
 export const addToFavorites = async (entityType: string, entityId: number) => {
-  const response = await api.post(`/favorite/AddToFavoritesAsync`,{ entityType, entityId });
+  const response = await api.post(`/favorite/AddToFavoritesAsync?entityType=${entityType}&entityId=${entityId}`);
   return response.data;
 };
 
 export const removeFromFavorites = async (entityType: string, entityId: number) => {
-  await api.delete(`/favorite/RemoveFromFavoritesAsync`, {params: { entityType, entityId }});
+  await api.delete(`/favorite/RemoveFromFavoritesAsync?entityType=${entityType}&entityId=${entityId}`);
 };
 
 export const getUserFavorites = async (masterPassword: string) => {
@@ -93,7 +93,7 @@ export const getUserFavorites = async (masterPassword: string) => {
 };
 
 export const isFavorite = async (entityType: string, entityId: number) => {
-  const response = await api.get(`/favorite/IsFavoriteAsync`, { params: { entityType, entityId } });
+  const response = await api.put(`/favorite/IsFavoriteAsync?entityType=${entityType}&entityId=${entityId}`);
   return response.data;
 };
 

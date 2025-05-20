@@ -1,6 +1,4 @@
-import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote, addAccount, addNote, getAccountById } from '../services/api.ts';
-
-console.log('Script loaded');
+import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote, addAccount, addNote, getAccountById, addToFavorites, removeFromFavorites, isFavorite } from '../services/api.ts';
 
 interface Account {
     id: number;
@@ -11,6 +9,7 @@ interface Account {
     description: string;
     url: string;
     creationDate: string;
+    isFavorite?: boolean;
 }
 
 interface Note {
@@ -20,158 +19,180 @@ interface Note {
     encryptedContent: string;
     createdAt: string;
     updatedAt: string;
+    isFavorite?: boolean;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM loaded, initializing...');
-
-    // Проверка, загружены ли данные
     const isDataLoaded = sessionStorage.getItem('isDataLoaded');
     if (!isDataLoaded) {
-        console.warn('Data not loaded. Redirecting to loading page...');
         window.location.href = '/pages/loading-page.html';
         return;
     }
 
-    // Получение информации о пользователе из sessionStorage
     const username = sessionStorage.getItem('username');
     const email = sessionStorage.getItem('email');
     const usernameElement = document.querySelector('.username');
     const emailElement = document.querySelector('.user-email');
+    if (usernameElement && username) usernameElement.textContent = username;
+    if (emailElement && email) emailElement.textContent = email;
 
-    if (usernameElement && username) {
-        usernameElement.textContent = username;
+    const passwordCards = document.getElementById('passwordCards');
+    const notesCards = document.getElementById('notesCards');
+    const errorContainer = document.getElementById('errorContainer');
+    const fabButton = document.getElementById('fabButton');
+    const addChoiceModal = document.getElementById('add-choice-modal');
+    const addAccountModal = document.getElementById('add-account-modal');
+    const addNoteModal = document.getElementById('add-note-modal');
+    const chooseAccountBtn = document.getElementById('chooseAccount');
+    const chooseNoteBtn = document.getElementById('chooseNote');
+    const cancelAccountBtn = document.getElementById('cancel-account');
+    const cancelNoteBtn = document.getElementById('cancel-note');
+    const submitAccountBtn = document.getElementById('submit-account');
+    const submitNoteBtn = document.getElementById('submit-note');
+    const accountError = document.getElementById('account-error');
+    const noteError = document.getElementById('note-error');
+    const accountModal = document.getElementById('account-modal');
+    const noteModal = document.getElementById('note-modal');
+
+    if (!passwordCards || !notesCards || !errorContainer || !fabButton || !addChoiceModal || !addAccountModal || !addNoteModal || !chooseAccountBtn || !chooseNoteBtn || !cancelAccountBtn || !cancelNoteBtn || !submitAccountBtn || !submitNoteBtn || !accountError || !noteError || !accountModal || !noteModal) {
+        return;
     }
-    if (emailElement && email) {
-        emailElement.textContent = email;
-    }
 
-    const passwordCards = document.getElementById('passwordCards')!;
-    const notesCards = document.getElementById('notesCards')!;
-    const errorContainer = document.getElementById('errorContainer')!;
-    const fabButton = document.getElementById('fabButton')!;
-    const addChoiceModal = document.getElementById('add-choice-modal')!;
-    const addAccountModal = document.getElementById('add-account-modal')!;
-    const addNoteModal = document.getElementById('add-note-modal')!;
-    const chooseAccountBtn = document.getElementById('chooseAccount')!;
-    const chooseNoteBtn = document.getElementById('chooseNote')!;
-    const cancelAccountBtn = document.getElementById('cancel-account')!;
-    const cancelNoteBtn = document.getElementById('cancel-note')!;
-    const submitAccountBtn = document.getElementById('submit-account')!;
-    const submitNoteBtn = document.getElementById('submit-note')!;
-    const accountError = document.getElementById('account-error')!;
-    const noteError = document.getElementById('note-error')!;
-
-    // Получение мастер-пароля
     const masterPassword = sessionStorage.getItem('masterPassword');
     if (!masterPassword) {
-        console.warn('Master password not found in session. Redirecting to login...');
         window.location.href = '/pages/login-page.html';
         return;
     }
 
-    // Загрузка и отображение аккаунтов
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = '/pages/login-page.html';
+        return;
+    }
+
     const loadAccounts = async () => {
-        const accountsStr = sessionStorage.getItem('accounts');
-        let accounts: Account[] = [];
-        if (accountsStr) {
-            accounts = JSON.parse(accountsStr);
-        } else {
-            accounts = await getAccounts(masterPassword) as Account[];
-            sessionStorage.setItem('accounts', JSON.stringify(accounts));
-        }
-        console.log('Accounts retrieved:', accounts);
-        if (accounts.length === 0) {
-            console.log('No accounts to display');
-            passwordCards.innerHTML = '<div class="add-new-card">+</div>';
-        } else {
-            passwordCards.innerHTML = accounts
-                .map((account: Account) => {
-                    const logoUrl = account.url
-                        ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                        : 'https://via.placeholder.com/32';
-                    return `
-                        <div class="card" onclick="openAccountModal(${account.id})">
-                            <div class="card-logo">
-                                <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                            </div>
-                            <div class="card-details">
-                                <h3>${account.serviceName}</h3>
-                                <p>${account.login}</p>
-                            </div>
+        try {
+            let accounts: Account[] = [];
+            const accountsStr = sessionStorage.getItem('accounts');
+            if (accountsStr) {
+                accounts = JSON.parse(accountsStr);
+            } else {
+                accounts = await getAccounts(masterPassword) as Account[];
+                sessionStorage.setItem('accounts', JSON.stringify(accounts));
+            }
+
+            if (accounts.length === 0) {
+                passwordCards.innerHTML = '<div class="add-new-card">+</div>';
+            } else {
+                const accountsWithFavorite = await Promise.all(accounts.map(async (account) => {
+                    const fav = await isFavorite('account', account.id).catch(() => false);
+                    return { ...account, isFavorite: fav };
+                }));
+                passwordCards.innerHTML = accountsWithFavorite
+                    .map((account) => `
+                        <div class="card" data-id="${account.id}">
+                            <div class="card-logo"><img src="${account.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}` : 'https://via.placeholder.com/32'}" alt="${account.serviceName} logo" /></div>
+                            <div class="card-details"><h3>${account.serviceName}</h3><p>${account.login}</p></div>
                         </div>
-                    `;
-                })
-                .join('') + '<div class="add-new-card">+</div>';
+                    `)
+                    .join('') + '<div class="add-new-card">+</div>';
+                bindCardListeners();
+            }
+        } catch (error) {
+            passwordCards.innerHTML = '<div class="add-new-card">+</div>';
+            bindCardListeners();
         }
     };
 
-    // Загрузка и отображение заметок
     const loadNotes = async () => {
-        const notesStr = sessionStorage.getItem('notes');
-        let notes: Note[] = [];
-        if (notesStr) {
-            notes = JSON.parse(notesStr);
-        } else {
-            notes = await getUserNotes(masterPassword) as Note[];
-            sessionStorage.setItem('notes', JSON.stringify(notes));
-        }
-        console.log('Notes retrieved:', notes);
-        if (notes.length === 0) {
-            console.log('No notes to display');
-            notesCards.innerHTML = '<div class="add-new-card">+</div>';
-        } else {
-            notesCards.innerHTML = notes
-                .map((note: Note) => `
-                    <div class="card" onclick="openNoteModal(${note.id})">
-                        <div class="card-logo"></div>
-                        <div class="card-details">
-                            <h3>${note.title}</h3>
-                            <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
+        try {
+            let notes: Note[] = [];
+            const notesStr = sessionStorage.getItem('notes');
+            if (notesStr) {
+                notes = JSON.parse(notesStr);
+            } else {
+                notes = await getUserNotes(masterPassword) as Note[];
+                sessionStorage.setItem('notes', JSON.stringify(notes));
+            }
+
+            if (notes.length === 0) {
+                notesCards.innerHTML = '<div class="add-new-card">+</div>';
+            } else {
+                const notesWithFavorite = await Promise.all(notes.map(async (note) => {
+                    const fav = await isFavorite('note', note.id).catch(() => false);
+                    return { ...note, isFavorite: fav };
+                }));
+                notesCards.innerHTML = notesWithFavorite
+                    .map((note) => `
+                        <div class="card" data-id="${note.id}">
+                            <div class="card-logo"></div>
+                            <div class="card-details"><h3>${note.title}</h3><p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p></div>
                         </div>
-                    </div>
-                `)
-                .join('') + '<div class="add-new-card">+</div>';
+                    `)
+                    .join('') + '<div class="add-new-card">+</div>';
+                bindCardListeners();
+            }
+        } catch (error) {
+            notesCards.innerHTML = '<div class="add-new-card">+</div>';
+            bindCardListeners();
         }
+    };
+
+    const bindCardListeners = () => {
+        const accountCards = passwordCards.querySelectorAll('.card');
+        accountCards.forEach(card => {
+            const accountId = parseInt(card.getAttribute('data-id') || '0', 10);
+            card.addEventListener('click', () => openAccountModal(accountId));
+        });
+
+        const noteCards = notesCards.querySelectorAll('.card');
+        noteCards.forEach(card => {
+            const noteId = parseInt(card.getAttribute('data-id') || '0', 10);
+            card.addEventListener('click', () => openNoteModal(noteId));
+        });
+
+        const addAccountCards = passwordCards.querySelectorAll('.add-new-card');
+        addAccountCards.forEach(card => card.addEventListener('click', () => {
+            closeAllModals();
+            addAccountModal.style.display = 'flex';
+        }));
+
+        const addNoteCards = notesCards.querySelectorAll('.add-new-card');
+        addNoteCards.forEach(card => card.addEventListener('click', () => {
+            closeAllModals();
+            addNoteModal.style.display = 'flex';
+        }));
     };
 
     await Promise.all([loadAccounts(), loadNotes()]);
     errorContainer.style.display = 'none';
 
-    // Модальные окна для аккаунтов и заметок уже есть, добавим функционал добавления
     let currentAccountId: number | null = null;
     let currentNoteId: number | null = null;
 
-    // Функция для скрытия всех модальных окон
     const closeAllModals = () => {
-        addChoiceModal.style.display = 'none';
-        addAccountModal.style.display = 'none';
-        addNoteModal.style.display = 'none';
+        [addChoiceModal, addAccountModal, addNoteModal, accountModal, noteModal].forEach(modal => {
+            modal.style.display = 'none';
+            const accountFavBtn = document.getElementById('account-favorite-btn');
+            const noteFavBtn = document.getElementById('note-favorite-btn');
+            if (accountFavBtn) {
+                accountFavBtn.textContent = '';
+                accountFavBtn.innerHTML = '';
+            }
+            if (noteFavBtn) {
+                noteFavBtn.textContent = '';
+                noteFavBtn.innerHTML = '';
+            }
+        });
         accountError.style.display = 'none';
         noteError.style.display = 'none';
     };
 
-    // Обработчик для карточки "+"
-    passwordCards.querySelectorAll('.add-new-card').forEach(card => {
-        card.addEventListener('click', () => {
-            closeAllModals();
-            addAccountModal.style.display = 'flex';
-        });
-    });
-    notesCards.querySelectorAll('.add-new-card').forEach(card => {
-        card.addEventListener('click', () => {
-            closeAllModals();
-            addNoteModal.style.display = 'flex';
-        });
-    });
-
-    // Обработчик для круглой кнопки
     fabButton.addEventListener('click', () => {
         closeAllModals();
         addChoiceModal.style.display = 'flex';
     });
 
-    // Обработчики выбора типа
     chooseAccountBtn.addEventListener('click', () => {
         closeAllModals();
         addAccountModal.style.display = 'flex';
@@ -182,16 +203,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         addNoteModal.style.display = 'flex';
     });
 
-    // Закрытие модальных окон при клике на фон
     [addChoiceModal, addAccountModal, addNoteModal].forEach(modal => {
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeAllModals();
-            }
+            if (e.target === modal) closeAllModals();
         });
     });
 
-    // Отмена добавления
     cancelAccountBtn.addEventListener('click', () => {
         closeAllModals();
         (document.getElementById('account-service-name') as HTMLInputElement).value = '';
@@ -207,7 +224,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         (document.getElementById('note-content') as HTMLTextAreaElement).value = '';
     });
 
-    // Добавление аккаунта
     submitAccountBtn.addEventListener('click', async () => {
         const serviceName = (document.getElementById('account-service-name') as HTMLInputElement).value.trim();
         const login = (document.getElementById('account-login') as HTMLInputElement).value.trim();
@@ -222,15 +238,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            const newAccount = await addAccount({ serviceName: serviceName, login: login, password: password, url: url, description: description, masterPassword: masterPassword});
-            console.log('Account added (encrypted response):', newAccount);
-            // Получаем расшифрованный аккаунт по ID
-            const accountId = newAccount.id; // Предполагаем, что id возвращается как число
-            console.log('Fetching decrypted account with ID:', accountId);
-            const decryptedAccount = await getAccountById(accountId, masterPassword);
-            console.log('Decrypted account:', decryptedAccount);
-            // Обновляем локальное хранилище с расшифрованным паролем
-            const accounts = [...JSON.parse(sessionStorage.getItem('accounts') || '[]'), decryptedAccount];
+            const newAccount = await addAccount({ serviceName, login, password, url, description, masterPassword });
+            const decryptedAccount = await getAccountById(newAccount.id, masterPassword);
+            const accounts = [...JSON.parse(sessionStorage.getItem('accounts') || '[]'), { ...decryptedAccount, isFavorite: false }];
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
             await loadAccounts();
             closeAllModals();
@@ -238,11 +248,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error: any) {
             accountError.style.display = 'block';
             accountError.textContent = `Ошибка: ${error.message}`;
-            console.error('Error details:', error.response?.data || error.message);
         }
     });
 
-    // Добавление заметки
     submitNoteBtn.addEventListener('click', async () => {
         const title = (document.getElementById('note-title') as HTMLInputElement).value.trim();
         const content = (document.getElementById('note-content') as HTMLTextAreaElement).value.trim();
@@ -255,8 +263,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const newNote = await addNote(title, content, masterPassword);
-            console.log('Note added:', newNote);
-            sessionStorage.setItem('notes', JSON.stringify([...JSON.parse(sessionStorage.getItem('notes') || '[]'), newNote]));
+            const notes = [...JSON.parse(sessionStorage.getItem('notes') || '[]'), { ...newNote, isFavorite: false }];
+            sessionStorage.setItem('notes', JSON.stringify(notes));
             await loadNotes();
             closeAllModals();
             alert('Заметка успешно добавлена!');
@@ -266,24 +274,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Остальная логика (модальные окна, удаление, редактирование) осталась без изменений
-    (window as any).openAccountModal = (accountId: number) => {
-        console.log('Opening account modal for ID:', accountId);
+    const openAccountModal = async (accountId: number) => {
         const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === accountId);
-        if (!account) {
-            console.error('Account not found:', accountId);
-            return;
-        }
+        if (!account) return;
 
         currentAccountId = accountId;
 
-        const modal = document.getElementById('account-modal')!;
-        const serviceName = document.getElementById('modal-service-name')!;
-        const login = document.getElementById('modal-login')!;
-        const encryptedPassword = document.getElementById('modal-encrypted-password')!;
-        const description = document.getElementById('modal-description')!;
-        const url = document.getElementById('modal-url')!;
-        const creationDate = document.getElementById('modal-creation-date')!;
+        const serviceName = document.getElementById('modal-service-name');
+        const login = document.getElementById('modal-login');
+        const encryptedPassword = document.getElementById('modal-encrypted-password');
+        const description = document.getElementById('modal-description');
+        const url = document.getElementById('modal-url');
+        const creationDate = document.getElementById('modal-creation-date');
+        const favoriteBtn = document.getElementById('account-favorite-btn');
+
+        if (!serviceName || !login || !encryptedPassword || !description || !url || !creationDate || !favoriteBtn) return;
 
         serviceName.textContent = account.serviceName;
         login.textContent = account.login;
@@ -292,114 +297,136 @@ document.addEventListener('DOMContentLoaded', async () => {
         url.textContent = account.url || 'Не указан';
         creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'flex';
-        console.log('Account modal displayed');
+        const isFav = await isFavorite('account', accountId).catch(() => false);
+        const buttonText = isFav ? 'Удалить из избранного' : 'Добавить в избранное';
+        favoriteBtn.textContent = buttonText;
+        favoriteBtn.style.display = 'inline-block';
+        favoriteBtn.style.visibility = 'visible';
+
+        favoriteBtn.onclick = async () => {
+            try {
+                const currentFavStatus = await isFavorite('account', accountId).catch(() => false);
+                if (currentFavStatus) {
+                    await removeFromFavorites('account', accountId);
+                } else {
+                    await addToFavorites('account', accountId);
+                }
+                const updatedFavStatus = await isFavorite('account', accountId).catch(() => false);
+                const updatedText = updatedFavStatus ? 'Удалить из избранного' : 'Добавить в избранное';
+                favoriteBtn.textContent = updatedText;
+                const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]');
+                const updatedAccounts = accounts.map((acc: Account) => acc.id === accountId ? { ...acc, isFavorite: updatedFavStatus } : acc);
+                sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
+            } catch (error: any) {
+                alert(`Ошибка: ${error.message}`);
+            }
+        };
+
+        accountModal.style.display = 'flex';
     };
 
-    (window as any).openNoteModal = (noteId: number) => {
-        console.log('Opening note modal for ID:', noteId);
+    const openNoteModal = async (noteId: number) => {
         const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Note) => n.id === noteId);
-        if (!note) {
-            console.error('Note not found:', noteId);
-            return;
-        }
+        if (!note) return;
 
         currentNoteId = noteId;
 
-        const modal = document.getElementById('note-modal')!;
-        const title = document.getElementById('modal-note-title')!;
-        const content = document.getElementById('modal-note-content')!;
-        const creationDate = document.getElementById('modal-note-creation-date')!;
-        const updatedDate = document.getElementById('modal-note-updated-date')!;
+        const title = document.getElementById('modal-note-title');
+        const content = document.getElementById('modal-note-content');
+        const creationDate = document.getElementById('modal-note-creation-date');
+        const updatedDate = document.getElementById('modal-note-updated-date');
+        const favoriteBtn = document.getElementById('note-favorite-btn');
+
+        if (!title || !content || !creationDate || !updatedDate || !favoriteBtn) return;
 
         title.textContent = note.title;
         content.textContent = note.encryptedContent;
         creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
         updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
 
-        modal.style.display = 'flex';
-        console.log('Note modal displayed');
+        const isFav = await isFavorite('note', noteId).catch(() => false);
+        const buttonText = isFav ? 'Удалить из избранного' : 'Добавить в избранное';
+        favoriteBtn.textContent = buttonText;
+        favoriteBtn.style.display = 'inline-block';
+        favoriteBtn.style.visibility = 'visible';
+
+        favoriteBtn.onclick = async () => {
+            try {
+                const currentFavStatus = await isFavorite('note', noteId).catch(() => false);
+                if (currentFavStatus) {
+                    await removeFromFavorites('note', noteId);
+                } else {
+                    await addToFavorites('note', noteId);
+                }
+                const updatedFavStatus = await isFavorite('note', noteId).catch(() => false);
+                const updatedText = updatedFavStatus ? 'Удалить из избранного' : 'Добавить в избранное';
+                favoriteBtn.textContent = updatedText;
+                const notes = JSON.parse(sessionStorage.getItem('notes') || '[]');
+                const updatedNotes = notes.map((n: Note) => n.id === noteId ? { ...n, isFavorite: updatedFavStatus } : n);
+                sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
+            } catch (error: any) {
+                alert(`Ошибка: ${error.message}`);
+            }
+        };
+
+        noteModal.style.display = 'flex';
     };
 
-    const accountModal = document.getElementById('account-modal')!;
-    const noteModal = document.getElementById('note-modal')!;
     const closeButtons = document.querySelectorAll('.modal-close-btn');
     closeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            console.log('Closing modal');
-            accountModal.style.display = 'none';
-            noteModal.style.display = 'none';
-            toggleAccountEditMode(false);
-            toggleNoteEditMode(false);
+        btn.addEventListener('click', closeAllModals);
+    });
+
+    [accountModal, noteModal].forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeAllModals();
         });
     });
-    accountModal.addEventListener('click', (e) => {
-        if (e.target === accountModal) {
-            console.log('Closing account modal via click outside');
-            accountModal.style.display = 'none';
-            toggleAccountEditMode(false);
-        }
-    });
-    noteModal.addEventListener('click', (e) => {
-        if (e.target === noteModal) {
-            console.log('Closing note modal via click outside');
-            noteModal.style.display = 'none';
-            toggleNoteEditMode(false);
-        }
-    });
 
-    // Логика удаления аккаунта
-    const accountDeleteBtn = document.getElementById('account-delete-btn')!;
-    accountDeleteBtn.addEventListener('click', async () => {
-        if (!currentAccountId) {
-            console.error('No account ID to delete');
-            return;
-        }
-        try {
-            console.log('Deleting account:', currentAccountId);
-            await deleteAccount(currentAccountId);
-            console.log('Account deleted successfully');
-            accountModal.style.display = 'none';
-            const accounts = await getAccounts(masterPassword) as Account[];
-            sessionStorage.setItem('accounts', JSON.stringify(accounts));
-            await loadAccounts();
-        } catch (error: any) {
-            console.error('Error deleting account:', error.message);
-            alert('Ошибка при удалении аккаунта: ' + error.message);
-        }
-    });
+    const accountDeleteBtn = document.getElementById('account-delete-btn');
+    if (accountDeleteBtn) {
+        accountDeleteBtn.addEventListener('click', async () => {
+            if (!currentAccountId) return;
+            try {
+                await deleteAccount(currentAccountId);
+                const accounts = await getAccounts(masterPassword) as Account[];
+                sessionStorage.setItem('accounts', JSON.stringify(accounts));
+                await loadAccounts();
+                closeAllModals();
+            } catch (error: any) {
+                alert('Ошибка: ' + error.message);
+            }
+        });
+    }
 
-    // Логика удаления заметки
-    const noteDeleteBtn = document.getElementById('note-delete-btn')!;
-    noteDeleteBtn.addEventListener('click', async () => {
-        if (!currentNoteId) {
-            console.error('No note ID to delete');
-            return;
-        }
-        try {
-            console.log('Deleting note:', currentNoteId);
-            await deleteNote(currentNoteId);
-            console.log('Note deleted successfully');
-            noteModal.style.display = 'none';
-            const notes = await getUserNotes(masterPassword) as Note[];
-            sessionStorage.setItem('notes', JSON.stringify(notes));
-            await loadNotes();
-        } catch (error: any) {
-            console.error('Error deleting note:', error.message);
-            alert('Ошибка при удалении заметки: ' + error.message);
-        }
-    });
+    const noteDeleteBtn = document.getElementById('note-delete-btn');
+    if (noteDeleteBtn) {
+        noteDeleteBtn.addEventListener('click', async () => {
+            if (!currentNoteId) return;
+            try {
+                await deleteNote(currentNoteId);
+                const notes = await getUserNotes(masterPassword) as Note[];
+                sessionStorage.setItem('notes', JSON.stringify(notes));
+                await loadNotes();
+                closeAllModals();
+            } catch (error: any) {
+                alert('Ошибка: ' + error.message);
+            }
+        });
+    }
 
     let isAccountEditMode = false;
-    const accountUpdateBtn = document.getElementById('account-update-btn')!;
+    const accountUpdateBtn = document.getElementById('account-update-btn');
     const toggleAccountEditMode = (enable: boolean) => {
         isAccountEditMode = enable;
-        const serviceName = document.getElementById('modal-service-name')!;
-        const login = document.getElementById('modal-login')!;
-        const encryptedPassword = document.getElementById('modal-encrypted-password')!;
-        const description = document.getElementById('modal-description')!;
-        const url = document.getElementById('modal-url')!;
-        const creationDate = document.getElementById('modal-creation-date')!;
+        const serviceName = document.getElementById('modal-service-name');
+        const login = document.getElementById('modal-login');
+        const encryptedPassword = document.getElementById('modal-encrypted-password');
+        const description = document.getElementById('modal-description');
+        const url = document.getElementById('modal-url');
+        const creationDate = document.getElementById('modal-creation-date');
+
+        if (!serviceName || !login || !encryptedPassword || !description || !url || !creationDate || !accountUpdateBtn) return;
 
         if (enable) {
             serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
@@ -422,59 +449,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    accountUpdateBtn.addEventListener('click', async () => {
-        if (!isAccountEditMode) {
-            toggleAccountEditMode(true);
-        } else {
-            if (!currentAccountId) {
-                console.error('No account ID to update');
-                return;
-            }
-            const login = (document.getElementById('edit-login') as HTMLInputElement).value;
-            const password = (document.getElementById('edit-encrypted-password') as HTMLInputElement).value;
-            const serviceName = (document.getElementById('edit-service-name') as HTMLInputElement).value;
-            const url = (document.getElementById('edit-url') as HTMLInputElement).value;
-            const description = (document.getElementById('edit-description') as HTMLTextAreaElement).value;
+    if (accountUpdateBtn) {
+        accountUpdateBtn.addEventListener('click', async () => {
+            if (!isAccountEditMode) {
+                toggleAccountEditMode(true);
+            } else if (currentAccountId) {
+                const login = (document.getElementById('edit-login') as HTMLInputElement)?.value;
+                const password = (document.getElementById('edit-encrypted-password') as HTMLInputElement)?.value;
+                const serviceName = (document.getElementById('edit-service-name') as HTMLInputElement)?.value;
+                const url = (document.getElementById('edit-url') as HTMLInputElement)?.value;
+                const description = (document.getElementById('edit-description') as HTMLTextAreaElement)?.value;
 
-            const updatedAccount: Partial<Account> = {
-                id: currentAccountId,
-                serviceName: serviceName,
-                login: login,
-                encryptedPassword: password,
-                description: description,
-                url: url,
-            };
-
-            try {
-                console.log('Updating account:', updatedAccount);
-                await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
-                console.log('Account updated successfully');
-                const accounts = await getAccounts(masterPassword) as Account[];
-                sessionStorage.setItem('accounts', JSON.stringify(accounts));
-                toggleAccountEditMode(false);
-                await loadAccounts();
-            } catch (error: any) {
-                console.error('Error updating account:', error.message);
-                alert('Ошибка при обновлении аккаунта: ' + error.message);
+                if (login && password && serviceName && url && description) {
+                    try {
+                        await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
+                        const accounts = await getAccounts(masterPassword) as Account[];
+                        sessionStorage.setItem('accounts', JSON.stringify(accounts));
+                        toggleAccountEditMode(false);
+                        await loadAccounts();
+                    } catch (error: any) {
+                        alert('Ошибка: ' + error.message);
+                    }
+                }
             }
-        }
-    });
+        });
+    }
 
     let isNoteEditMode = false;
-    const noteUpdateBtn = document.getElementById('note-update-btn')!;
+    const noteUpdateBtn = document.getElementById('note-update-btn');
     const toggleNoteEditMode = (enable: boolean) => {
         isNoteEditMode = enable;
-        const title = document.getElementById('modal-note-title')!;
-        const content = document.getElementById('modal-note-content')!;
-        const creationDate = document.getElementById('modal-note-creation-date')!;
-        const updatedDate = document.getElementById('modal-note-updated-date')!;
+        const title = document.getElementById('modal-note-title');
+        const content = document.getElementById('modal-note-content');
+        const creationDate = document.getElementById('modal-note-creation-date');
+        const updatedDate = document.getElementById('modal-note-updated-date');
+
+        if (!title || !content || !creationDate || !updatedDate || !noteUpdateBtn) return;
 
         if (enable) {
             title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
             content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = 'Сохранить';
         } else {
-            const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Account) => n.id === currentNoteId);
+            const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Note) => n.id === currentNoteId);
             if (note) {
                 title.textContent = note.title;
                 content.textContent = note.encryptedContent;
@@ -485,68 +502,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    noteUpdateBtn.addEventListener('click', async () => {
-        if (!isNoteEditMode) {
-            toggleNoteEditMode(true);
-        } else {
-            if (!currentNoteId) {
-                console.error('No note ID to update');
-                return;
+    if (noteUpdateBtn) {
+        noteUpdateBtn.addEventListener('click', async () => {
+            if (!isNoteEditMode) {
+                toggleNoteEditMode(true);
+            } else if (currentNoteId) {
+                const newTitle = (document.getElementById('edit-note-title') as HTMLInputElement)?.value;
+                const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement)?.value;
+
+                if (newTitle && newContent) {
+                    try {
+                        await updateNote(currentNoteId, newTitle, newContent, masterPassword);
+                        const notes = await getUserNotes(masterPassword) as Note[];
+                        sessionStorage.setItem('notes', JSON.stringify(notes));
+                        toggleNoteEditMode(false);
+                        await loadNotes();
+                    } catch (error: any) {
+                        alert('Ошибка: ' + error.message);
+                    }
+                }
             }
-            const newTitle = (document.getElementById('edit-note-title') as HTMLInputElement).value;
-            const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement).value;
-            try {
-                console.log('Updating note:', { noteId: currentNoteId, newTitle, newContent });
-                await updateNote(currentNoteId, newTitle, newContent, masterPassword);
-                console.log('Note updated successfully');
-                const notes = await getUserNotes(masterPassword) as Note[];
-                sessionStorage.setItem('notes', JSON.stringify(notes));
-                toggleNoteEditMode(false);
-                await loadNotes();
-            } catch (error: any) {
-                console.error('Error updating note:', error.message);
-                alert('Ошибка при обновлении заметки: ' + error.message);
+        });
+    }
+
+    const dropdown = document.querySelector('.profile-dropdown');
+    const menu = document.getElementById('profileMenu');
+    if (dropdown && menu) {
+        dropdown.addEventListener('click', () => {
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+            dropdown.textContent = menu.style.display === 'block' ? '▲' : '▼';
+        });
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target as Node) && !menu.contains(e.target as Node)) {
+                menu.style.display = 'none';
+                dropdown.textContent = '▼';
             }
-        }
-    });
+        });
+    }
 
-    // Обработка выпадающего меню
-    const dropdown = document.querySelector('.profile-dropdown')!;
-    const menu = document.getElementById('profileMenu')!;
-    dropdown.addEventListener('click', () => {
-        const isMenuOpen = menu.style.display === 'block';
-        menu.style.display = isMenuOpen ? 'none' : 'block';
-        dropdown.textContent = isMenuOpen ? '▼' : '▲';
-    });
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            localStorage.removeItem('token');
+            sessionStorage.clear();
+            window.location.href = '/pages/login-page.html';
+        });
+    }
 
-    document.addEventListener('click', (e) => {
-        if (!dropdown.contains(e.target as Node) && !menu.contains(e.target as Node)) {
-            menu.style.display = 'none';
-            dropdown.textContent = '▼';
-        }
-    });
-
-    // Обработка выхода
-    const logoutBtn = document.getElementById('logoutBtn')!;
-    logoutBtn.addEventListener('click', () => {
-        console.log('Logging out');
-        localStorage.removeItem('token');
-        sessionStorage.removeItem('masterPassword');
-        sessionStorage.removeItem('username');
-        sessionStorage.removeItem('email');
-        sessionStorage.removeItem('accounts');
-        sessionStorage.removeItem('notes');
-        sessionStorage.removeItem('isDataLoaded');
-        window.location.href = '/pages/login-page.html';
-    });
-
-    // Переключение боковой панели
-    const sidebar = document.getElementById('sidebar')!;
-    const hideBtn = document.getElementById('hideBtn')!;
-    hideBtn.addEventListener('click', () => {
-        const isHidden = sidebar.classList.contains('hidden');
-        sidebar.classList.toggle('hidden');
-        hideBtn.textContent = isHidden ? '≪' : '≫';
-        console.log('Sidebar toggled, hidden:', !isHidden);
-    });
+    const sidebar = document.getElementById('sidebar');
+    const hideBtn = document.getElementById('hideBtn');
+    if (sidebar && hideBtn) {
+        hideBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('hidden');
+            hideBtn.textContent = sidebar.classList.contains('hidden') ? '≪' : '≫';
+        });
+    }
 });

@@ -8,6 +8,6 @@ namespace PasswordManagerAPI.Services
         public Task<bool> IsFavoriteAsync(int userId, string entityType, int entityId);
         public Task<Favorite> AddToFavoritesAsync(int userId, string entityType, int entityId);
         public Task RemoveFromFavoritesAsync(int userId, string entityType, int entityId);
-        public Task<FavoriteResult> GetUserFavoritesAsync(int userId);
+        public Task<FavoriteResult> GetUserFavoritesAsync(int userId, string masterPassword);
     }
 }

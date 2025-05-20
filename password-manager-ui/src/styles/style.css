@@ -258,6 +258,7 @@ body {
     transition: transform 0.2s ease;
     cursor: pointer;
     box-sizing: border-box;
+    position: relative;
 }
 
 .card:hover {
@@ -297,6 +298,21 @@ body {
     margin: 4px 0 0;
     font-size: 14px;
     color: var(--text-secondary);
+}
+
+.card-favorite {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    font-size: 20px;
+    color: gold;
+}
+
+.card-content {
+    display: flex;
+    align-items: center;
+    width: 100%;
 }
 
 .add-new-card {
@@ -481,6 +497,7 @@ body {
 }
 
 .modal-close-btn {
+    font-family: "Montserrat";
     background-color: var(--accent);
     color: var(--text-primary);
     padding: 12px;
@@ -498,6 +515,7 @@ body {
 }
 
 .modal-delete-btn {
+    font-family: "Montserrat";
     background-color: #991b1b;
     color: #fee2e2;
     padding: 12px;
@@ -517,6 +535,7 @@ body {
 .modal-update-btn {
     background-color: var(--accent);
     color: var(--text-primary);
+    font-family: "Montserrat";
     padding: 12px;
     border: none;
     border-radius: 6px;
@@ -612,4 +631,26 @@ body {
     margin-top: 10px;
     text-align: center;
     display: none;
+}
+.section-title{
+    font-size: 2em;
+    margin: 10px;
+}
+
+.favorite-btn {
+    background-color: #ffd700;
+    font-family: "Montserrat";
+    color: #333;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 25px;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.favorite-btn:hover {
+    background-color: #ffca28;
 }
