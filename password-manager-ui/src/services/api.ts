@@ -97,13 +97,31 @@ export const isFavorite = async (entityType: string, entityId: number) => {
   return response.data;
 };
 
-export  const getUserInfo = async  () => {
+export const getUserInfo = async  () => {
   const response = await api.get(`/User/GetUserInfo`);
   return response.data;
 }
 
-export  const ping = async () => {
+export const ping = async () => {
   console.log("Request to:", 'https://192.168.0.101:7163' + "/api/auth/ping");
   const response = await  api.get(`/auth/ping`);
+  return response.data;
+}
+
+export const hashAll = async () => {
+  const response = await api.get(`/auth/hashes`);
+  return response.data;
+}
+
+export const hashNotes = async () => {
+  const response = await api.get(`/notes/hashNotes`);
+  return response.data;
+}
+export const hashAccounts = async () => {
+  const response = await api.get(`/accounts/hashAccounts`);
+  return response.data;
+}
+export const hashFavorites = async () => {
+  const response = await api.get(`/favorite/hashFavorites`);
   return response.data;
 }

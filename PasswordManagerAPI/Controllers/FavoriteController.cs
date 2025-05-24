@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
@@ -83,6 +83,15 @@ namespace PasswordManagerAPI.Controllers
                 return BadRequest(e.Message);
             }
 
+        }
+        [HttpGet("hashFavorites")]
+        public async Task<IActionResult> GetDataHashes()
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+
+            var hash = await _favoriteService.GetHashAsync(userId);
+
+            return Ok(hash);
         }
         #endregion
 

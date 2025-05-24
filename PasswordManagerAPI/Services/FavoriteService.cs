@@ -1,8 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using RSAEncryptions;
 using System.Numerics;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PasswordManagerAPI.Services
 {
@@ -82,6 +85,17 @@ namespace PasswordManagerAPI.Services
                 _context.Favorites.Remove(favorite);
                 await _context.SaveChangesAsync();
             }
+        }
+        public async Task<string> GetHashAsync(int userId)
+        {
+            var favorites = await _context.Favorites.Where(n => n.UserId == userId).ToListAsync();
+
+            string favoritesJson = JsonConvert.SerializeObject(favorites);
+
+            using var sha256 = SHA256.Create();
+            var favoritesHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(favoritesJson)));
+
+            return favoritesHash.ToLower();
         }
 
         private async Task<Account> GetAccountByIdAsync(int userId, int accountId, string masterPassword)

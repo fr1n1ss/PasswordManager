@@ -1,4 +1,19 @@
-import { getUserFavorites, deleteAccount, deleteNote, updateAccount, updateNote } from '../services/api.ts';
+import {
+    getUserFavorites,
+    deleteAccount,
+    deleteNote,
+    updateAccount,
+    updateNote,
+    hashFavorites } from '../services/api.ts';
+
+async function hashData(data: any): Promise<string> {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(JSON.stringify(data));
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
 
 interface Account {
     id: number;
@@ -47,6 +62,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    const bindCardListeners = () => {
+        const accountCards = passwordCards.querySelectorAll('.card');
+        accountCards.forEach(card => {
+            const accountId = parseInt(card.getAttribute('data-id') || '0', 10);
+            card.addEventListener('click', () => openAccountModal(accountId));
+        });
+
+        const noteCards = notesCards.querySelectorAll('.card');
+        noteCards.forEach(card => {
+            const noteId = parseInt(card.getAttribute('data-id') || '0', 10);
+            card.addEventListener('click', () => openNoteModal(noteId));
+        });
+    };
+
+    const syncFavorites = async () => {
+        const masterPassword = sessionStorage.getItem('masterPassword');
+        if (!masterPassword) return;
+
+        try {
+            const localFavorites: FavoritesResponse = favorites;
+
+            const localHash = await hashData(localFavorites);
+            const { favoritesHash } = await hashFavorites();
+
+            if (localHash !== favoritesHash) {
+                console.log('[sync] Избранное изменилось — обновляем');
+
+                favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
+
+                passwordCards.innerHTML = favorites.accounts
+                    .map(account => {
+                        const logoUrl = account.url
+                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                            : 'https://via.placeholder.com/32';
+                        return `
+                        <div class="card" data-id="${account.id}">
+                            <div class="card-logo"><img src="${logoUrl}" alt="${account.serviceName} logo" /></div>
+                            <div class="card-details"><h3>${account.serviceName}</h3><p>${account.login}</p></div>
+                        </div>
+                    `;
+                    }).join('');
+
+                notesCards.innerHTML = favorites.notes
+                    .map(note => `
+                    <div class="card" data-id="${note.id}">
+                        <div class="card-logo"></div>
+                        <div class="card-details"><h3>${note.title}</h3><p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p></div>
+                    </div>
+                `).join('');
+
+                bindCardListeners();
+            }
+        } catch (error) {
+            console.error('[syncFavorites] Ошибка синхронизации избранного:', error);
+        }
+    };
+
     let favorites: FavoritesResponse;
     try {
         favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
@@ -82,20 +154,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         errorContainer.style.display = 'none';
 
-        // Привязываем обработчики событий для карточек
-        const bindCardListeners = () => {
-            const accountCards = passwordCards.querySelectorAll('.card');
-            accountCards.forEach(card => {
-                const accountId = parseInt(card.getAttribute('data-id') || '0', 10);
-                card.addEventListener('click', () => openAccountModal(accountId));
-            });
-
-            const noteCards = notesCards.querySelectorAll('.card');
-            noteCards.forEach(card => {
-                const noteId = parseInt(card.getAttribute('data-id') || '0', 10);
-                card.addEventListener('click', () => openNoteModal(noteId));
-            });
-        };
         bindCardListeners();
     } catch (error: any) {
         errorContainer.style.display = 'block';
@@ -468,4 +526,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideBtn.textContent = isHidden ? '≪' : '≫';
         });
     }
+
+    setInterval(syncFavorites, 10000);
 });

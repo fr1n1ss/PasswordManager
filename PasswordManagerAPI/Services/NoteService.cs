@@ -1,7 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
 using RSAEncryptions;
 using System.Numerics;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PasswordManagerAPI.Services
 {
@@ -122,6 +125,20 @@ namespace PasswordManagerAPI.Services
             }
 
         }
+
+        public async Task<string> GetHashAsync(int userId)
+        {
+            var notes = await _context.Notes.Where(n => n.UserID == userId).ToListAsync();
+
+            string notesJson = JsonConvert.SerializeObject(notes);
+
+            using var sha256 = SHA256.Create();
+            var notesHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(notesJson)));
+
+            return notesHash = notesHash.ToLower();
+
+        }
+
 
         private void UpdateRSA(User user, string masterPassword)
         {

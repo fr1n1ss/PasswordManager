@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using RSAEncryptions;
 using PasswordManagerAPI.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +7,8 @@ using System.Security.Cryptography;
 using System.Numerics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Newtonsoft.Json;
+using System.Text;
 namespace PasswordManagerAPI.Services
 {
     public class AccountService : IAccountService
@@ -120,7 +122,7 @@ namespace PasswordManagerAPI.Services
             if (account == null)
                 throw new ArgumentNullException("Account with this ID not found");
             if (user == null)
-                throw new ArgumentNullException("User with this ID not found");        
+                throw new ArgumentNullException("User with this ID not found");
 
             UpdateRSA(user, masterPassword);
 
@@ -148,19 +150,30 @@ namespace PasswordManagerAPI.Services
                 wasChanged = true;
             }
 
-            if(!string.IsNullOrEmpty(newUrl) && ValidURL(newUrl))
+            if (!string.IsNullOrEmpty(newUrl) && ValidURL(newUrl))
             {
                 account.URL = newUrl;
                 wasChanged = true;
             }
 
-            if(wasChanged)
+            if (wasChanged)
                 account.CreationDate = DateTime.Now;
 
             _context.Accounts.Update(account);
 
             await _context.SaveChangesAsync();
 
+        }
+        public async Task<string> GetHashAsync(int userId)
+        {
+            var notes = await _context.Accounts.Where(n => n.UserID == userId).ToListAsync();
+
+            string accountsJson = JsonConvert.SerializeObject(notes);
+
+            using var sha256 = SHA256.Create();
+            var accountsHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(accountsJson)));
+
+            return accountsHash = accountsHash.ToLower();
         }
         private void UpdateRSA(User user, string masterPassword)
         {

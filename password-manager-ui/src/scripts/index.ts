@@ -1,5 +1,12 @@
-import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote, addAccount, addNote, getAccountById, addToFavorites, removeFromFavorites, isFavorite } from '../services/api.ts';
-
+import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote, addAccount, addNote, getAccountById, addToFavorites, removeFromFavorites, isFavorite, hashAll } from '../services/api.ts';
+async function hashData(data: any): Promise<string> {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(JSON.stringify(data));
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
 interface Account {
     id: number;
     userID: number;
@@ -63,6 +70,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/pages/login-page.html';
         return;
     }
+
+    const syncData = async () => {
+        const masterPassword = sessionStorage.getItem('masterPassword');
+        if (!masterPassword) return;
+
+        try {
+            const cachedAccounts = JSON.parse(sessionStorage.getItem('accounts') || '[]');
+            const cachedNotes = JSON.parse(sessionStorage.getItem('notes') || '[]');
+
+            const localAccountsHash = await hashData(cachedAccounts);
+            const localNotesHash = await hashData(cachedNotes);
+
+            const { accountsHash, notesHash } = await hashAll();
+
+            if (localAccountsHash !== accountsHash) {
+                const updatedAccounts = await getAccounts(masterPassword);
+                sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
+                await loadAccounts();
+                console.log('[sync] Accounts обновлены');
+            }
+
+            if (localNotesHash !== notesHash) {
+                const updatedNotes = await getUserNotes(masterPassword);
+                sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
+                await loadNotes();
+                console.log('[sync] Notes обновлены');
+            }
+        } catch (err) {
+            console.error('[syncData] Ошибка синхронизации:', err);
+        }
+    };
 
     const token = localStorage.getItem('token');
     if (!token) {
@@ -557,4 +595,5 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideBtn.textContent = sidebar.classList.contains('hidden') ? '≪' : '≫';
         });
     }
+    setInterval(syncData, 10000);
 });

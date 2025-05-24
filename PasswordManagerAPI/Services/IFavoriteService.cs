@@ -1,4 +1,4 @@
-﻿using PasswordManagerAPI.Entities;
+using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 
 namespace PasswordManagerAPI.Services
@@ -9,5 +9,6 @@ namespace PasswordManagerAPI.Services
         public Task<Favorite> AddToFavoritesAsync(int userId, string entityType, int entityId);
         public Task RemoveFromFavoritesAsync(int userId, string entityType, int entityId);
         public Task<FavoriteResult> GetUserFavoritesAsync(int userId, string masterPassword);
+        Task<string> GetHashAsync(int userId);
     }
 }

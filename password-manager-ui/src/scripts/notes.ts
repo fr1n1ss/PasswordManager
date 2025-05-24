@@ -1,4 +1,13 @@
-import { getUserNotes, deleteNote, updateNote, addNote, getNoteById } from '../services/api.ts';
+import {getUserNotes, deleteNote, updateNote, addNote, getNoteById, hashNotes} from '../services/api.ts';
+
+async function hashData(data: any): Promise<string> {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(JSON.stringify(data));
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
 
 interface Note {
     id: number;
@@ -53,6 +62,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/pages/login-page.html';
         return;
     }
+
+    const syncData = async () => {
+        const masterPassword = sessionStorage.getItem('masterPassword');
+        if (!masterPassword) return;
+
+        try {
+            const cachedNotes = JSON.parse(sessionStorage.getItem('notes') || '[]');
+
+            const localNotesHash = await hashData(cachedNotes);
+
+            const notesHash = await hashNotes();
+
+            if (localNotesHash !== notesHash) {
+                const updatedNotes = await getUserNotes(masterPassword);
+                sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
+                await loadNotes();
+                console.log('[sync] Notes обновлены');
+            }
+        } catch (err) {
+            console.error('[syncData] Ошибка синхронизации:', err);
+        }
+    };
 
     // Загрузка и отображение заметок
     const loadNotes = async () => {
@@ -347,4 +378,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         hideBtn.textContent = isHidden ? '≪' : '≫';
         console.log('Sidebar toggled, hidden:', !isHidden);
     });
+
+    setInterval(syncData, 10000);
 });

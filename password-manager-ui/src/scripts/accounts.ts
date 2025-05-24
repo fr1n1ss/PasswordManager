@@ -1,4 +1,13 @@
-import { getAccounts, deleteAccount, updateAccount, addAccount, getAccountById } from '../services/api.ts';
+import { getAccounts, deleteAccount, updateAccount, addAccount, getAccountById, hashAccounts } from '../services/api.ts';
+
+async function hashData(data: any): Promise<string> {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(JSON.stringify(data));
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
 
 interface Account {
     id: number;
@@ -54,6 +63,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/pages/login-page.html';
         return;
     }
+    const syncData = async () => {
+        const masterPassword = sessionStorage.getItem('masterPassword');
+        if (!masterPassword) return;
+
+        try {
+            const cachedAccounts = JSON.parse(sessionStorage.getItem('accounts') || '[]');
+
+            const localAccountsHash = await hashData(cachedAccounts);
+
+            const accountsHash = await hashAccounts();
+
+            if (localAccountsHash !== accountsHash) {
+                const updatedAccounts = await getAccounts(masterPassword);
+                sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
+                await loadAccounts();
+                console.log('[sync] Accounts обновлены');
+            }
+
+        } catch (err) {
+            console.error('[syncData] Ошибка синхронизации:', err);
+        }
+    };
 
     // Загрузка и отображение аккаунтов
     const loadAccounts = async () => {
@@ -352,4 +383,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         hideBtn.textContent = isHidden ? '≪' : '≫';
         console.log('Sidebar toggled, hidden:', !isHidden);
     });
+
+    setInterval(syncData, 10000);
 });

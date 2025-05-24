@@ -1,5 +1,8 @@
-п»їusing Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
@@ -33,7 +36,7 @@ namespace PasswordManagerAPI.Controllers
 
             if (user == null || !_securityHelper.VerifyPassword(model.Password, user.PasswordHash, user.Salt))
             {
-                return Unauthorized(new { message = "РќРµРІРµСЂРЅС‹Р№ Р»РѕРіРёРЅ РёР»Рё РїР°СЂРѕР»СЊ" });
+                return Unauthorized(new { message = "Неверный логин или пароль" });
             }
 
             var token = _securityHelper.GenerateJwtToken(user);
@@ -51,11 +54,11 @@ namespace PasswordManagerAPI.Controllers
 
             if (model.Username == null || model.Username == string.Empty)
                 return BadRequest("Enter username");
-            
-            if(model.Password == null || model.Password == string.Empty)
+
+            if (model.Password == null || model.Password == string.Empty)
                 return BadRequest("No password was entered");
-            
-            if(model.Email == null || model.Email == string.Empty)
+
+            if (model.Email == null || model.Email == string.Empty)
                 return BadRequest("No email was entered");
 
             if (model.MasterPassword == null || model.MasterPassword == string.Empty)
@@ -90,6 +93,29 @@ namespace PasswordManagerAPI.Controllers
         public IActionResult Ping()
         {
             return Ok(new { status = "ok" });
+        }
+        [HttpGet("hashes")]
+        [Authorize]
+        public async Task<IActionResult> GetDataHashes()
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+
+            var accounts = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
+
+            var notes = await _context.Notes.Where(n => n.UserID == userId).ToListAsync();
+
+            string accountsJson = JsonConvert.SerializeObject(accounts);
+            string notesJson = JsonConvert.SerializeObject(notes);
+
+            using var sha256 = SHA256.Create();
+            var accountsHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(accountsJson)));
+            var notesHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(notesJson)));
+
+            return Ok(new
+            {
+                accountsHash = accountsHash.ToLower(),
+                notesHash = notesHash.ToLower()
+            });
         }
     }
 }

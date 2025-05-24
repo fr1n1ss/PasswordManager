@@ -1,8 +1,11 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
+using System.Text;
 
 namespace PasswordManagerAPI.Controllers
 {
@@ -103,6 +106,15 @@ namespace PasswordManagerAPI.Controllers
             }
 
         }
+        [HttpGet("hashNotes")]
+        public async Task<IActionResult> GetDataHashes()
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+
+            var hash = await _noteService.GetHashAsync(userId);
+
+            return Ok(hash);
+        }
         #endregion
 
         #region DELETE
@@ -123,8 +135,5 @@ namespace PasswordManagerAPI.Controllers
             }
         }
         #endregion
-
-
-
     }
 }
