@@ -55,6 +55,14 @@ namespace PasswordManagerAPI
 
             builder.Services.AddEndpointsApiExplorer();
 
+            builder.WebHost.UseKestrel(options =>
+            {
+                options.ListenAnyIP(7163, listenOptions =>
+                {
+                    listenOptions.UseHttps("certificate.pfx", "NKdM2b3kvx4uof27sxgNyZWvoTpq8pKkPEUjPHK3i3zwZ17V2bqhTkLufGqrgaYs"); 
+                });
+            });
+
             builder.Services.AddSwaggerGen(options =>
             {
                 options.SwaggerDoc("v1", new OpenApiInfo { Title = "Password Manager API", Version = "v1" });
