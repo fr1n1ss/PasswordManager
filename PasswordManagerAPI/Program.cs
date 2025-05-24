@@ -37,12 +37,11 @@ namespace PasswordManagerAPI
 
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("AllowTauri", builder =>
+                options.AddPolicy("AllowAll", policy =>
                 {
-                    builder.WithOrigins("http://localhost:3000", "https://localhost:3000")
-                           .AllowAnyMethod()
-                           .AllowAnyHeader()
-                           .AllowCredentials();
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
                 });
             });
 
@@ -59,7 +58,7 @@ namespace PasswordManagerAPI
             {
                 options.ListenAnyIP(7163, listenOptions =>
                 {
-                    listenOptions.UseHttps("certificate.pfx", "NKdM2b3kvx4uof27sxgNyZWvoTpq8pKkPEUjPHK3i3zwZ17V2bqhTkLufGqrgaYs"); 
+                    listenOptions.UseHttps("localhost.pfx", "NKdM2b3kvx4uof27sxgNyZWvoTpq8pKkPEUjPHK3i3zwZ17V2bqhTkLufGqrgaYs"); 
                 });
             });
 
@@ -101,7 +100,7 @@ namespace PasswordManagerAPI
             }
 
             app.UseHttpsRedirection();
-            app.UseCors("AllowTauri");
+            app.UseCors("AllowAll");
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();

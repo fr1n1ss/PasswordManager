@@ -103,6 +103,7 @@ export  const getUserInfo = async  () => {
 }
 
 export  const ping = async () => {
+  console.log("Request to:", 'https://192.168.0.101:7163' + "/api/auth/ping");
   const response = await  api.get(`/auth/ping`);
   return response.data;
 }
