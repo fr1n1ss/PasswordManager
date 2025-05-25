@@ -1,4 +1,4 @@
-import { getAccounts, deleteAccount, updateAccount, addAccount, getAccountById, hashAccounts } from '../services/api.ts';
+import { getAccounts, deleteAccount, updateAccount, addAccount, getAccountById, hashAccounts, addToFavorites, removeFromFavorites, isFavorite } from '../services/api.ts';
 
 async function hashData(data: any): Promise<string> {
     const encoder = new TextEncoder();
@@ -18,6 +18,16 @@ interface Account {
     description: string;
     url: string;
     creationDate: string;
+    isFavorite?: boolean;
+}
+
+// Функция debounce
+function debounce(func: Function, delay: number) {
+    let timeoutId: NodeJS.Timeout;
+    return (...args: any[]) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func(...args), delay);
+    };
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -55,6 +65,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cancelAccountBtn = document.getElementById('cancel-account')!;
     const submitAccountBtn = document.getElementById('submit-account')!;
     const accountError = document.getElementById('account-error')!;
+    const searchInput = document.querySelector('.search-bar') as HTMLInputElement;
+    const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement;
+
+    if (!passwordCards || !errorContainer || !fabButton || !addAccountModal || !cancelAccountBtn || !submitAccountBtn || !accountError || !searchInput || !sortDropdown) {
+        console.error('Required DOM elements are missing');
+        return;
+    }
 
     // Получение мастер-пароля
     const masterPassword = sessionStorage.getItem('masterPassword');
@@ -63,15 +80,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/pages/login-page.html';
         return;
     }
+
     const syncData = async () => {
         const masterPassword = sessionStorage.getItem('masterPassword');
         if (!masterPassword) return;
 
         try {
             const cachedAccounts = JSON.parse(sessionStorage.getItem('accounts') || '[]');
-
             const localAccountsHash = await hashData(cachedAccounts);
-
             const accountsHash = await hashAccounts();
 
             if (localAccountsHash !== accountsHash) {
@@ -80,16 +96,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await loadAccounts();
                 console.log('[sync] Accounts обновлены');
             }
-
         } catch (err) {
             console.error('[syncData] Ошибка синхронизации:', err);
         }
     };
 
-    // Загрузка и отображение аккаунтов
+    const filterAccounts = (accounts: Account[], searchTerm: string): Account[] => {
+        if (!searchTerm) return accounts;
+        return accounts.filter(account => account.serviceName.toLowerCase().includes(searchTerm.toLowerCase()));
+    };
+
+    const sortAccounts = (accounts: Account[], sortBy: string): Account[] => {
+        const sortedAccounts = [...accounts];
+        switch (sortBy) {
+            case 'az':
+                sortedAccounts.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
+                break;
+            case 'za':
+                sortedAccounts.sort((a, b) => b.serviceName.localeCompare(a.serviceName));
+                break;
+            case 'oldest':
+                sortedAccounts.sort((a, b) => new Date(a.creationDate).getTime() - new Date(b.creationDate).getTime());
+                break;
+            case 'newest':
+                sortedAccounts.sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime());
+                break;
+        }
+        return sortedAccounts;
+    };
+
     const loadAccounts = async () => {
-        const accountsStr = sessionStorage.getItem('accounts');
         let accounts: Account[] = [];
+        const accountsStr = sessionStorage.getItem('accounts');
         if (accountsStr) {
             accounts = JSON.parse(accountsStr);
         } else {
@@ -97,12 +135,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
         }
         console.log('Accounts retrieved:', accounts);
-        if (accounts.length === 0) {
+
+        let filteredAccounts = filterAccounts(accounts, searchInput.value);
+        filteredAccounts = sortAccounts(filteredAccounts, sortDropdown.value);
+
+        if (filteredAccounts.length === 0) {
             console.log('No accounts to display');
             passwordCards.innerHTML = '<div class="add-new-card">+</div>';
         } else {
-            passwordCards.innerHTML = accounts
-                .map((account: Account) => {
+            // Кэшируем результаты isFavorite
+            const favoritePromises = filteredAccounts.map(account => isFavorite('account', account.id).catch(() => false));
+            const favoriteStatuses = await Promise.all(favoritePromises);
+            const accountsWithFavorite = filteredAccounts.map((account, index) => ({
+                ...account,
+                isFavorite: favoriteStatuses[index]
+            }));
+            passwordCards.innerHTML = accountsWithFavorite
+                .map((account) => {
                     const logoUrl = account.url
                         ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
                         : 'https://via.placeholder.com/32';
@@ -120,29 +169,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                 })
                 .join('') + '<div class="add-new-card">+</div>';
         }
+
+        // Привязываем обработчики для новых карточек
+        passwordCards.querySelectorAll('.add-new-card').forEach(card => {
+            card.addEventListener('click', () => {
+                closeAllModals();
+                addAccountModal.style.display = 'flex';
+            });
+        });
     };
 
-    await loadAccounts();
-    errorContainer.style.display = 'none';
+    try {
+        await loadAccounts();
+        errorContainer.style.display = 'none';
+    } catch (error) {
+        console.error('Error loading accounts:', error);
+        errorContainer.style.display = 'block';
+        const errorMessage = document.getElementById('errorMessage')!;
+        errorMessage.textContent = 'Ошибка при загрузке аккаунтов';
+        return;
+    }
 
-    // Модальное окно для аккаунтов уже есть в HTML
+    // Модальное окно для аккаунтов
     let currentAccountId: number | null = null;
 
-    // Функция для скрытия всех модальных окон
     const closeAllModals = () => {
         addAccountModal.style.display = 'none';
         const accountModal = document.getElementById('account-modal')!;
         accountModal.style.display = 'none';
         accountError.style.display = 'none';
+        const favoriteBtn = document.getElementById('account-favorite-btn');
+        if (favoriteBtn) {
+            favoriteBtn.textContent = '';
+            favoriteBtn.innerHTML = '';
+        }
     };
-
-    // Обработчик для карточки "+"
-    passwordCards.querySelectorAll('.add-new-card').forEach(card => {
-        card.addEventListener('click', () => {
-            closeAllModals();
-            addAccountModal.style.display = 'flex';
-        });
-    });
 
     // Обработчик для FAB кнопки
     fabButton.addEventListener('click', () => {
@@ -191,7 +252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Fetching decrypted account with ID:', accountId);
             const decryptedAccount = await getAccountById(accountId, masterPassword);
             console.log('Decrypted account:', decryptedAccount);
-            const accounts = [...JSON.parse(sessionStorage.getItem('accounts') || '[]'), decryptedAccount];
+            const accounts = [...JSON.parse(sessionStorage.getItem('accounts') || '[]'), { ...decryptedAccount, isFavorite: false }];
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
             await loadAccounts();
             closeAllModals();
@@ -204,7 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Открытие модального окна для аккаунтов
-    (window as any).openAccountModal = (accountId: number) => {
+    (window as any).openAccountModal = async (accountId: number) => {
         console.log('Opening account modal for ID:', accountId);
         const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === accountId);
         if (!account) {
@@ -221,6 +282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const description = document.getElementById('modal-description')!;
         const url = document.getElementById('modal-url')!;
         const creationDate = document.getElementById('modal-creation-date')!;
+        const favoriteBtn = document.getElementById('account-favorite-btn')!;
 
         serviceName.textContent = account.serviceName;
         login.textContent = account.login;
@@ -228,6 +290,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         description.textContent = account.description || 'Не указано';
         url.textContent = account.url || 'Не указан';
         creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
+
+        const isFav = await isFavorite('account', accountId).catch(() => false);
+        const buttonText = isFav ? 'Удалить из избранного' : 'Добавить в избранное';
+        favoriteBtn.textContent = buttonText;
+        favoriteBtn.style.display = 'inline-block';
+        favoriteBtn.style.visibility = 'visible';
+
+        favoriteBtn.onclick = async () => {
+            try {
+                const currentFavStatus = await isFavorite('account', accountId).catch(() => false);
+                if (currentFavStatus) {
+                    await removeFromFavorites('account', accountId);
+                } else {
+                    await addToFavorites('account', accountId);
+                }
+                const updatedFavStatus = await isFavorite('account', accountId).catch(() => false);
+                const updatedText = updatedFavStatus ? 'Удалить из избранного' : 'Добавить в избранное';
+                favoriteBtn.textContent = updatedText;
+                const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]');
+                const updatedAccounts = accounts.map((acc: Account) => acc.id === accountId ? { ...acc, isFavorite: updatedFavStatus } : acc);
+                sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
+            } catch (error: any) {
+                alert(`Ошибка: ${error.message}`);
+            }
+        };
 
         modal.style.display = 'flex';
         console.log('Account modal displayed');
@@ -383,6 +470,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         hideBtn.textContent = isHidden ? '≪' : '≫';
         console.log('Sidebar toggled, hidden:', !isHidden);
     });
+
+    // Динамический поиск с debounce
+    const debouncedSearch = debounce(async () => {
+        await loadAccounts();
+    }, 300);
+    searchInput.addEventListener('input', debouncedSearch);
+
+    // Сортировка с debounce
+    const debouncedSort = debounce(async () => {
+        await loadAccounts();
+    }, 300);
+    sortDropdown.addEventListener('change', debouncedSort);
 
     setInterval(syncData, 10000);
 });

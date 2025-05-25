@@ -4,7 +4,8 @@ import {
     deleteNote,
     updateAccount,
     updateNote,
-    hashFavorites } from '../services/api.ts';
+    hashFavorites
+} from '../services/api.ts';
 
 async function hashData(data: any): Promise<string> {
     const encoder = new TextEncoder();
@@ -42,6 +43,14 @@ interface FavoritesResponse {
     notes: Note[];
 }
 
+function debounce(func: Function, delay: number) {
+    let timeoutId: NodeJS.Timeout;
+    return (...args: any[]) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func(...args), delay);
+    };
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const username = sessionStorage.getItem('username');
     const email = sessionStorage.getItem('email');
@@ -54,7 +63,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const notesCards = document.getElementById('notesCards');
     const errorContainer = document.getElementById('errorContainer');
     const errorMessage = document.getElementById('errorMessage');
-    if (!passwordCards || !notesCards || !errorContainer || !errorMessage) return;
+    const searchInput = document.querySelector('.search-bar') as HTMLInputElement;
+    const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement;
+
+    if (!passwordCards || !notesCards || !errorContainer || !errorMessage || !searchInput || !sortDropdown) {
+        console.error('Required DOM elements are missing');
+        return;
+    }
 
     const masterPassword = sessionStorage.getItem('masterPassword');
     if (!masterPassword) {
@@ -62,66 +77,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const bindCardListeners = () => {
-        const accountCards = passwordCards.querySelectorAll('.card');
-        accountCards.forEach(card => {
-            const accountId = parseInt(card.getAttribute('data-id') || '0', 10);
-            card.addEventListener('click', () => openAccountModal(accountId));
-        });
-
-        const noteCards = notesCards.querySelectorAll('.card');
-        noteCards.forEach(card => {
-            const noteId = parseInt(card.getAttribute('data-id') || '0', 10);
-            card.addEventListener('click', () => openNoteModal(noteId));
-        });
-    };
-
-    const syncFavorites = async () => {
-        const masterPassword = sessionStorage.getItem('masterPassword');
-        if (!masterPassword) return;
-
-        try {
-            const localFavorites: FavoritesResponse = favorites;
-
-            const localHash = await hashData(localFavorites);
-            const { favoritesHash } = await hashFavorites();
-
-            if (localHash !== favoritesHash) {
-                console.log('[sync] Избранное изменилось — обновляем');
-
-                favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
-
-                passwordCards.innerHTML = favorites.accounts
-                    .map(account => {
-                        const logoUrl = account.url
-                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                            : 'https://via.placeholder.com/32';
-                        return `
-                        <div class="card" data-id="${account.id}">
-                            <div class="card-logo"><img src="${logoUrl}" alt="${account.serviceName} logo" /></div>
-                            <div class="card-details"><h3>${account.serviceName}</h3><p>${account.login}</p></div>
-                        </div>
-                    `;
-                    }).join('');
-
-                notesCards.innerHTML = favorites.notes
-                    .map(note => `
-                    <div class="card" data-id="${note.id}">
-                        <div class="card-logo"></div>
-                        <div class="card-details"><h3>${note.title}</h3><p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p></div>
-                    </div>
-                `).join('');
-
-                bindCardListeners();
-            }
-        } catch (error) {
-            console.error('[syncFavorites] Ошибка синхронизации избранного:', error);
-        }
-    };
-
     let favorites: FavoritesResponse;
-    try {
-        favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
+
+    const filterFavorites = (favorites: FavoritesResponse, searchTerm: string): FavoritesResponse => {
+        if (!searchTerm) return favorites;
+        const filteredAccounts = favorites.accounts.filter(account =>
+            account.serviceName.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        const filteredNotes = favorites.notes.filter(note =>
+            note.title.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        return { accounts: filteredAccounts, notes: filteredNotes };
+    };
+
+    const sortFavorites = (favorites: FavoritesResponse, sortBy: string): FavoritesResponse => {
+        const sortedAccounts = [...favorites.accounts];
+        const sortedNotes = [...favorites.notes];
+
+        switch (sortBy) {
+            case 'az':
+                sortedAccounts.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
+                sortedNotes.sort((a, b) => a.title.localeCompare(b.title));
+                break;
+            case 'za':
+                sortedAccounts.sort((a, b) => b.serviceName.localeCompare(a.serviceName));
+                sortedNotes.sort((a, b) => b.title.localeCompare(a.title));
+                break;
+            case 'oldest':
+                sortedAccounts.sort((a, b) => new Date(a.creationDate).getTime() - new Date(b.creationDate).getTime());
+                sortedNotes.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                break;
+            case 'newest':
+                sortedAccounts.sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime());
+                sortedNotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                break;
+        }
+
+        return { accounts: sortedAccounts, notes: sortedNotes };
+    };
+
+    const renderFavorites = (favorites: FavoritesResponse) => {
         passwordCards.innerHTML = favorites.accounts
             .map((account: Account) => {
                 const logoUrl = account.url
@@ -152,14 +147,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `).join('');
 
-        errorContainer.style.display = 'none';
-
         bindCardListeners();
-    } catch (error: any) {
-        errorContainer.style.display = 'block';
-        errorMessage.textContent = `Ошибка загрузки избранного: ${error.message}`;
-        return;
-    }
+    };
+
+    const loadFavorites = async () => {
+        try {
+            favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
+            let filteredFavorites = filterFavorites(favorites, searchInput.value);
+            filteredFavorites = sortFavorites(filteredFavorites, sortDropdown.value);
+            renderFavorites(filteredFavorites);
+            errorContainer.style.display = 'none';
+        } catch (error: any) {
+            errorContainer.style.display = 'block';
+            errorMessage.textContent = `Ошибка загрузки избранного: ${error.message}`;
+            return;
+        }
+    };
+
+    const bindCardListeners = () => {
+        const accountCards = passwordCards.querySelectorAll('.card');
+        accountCards.forEach(card => {
+            const accountId = parseInt(card.getAttribute('data-id') || '0', 10);
+            card.addEventListener('click', () => openAccountModal(accountId));
+        });
+
+        const noteCards = notesCards.querySelectorAll('.card');
+        noteCards.forEach(card => {
+            const noteId = parseInt(card.getAttribute('data-id') || '0', 10);
+            card.addEventListener('click', () => openNoteModal(noteId));
+        });
+    };
+
+    const syncFavorites = async () => {
+        const masterPassword = sessionStorage.getItem('masterPassword');
+        if (!masterPassword) return;
+
+        try {
+            const localFavorites: FavoritesResponse = favorites;
+            const localHash = await hashData(localFavorites);
+            const { favoritesHash } = await hashFavorites();
+
+            if (localHash !== favoritesHash) {
+                console.log('[sync] Избранное изменилось — обновляем');
+                await loadFavorites();
+            }
+        } catch (error) {
+            console.error('[syncFavorites] Ошибка синхронизации избранного:', error);
+        }
+    };
+
+    await loadFavorites();
 
     const accountModalHtml = `
         <div id="account-modal" class="modal">
@@ -300,25 +337,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 await deleteAccount(currentAccountId);
                 accountModal.style.display = 'none';
-                favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
-                passwordCards.innerHTML = favorites.accounts
-                    .map((account: Account) => {
-                        const logoUrl = account.url
-                            ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                            : 'https://via.placeholder.com/32';
-                        return `
-                            <div class="card" data-id="${account.id}">
-                                <div class="card-logo">
-                                    <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                                </div>
-                                <div class="card-details">
-                                    <h3>${account.serviceName}</h3>
-                                    <p>${account.login}</p>
-                                </div>
-                            </div>
-                        `;
-                    })
-                    .join('');
+                await loadFavorites();
             } catch (error: any) {
                 alert('Ошибка при удалении аккаунта: ' + error.message);
             }
@@ -332,17 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 await deleteNote(currentNoteId);
                 noteModal.style.display = 'none';
-                favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
-                notesCards.innerHTML = favorites.notes
-                    .map((note: Note) => `
-                        <div class="card" data-id="${note.id}">
-                            <div class="card-logo"></div>
-                            <div class="card-details">
-                                <h3>${note.title}</h3>
-                                <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
-                            </div>
-                        </div>
-                    `).join('');
+                await loadFavorites();
             } catch (error: any) {
                 alert('Ошибка при удалении заметки: ' + error.message);
             }
@@ -395,36 +404,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 try {
                     await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
-                    const accountIndex = favorites.accounts.findIndex(acc => acc.id === currentAccountId);
-                    if (accountIndex !== -1) {
-                        favorites.accounts[accountIndex] = {
-                            ...favorites.accounts[accountIndex],
-                            serviceName,
-                            login,
-                            encryptedPassword: password,
-                            description,
-                            url,
-                        };
-                    }
+                    await loadFavorites();
                     toggleAccountEditMode(false);
-                    passwordCards.innerHTML = favorites.accounts
-                        .map((account: Account) => {
-                            const logoUrl = account.url
-                                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                                : 'https://via.placeholder.com/32';
-                            return `
-                                <div class="card" data-id="${account.id}">
-                                    <div class="card-logo">
-                                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                                    </div>
-                                    <div class="card-details">
-                                        <h3>${account.serviceName}</h3>
-                                        <p>${account.login}</p>
-                                    </div>
-                                </div>
-                            `;
-                        })
-                        .join('');
                 } catch (error: any) {
                     alert('Ошибка при обновлении аккаунта: ' + error.message);
                 }
@@ -467,21 +448,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement).value;
                 try {
                     await updateNote(currentNoteId, newTitle, newContent, masterPassword);
-                    const noteIndex = favorites.notes.findIndex(n => n.id === currentNoteId);
-                    if (noteIndex !== -1) {
-                        favorites.notes[noteIndex] = { ...favorites.notes[noteIndex], title: newTitle, encryptedContent: newContent };
-                    }
+                    await loadFavorites();
                     toggleNoteEditMode(false);
-                    notesCards.innerHTML = favorites.notes
-                        .map((note: Note) => `
-                            <div class="card" data-id="${note.id}">
-                                <div class="card-logo"></div>
-                                <div class="card-details">
-                                    <h3>${note.title}</h3>
-                                    <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
-                                </div>
-                            </div>
-                        `).join('');
                 } catch (error: any) {
                     alert('Ошибка при обновлении заметки: ' + error.message);
                 }
@@ -526,6 +494,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideBtn.textContent = isHidden ? '≪' : '≫';
         });
     }
+
+    const debouncedSearch = debounce(async () => {
+        let filteredFavorites = filterFavorites(favorites, searchInput.value);
+        filteredFavorites = sortFavorites(filteredFavorites, sortDropdown.value);
+        renderFavorites(filteredFavorites);
+    }, 300);
+    searchInput.addEventListener('input', debouncedSearch);
+
+    const debouncedSort = debounce(async () => {
+        let filteredFavorites = filterFavorites(favorites, searchInput.value);
+        filteredFavorites = sortFavorites(filteredFavorites, sortDropdown.value);
+        renderFavorites(filteredFavorites);
+    }, 300);
+    sortDropdown.addEventListener('change', debouncedSort);
 
     setInterval(syncFavorites, 10000);
 });

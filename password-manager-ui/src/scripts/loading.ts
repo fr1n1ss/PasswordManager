@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isServerAvailable = await checkServerAvailability();
     if (!isServerAvailable) {
         errorContainer.style.display = 'block';
-        errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже. <button onclick="window.location.reload()">Повторить</button>';
+        errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже. <button class="retry-button" onclick="window.location.reload()">Повторить</button>';
         return;
     }
 

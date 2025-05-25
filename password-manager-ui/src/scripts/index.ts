@@ -1,4 +1,5 @@
 import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote, addAccount, addNote, getAccountById, addToFavorites, removeFromFavorites, isFavorite, hashAll } from '../services/api.ts';
+
 async function hashData(data: any): Promise<string> {
     const encoder = new TextEncoder();
     const encoded = encoder.encode(JSON.stringify(data));
@@ -7,6 +8,7 @@ async function hashData(data: any): Promise<string> {
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
 }
+
 interface Account {
     id: number;
     userID: number;
@@ -27,6 +29,15 @@ interface Note {
     createdAt: string;
     updatedAt: string;
     isFavorite?: boolean;
+}
+
+// Функция debounce
+function debounce(func: Function, delay: number) {
+    let timeoutId: NodeJS.Timeout;
+    return (...args: any[]) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func(...args), delay);
+    };
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -60,8 +71,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noteError = document.getElementById('note-error');
     const accountModal = document.getElementById('account-modal');
     const noteModal = document.getElementById('note-modal');
+    const searchInput = document.querySelector('.search-bar') as HTMLInputElement;
+    const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement;
 
-    if (!passwordCards || !notesCards || !errorContainer || !fabButton || !addChoiceModal || !addAccountModal || !addNoteModal || !chooseAccountBtn || !chooseNoteBtn || !cancelAccountBtn || !cancelNoteBtn || !submitAccountBtn || !submitNoteBtn || !accountError || !noteError || !accountModal || !noteModal) {
+    if (!passwordCards || !notesCards || !errorContainer || !fabButton || !addChoiceModal || !addAccountModal || !addNoteModal || !chooseAccountBtn || !chooseNoteBtn || !cancelAccountBtn || !cancelNoteBtn || !submitAccountBtn || !submitNoteBtn || !accountError || !noteError || !accountModal || !noteModal || !searchInput || !sortDropdown) {
         return;
     }
 
@@ -108,6 +121,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    const filterCards = (items: any[], searchTerm: string, type: 'account' | 'note') => {
+        if (!searchTerm) return items;
+        return items.filter(item =>
+            type === 'account' ? item.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) :
+                item.title.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    };
+
+    const sortCards = (items: any[], sortBy: string, type: 'account' | 'note') => {
+        const sortedItems = [...items];
+        switch (sortBy) {
+            case 'az':
+                sortedItems.sort((a, b) =>
+                    type === 'account' ? a.serviceName.localeCompare(b.serviceName) :
+                        a.title.localeCompare(b.title)
+                );
+                break;
+            case 'za':
+                sortedItems.sort((a, b) =>
+                    type === 'account' ? b.serviceName.localeCompare(a.serviceName) :
+                        b.title.localeCompare(a.title)
+                );
+                break;
+            case 'oldest':
+                sortedItems.sort((a, b) =>
+                    type === 'account' ? new Date(a.creationDate).getTime() - new Date(b.creationDate).getTime() :
+                        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                );
+                break;
+            case 'newest':
+                sortedItems.sort((a, b) =>
+                    type === 'account' ? new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime() :
+                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                );
+                break;
+        }
+        return sortedItems;
+    };
+
     const loadAccounts = async () => {
         try {
             let accounts: Account[] = [];
@@ -119,12 +171,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sessionStorage.setItem('accounts', JSON.stringify(accounts));
             }
 
-            if (accounts.length === 0) {
+            let filteredAccounts = filterCards(accounts, searchInput.value, 'account');
+            filteredAccounts = sortCards(filteredAccounts, sortDropdown.value, 'account');
+
+            if (filteredAccounts.length === 0) {
                 passwordCards.innerHTML = '<div class="add-new-card">+</div>';
             } else {
-                const accountsWithFavorite = await Promise.all(accounts.map(async (account) => {
-                    const fav = await isFavorite('account', account.id).catch(() => false);
-                    return { ...account, isFavorite: fav };
+                // Кэшируем результаты isFavorite
+                const favoritePromises = filteredAccounts.map(account => isFavorite('account', account.id).catch(() => false));
+                const favoriteStatuses = await Promise.all(favoritePromises);
+                const accountsWithFavorite = filteredAccounts.map((account, index) => ({
+                    ...account,
+                    isFavorite: favoriteStatuses[index]
                 }));
                 passwordCards.innerHTML = accountsWithFavorite
                     .map((account) => `
@@ -153,12 +211,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sessionStorage.setItem('notes', JSON.stringify(notes));
             }
 
-            if (notes.length === 0) {
+            let filteredNotes = filterCards(notes, searchInput.value, 'note');
+            filteredNotes = sortCards(filteredNotes, sortDropdown.value, 'note');
+
+            if (filteredNotes.length === 0) {
                 notesCards.innerHTML = '<div class="add-new-card">+</div>';
             } else {
-                const notesWithFavorite = await Promise.all(notes.map(async (note) => {
-                    const fav = await isFavorite('note', note.id).catch(() => false);
-                    return { ...note, isFavorite: fav };
+                // Кэшируем результаты isFavorite
+                const favoritePromises = filteredNotes.map(note => isFavorite('note', note.id).catch(() => false));
+                const favoriteStatuses = await Promise.all(favoritePromises);
+                const notesWithFavorite = filteredNotes.map((note, index) => ({
+                    ...note,
+                    isFavorite: favoriteStatuses[index]
                 }));
                 notesCards.innerHTML = notesWithFavorite
                     .map((note) => `
@@ -204,6 +268,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await Promise.all([loadAccounts(), loadNotes()]);
     errorContainer.style.display = 'none';
+
+    // Оптимизированный поиск с debounce (задержка 300мс)
+    const debouncedSearch = debounce(async () => {
+        await Promise.all([loadAccounts(), loadNotes()]);
+    }, 300);
+    searchInput.addEventListener('input', debouncedSearch);
+
+    // Оптимизированная сортировка с debounce (задержка 300мс)
+    const debouncedSort = debounce(async () => {
+        await Promise.all([loadAccounts(), loadNotes()]);
+    }, 300);
+    sortDropdown.addEventListener('change', debouncedSort);
 
     let currentAccountId: number | null = null;
     let currentNoteId: number | null = null;
@@ -595,5 +671,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideBtn.textContent = sidebar.classList.contains('hidden') ? '≪' : '≫';
         });
     }
+
     setInterval(syncData, 10000);
 });
