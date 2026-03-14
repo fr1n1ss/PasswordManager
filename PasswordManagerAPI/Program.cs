@@ -56,9 +56,12 @@ namespace PasswordManagerAPI
 
             builder.WebHost.UseKestrel(options =>
             {
+                var certPath = builder.Configuration["Kestrel:Endpoints:Https:Certificate:Path"];
+                var certPassword = builder.Configuration["Kestrel:Endpoints:Https:Certificate:Password"];
+
                 options.ListenAnyIP(7163, listenOptions =>
                 {
-                    listenOptions.UseHttps("localhost.pfx", "NKdM2b3kvx4uof27sxgNyZWvoTpq8pKkPEUjPHK3i3zwZ17V2bqhTkLufGqrgaYs"); 
+                    listenOptions.UseHttps(certPath, certPassword);
                 });
             });
 
