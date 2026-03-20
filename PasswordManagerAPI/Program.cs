@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PasswordManagerAPI.Services;
-using RSAEncryptions;
-using Swashbuckle.AspNetCore.SwaggerGen;
+using Security.RSA;
 using System.Text;
 
 namespace PasswordManagerAPI
@@ -107,6 +106,12 @@ namespace PasswordManagerAPI
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
+
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                db.Database.Migrate();
+            }
 
             app.Run();
         }

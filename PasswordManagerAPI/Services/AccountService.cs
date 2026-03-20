@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using RSAEncryptions;
 using PasswordManagerAPI.Entities;
 using Microsoft.EntityFrameworkCore;
 using PasswordManagerAPI.Models;
@@ -9,6 +8,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Newtonsoft.Json;
 using System.Text;
+using Security.RSA;
 namespace PasswordManagerAPI.Services
 {
     public class AccountService : IAccountService

@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace RSAEncryptions
+namespace Security.RSA
 {
     public class RsaKeyManager
     {

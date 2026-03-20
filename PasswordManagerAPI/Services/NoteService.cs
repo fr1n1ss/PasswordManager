@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
-using RSAEncryptions;
+using Security.RSA;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;

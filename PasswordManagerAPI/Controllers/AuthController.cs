@@ -6,7 +6,7 @@ using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
-using RSAEncryptions;
+using Security.RSA;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
