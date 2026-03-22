@@ -50,6 +50,9 @@ namespace PasswordManagerAPI
             builder.Services.AddScoped<RSAEncryption>();
             builder.Services.AddScoped<INoteService, NoteService>();
             builder.Services.AddScoped<IFavoriteService, FavoriteService>();
+            builder.Services.AddScoped<ITotpService,TotpService>();
+            builder.Services.AddScoped<ITotpAccountService, TotpAccountService>();
+            builder.Services.AddScoped<IQrReaderService, QrReaderService>();
 
             builder.Services.AddEndpointsApiExplorer();
 

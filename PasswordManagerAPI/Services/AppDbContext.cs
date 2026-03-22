@@ -10,5 +10,6 @@ namespace PasswordManagerAPI.Services
         public DbSet<Account> Accounts { get; set; }
         public DbSet<Note> Notes { get; set; }
         public DbSet<Favorite> Favorites { get; set; }
+        public DbSet<TotpAccount> TotpAccounts { get; set; }
     }
 }

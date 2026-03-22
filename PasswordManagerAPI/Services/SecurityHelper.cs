@@ -77,5 +77,27 @@ namespace PasswordManagerAPI.Services
                 return computedHash == hashedPassword;
             }
         }
+
+        public string GenerateTempToken(User user)
+        {
+            var claims = new[]
+            {
+                new Claim("userId", user.Id.ToString()),
+                new Claim("type", "temp")
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: "PasswordManager",
+                audience: "PasswordManager",
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(5),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
     }
 }

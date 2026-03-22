@@ -21,12 +21,14 @@ namespace PasswordManagerAPI.Controllers
         private readonly AppDbContext _context;
         private readonly IConfiguration _config;
         private readonly SecurityHelper _securityHelper;
+        private readonly ITotpService _totpService;
 
-        public AuthController(AppDbContext context, IConfiguration config)
+        public AuthController(AppDbContext context, IConfiguration config, ITotpService totpService)
         {
             _context = context;
             _config = config;
             _securityHelper = new SecurityHelper(_config);
+            _totpService = totpService;
         }
 
         [HttpPost("login")]
@@ -39,9 +41,42 @@ namespace PasswordManagerAPI.Controllers
                 return Unauthorized(new { message = "Неверный логин или пароль" });
             }
 
+            if (user.Is2FaEnabled)
+            {
+                var tempToken = _securityHelper.GenerateTempToken(user);
+                return Ok( new { requires2FA = true, tempToken });
+            }
+
             var token = _securityHelper.GenerateJwtToken(user);
+
             return Ok(new { token });
         }
+        [HttpPost("2fa/login")]
+        public IActionResult LoginWith2FA([FromBody] TwoFactorRequest request)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwt = handler.ReadJwtToken(request.TempToken);
+
+            var type = jwt.Claims.FirstOrDefault(c => c.Type == "type")?.Value;
+            if (type != "temp")
+                return Unauthorized("Invalid token type");
+
+            var userId = int.Parse(jwt.Claims.First(c => c.Type == "userId").Value);
+
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+            if (user == null)
+                return Unauthorized();
+
+            bool isValid = _totpService.Validate(user.TotpSecret, request.Code);
+
+            if (!isValid)
+                return Unauthorized(new { message = "Invalid 2FA code" });
+
+            var token = _securityHelper.GenerateJwtToken(user);
+
+            return Ok(new { token });
+        }
+
 
         [HttpPost("register")]
         public IActionResult Register([FromBody] RegisterModel model)
@@ -87,6 +122,40 @@ namespace PasswordManagerAPI.Controllers
             _context.SaveChanges();
 
             return Ok("Registration successful! You can log in now.");
+        }
+        [Authorize]
+        [HttpPost("2fa/setup")]
+        public IActionResult Setup2FA()
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+
+            var (secret, uri) = _totpService.GenerateTotpSecret(user.Username);
+
+            user.TotpSecret = secret;
+            _context.SaveChanges();
+
+            return Ok(new { uri });
+        }
+        [Authorize]
+        [HttpPost("2fa/verify")]
+        public IActionResult Verify2FA([FromBody] string code)
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+
+            if(user.TotpSecret == null)
+                return BadRequest("2FA setup not initiated.");
+
+            bool isValid = _totpService.Validate(user.TotpSecret, code);
+
+            if (!isValid) return BadRequest("Invalid 2FA code.");
+
+            user.Is2FaEnabled = true;
+
+            _context.SaveChanges();
+
+            return Ok("2FA enabled successfully.");
         }
 
         [HttpGet("ping")]
