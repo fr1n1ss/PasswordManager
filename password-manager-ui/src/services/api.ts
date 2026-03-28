@@ -102,6 +102,11 @@ export const getUserInfo = async  () => {
   return response.data;
 }
 
+export const validateMasterPassword = async (masterPassword: string) => {
+  const response = await api.post('/auth/validate-master-password', { masterPassword });
+  return response.data;
+}
+
 export const ping = async () => {
   console.log("Request to:", 'https://192.168.0.101:7163' + "/api/auth/ping");
   const response = await  api.get(`/auth/ping`);
@@ -125,3 +130,49 @@ export const hashFavorites = async () => {
   const response = await api.get(`/favorite/hashFavorites`);
   return response.data;
 }
+
+export const getTotpAccounts = async () => {
+  const response = await api.get('/totpAccount/getAccounts');
+  return response.data;
+};
+
+export const getTotpCodes = async () => {
+  const response = await api.get('/totpAccount/codes');
+  return response.data;
+};
+
+export const addTotpAccount = async (uri: string) => {
+  const response = await api.post('/totpAccount/addAccount', uri);
+  return response.data;
+};
+
+export const addEncryptedTotpAccount = async (payload: { encryptedPayload: string, nonce: string, version: number }) => {
+  const response = await api.post('/totpAccount/addEncrypted', payload);
+  return response.data;
+};
+
+export const importTotpQr = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await api.post('/totpAccount/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return response.data;
+};
+
+export const importTotpQrText = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await api.post('/totpAccount/importQrText', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return response.data;
+};

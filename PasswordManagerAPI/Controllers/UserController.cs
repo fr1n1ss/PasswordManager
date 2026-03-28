@@ -42,7 +42,7 @@ namespace PasswordManagerAPI.Controllers
             if(user == null)
                 throw new ArgumentException("User with this userId not found");
 
-            return new UserModel { Username = user.Username, Email = user.Email };
+            return new UserModel { Username = user.Username, Email = user.Email, Salt = user.Salt };
         }
 
         [HttpGet("GetAllUsers")]

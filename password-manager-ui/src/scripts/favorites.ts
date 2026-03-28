@@ -3,18 +3,9 @@ import {
     deleteAccount,
     deleteNote,
     updateAccount,
-    updateNote,
-    hashFavorites
+    updateNote
 } from '../services/api.ts';
-
-async function hashData(data: any): Promise<string> {
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(JSON.stringify(data));
-    const buffer = await crypto.subtle.digest('SHA-256', encoded);
-    return Array.from(new Uint8Array(buffer))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-}
+import { initializeSharedPageShell } from './shared-page.ts';
 
 interface Account {
     id: number;
@@ -25,7 +16,6 @@ interface Account {
     description: string;
     url: string;
     creationDate: string;
-    isFavorite: boolean;
 }
 
 interface Note {
@@ -35,7 +25,6 @@ interface Note {
     encryptedContent: string;
     createdAt: string;
     updatedAt: string;
-    isFavorite: boolean;
 }
 
 interface FavoritesResponse {
@@ -52,22 +41,16 @@ function debounce(func: Function, delay: number) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const username = sessionStorage.getItem('username');
-    const email = sessionStorage.getItem('email');
-    const usernameElement = document.querySelector('.username');
-    const emailElement = document.querySelector('.user-email');
-    if (usernameElement && username) usernameElement.textContent = username;
-    if (emailElement && email) emailElement.textContent = email;
+    initializeSharedPageShell();
 
-    const passwordCards = document.getElementById('passwordCards');
-    const notesCards = document.getElementById('notesCards');
-    const errorContainer = document.getElementById('errorContainer');
-    const errorMessage = document.getElementById('errorMessage');
-    const searchInput = document.querySelector('.search-bar') as HTMLInputElement;
-    const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement;
+    const passwordCards = document.getElementById('passwordCards') as HTMLDivElement | null;
+    const notesCards = document.getElementById('notesCards') as HTMLDivElement | null;
+    const errorContainer = document.getElementById('errorContainer') as HTMLDivElement | null;
+    const errorMessage = document.getElementById('errorMessage') as HTMLDivElement | null;
+    const searchInput = document.querySelector('.search-bar') as HTMLInputElement | null;
+    const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement | null;
 
     if (!passwordCards || !notesCards || !errorContainer || !errorMessage || !searchInput || !sortDropdown) {
-        console.error('Required DOM elements are missing');
         return;
     }
 
@@ -77,24 +60,83 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    let favorites: FavoritesResponse;
+    let favorites: FavoritesResponse = { accounts: [], notes: [] };
+    let currentAccountId: number | null = null;
+    let currentNoteId: number | null = null;
+    let isAccountEditMode = false;
+    let isNoteEditMode = false;
 
-    const filterFavorites = (favorites: FavoritesResponse, searchTerm: string): FavoritesResponse => {
-        if (!searchTerm) return favorites;
-        const filteredAccounts = favorites.accounts.filter(account =>
-            account.serviceName.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        const filteredNotes = favorites.notes.filter(note =>
-            note.title.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        return { accounts: filteredAccounts, notes: filteredNotes };
+    const syncSharedAccount = (account: Account) => {
+        const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
+        const accountIndex = accounts.findIndex(item => item.id === account.id);
+        if (accountIndex !== -1) {
+            accounts[accountIndex] = { ...accounts[accountIndex], ...account };
+            sessionStorage.setItem('accounts', JSON.stringify(accounts));
+        }
     };
 
-    const sortFavorites = (favorites: FavoritesResponse, sortBy: string): FavoritesResponse => {
-        const sortedAccounts = [...favorites.accounts];
-        const sortedNotes = [...favorites.notes];
+    const syncSharedNote = (note: Note) => {
+        const notes = JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
+        const noteIndex = notes.findIndex(item => item.id === note.id);
+        if (noteIndex !== -1) {
+            notes[noteIndex] = { ...notes[noteIndex], ...note };
+            sessionStorage.setItem('notes', JSON.stringify(notes));
+        }
+    };
 
-        switch (sortBy) {
+    const removeSharedAccount = (accountId: number) => {
+        const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
+        sessionStorage.setItem('accounts', JSON.stringify(accounts.filter(account => account.id !== accountId)));
+    };
+
+    const removeSharedNote = (noteId: number) => {
+        const notes = JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
+        sessionStorage.setItem('notes', JSON.stringify(notes.filter(note => note.id !== noteId)));
+    };
+
+    const updateStoredAccount = (accountId: number, patch: Partial<Account>) => {
+        favorites.accounts = favorites.accounts.map(account => account.id === accountId ? { ...account, ...patch } : account);
+        const updated = favorites.accounts.find(account => account.id === accountId);
+        if (updated) {
+            syncSharedAccount(updated);
+        }
+    };
+
+    const updateStoredNote = (noteId: number, patch: Partial<Note>) => {
+        favorites.notes = favorites.notes.map(note => note.id === noteId ? { ...note, ...patch } : note);
+        const updated = favorites.notes.find(note => note.id === noteId);
+        if (updated) {
+            syncSharedNote(updated);
+        }
+    };
+
+    const removeStoredAccount = (accountId: number) => {
+        favorites.accounts = favorites.accounts.filter(account => account.id !== accountId);
+        removeSharedAccount(accountId);
+    };
+
+    const removeStoredNote = (noteId: number) => {
+        favorites.notes = favorites.notes.filter(note => note.id !== noteId);
+        removeSharedNote(noteId);
+    };
+
+    const filterFavorites = (source: FavoritesResponse): FavoritesResponse => {
+        const term = searchInput.value.trim().toLowerCase();
+        if (!term) {
+            return source;
+        }
+
+        return {
+            accounts: source.accounts.filter(account => account.serviceName.toLowerCase().includes(term)),
+            notes: source.notes.filter(note => note.title.toLowerCase().includes(term))
+        };
+    };
+
+    const sortFavorites = (source: FavoritesResponse): FavoritesResponse => {
+        const sortedAccounts = [...source.accounts];
+        const sortedNotes = [...source.notes];
+
+        switch (sortDropdown.value) {
             case 'az':
                 sortedAccounts.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
                 sortedNotes.sort((a, b) => a.title.localeCompare(b.title));
@@ -116,36 +158,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { accounts: sortedAccounts, notes: sortedNotes };
     };
 
-    const renderFavorites = (favorites: FavoritesResponse) => {
-        passwordCards.innerHTML = favorites.accounts
-            .map((account: Account) => {
-                const logoUrl = account.url
-                    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                    : 'https://via.placeholder.com/32';
-                return `
-                    <div class="card" data-id="${account.id}">
-                        <div class="card-logo">
-                            <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                        </div>
-                        <div class="card-details">
-                            <h3>${account.serviceName}</h3>
-                            <p>${account.login}</p>
-                        </div>
-                    </div>
-                `;
-            })
-            .join('');
+    const renderFavorites = () => {
+        const visibleFavorites = sortFavorites(filterFavorites(favorites));
 
-        notesCards.innerHTML = favorites.notes
-            .map((note: Note) => `
-                <div class="card" data-id="${note.id}">
-                    <div class="card-logo"></div>
+        passwordCards.innerHTML = visibleFavorites.accounts.map((account) => {
+            const logoUrl = account.url
+                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                : 'https://via.placeholder.com/32';
+
+            return `
+                <div class="card" data-account-id="${account.id}">
+                    <div class="card-logo">
+                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                    </div>
                     <div class="card-details">
-                        <h3>${note.title}</h3>
-                        <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
+                        <h3>${account.serviceName}</h3>
+                        <p>${account.login}</p>
                     </div>
                 </div>
-            `).join('');
+            `;
+        }).join('');
+
+        notesCards.innerHTML = visibleFavorites.notes.map((note) => `
+            <div class="card" data-note-id="${note.id}">
+                <div class="card-logo"></div>
+                <div class="card-details">
+                    <h3>${note.title}</h3>
+                    <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
+                </div>
+            </div>
+        `).join('');
 
         bindCardListeners();
     };
@@ -153,50 +195,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadFavorites = async () => {
         try {
             favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
-            let filteredFavorites = filterFavorites(favorites, searchInput.value);
-            filteredFavorites = sortFavorites(filteredFavorites, sortDropdown.value);
-            renderFavorites(filteredFavorites);
+            renderFavorites();
             errorContainer.style.display = 'none';
         } catch (error: any) {
             errorContainer.style.display = 'block';
             errorMessage.textContent = `Ошибка загрузки избранного: ${error.message}`;
-            return;
         }
     };
 
     const bindCardListeners = () => {
-        const accountCards = passwordCards.querySelectorAll('.card');
-        accountCards.forEach(card => {
-            const accountId = parseInt(card.getAttribute('data-id') || '0', 10);
-            card.addEventListener('click', () => openAccountModal(accountId));
+        passwordCards.querySelectorAll<HTMLElement>('.card[data-account-id]').forEach(card => {
+            card.addEventListener('click', () => openAccountModal(Number(card.dataset.accountId)));
         });
 
-        const noteCards = notesCards.querySelectorAll('.card');
-        noteCards.forEach(card => {
-            const noteId = parseInt(card.getAttribute('data-id') || '0', 10);
-            card.addEventListener('click', () => openNoteModal(noteId));
+        notesCards.querySelectorAll<HTMLElement>('.card[data-note-id]').forEach(card => {
+            card.addEventListener('click', () => openNoteModal(Number(card.dataset.noteId)));
         });
     };
-
-    const syncFavorites = async () => {
-        const masterPassword = sessionStorage.getItem('masterPassword');
-        if (!masterPassword) return;
-
-        try {
-            const localFavorites: FavoritesResponse = favorites;
-            const localHash = await hashData(localFavorites);
-            const { favoritesHash } = await hashFavorites();
-
-            if (localHash !== favoritesHash) {
-                console.log('[sync] Избранное изменилось — обновляем');
-                await loadFavorites();
-            }
-        } catch (error) {
-            console.error('[syncFavorites] Ошибка синхронизации избранного:', error);
-        }
-    };
-
-    await loadFavorites();
 
     const accountModalHtml = `
         <div id="account-modal" class="modal">
@@ -228,7 +243,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
         </div>
     `;
-    document.body.insertAdjacentHTML('beforeend', accountModalHtml);
 
     const noteModalHtml = `
         <div id="note-modal" class="modal">
@@ -252,123 +266,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
         </div>
     `;
+
+    document.body.insertAdjacentHTML('beforeend', accountModalHtml);
     document.body.insertAdjacentHTML('beforeend', noteModalHtml);
 
-    let currentAccountId: number | null = null;
-    const openAccountModal = (accountId: number) => {
-        const account = favorites.accounts.find(acc => acc.id === accountId);
-        if (!account) return;
+    const accountModal = document.getElementById('account-modal') as HTMLDivElement;
+    const noteModal = document.getElementById('note-modal') as HTMLDivElement;
+    const accountUpdateBtn = document.getElementById('account-update-btn') as HTMLButtonElement;
+    const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
 
-        currentAccountId = accountId;
-
-        const accountModal = document.getElementById('account-modal');
-        const serviceName = document.getElementById('modal-service-name');
-        const login = document.getElementById('modal-login');
-        const encryptedPassword = document.getElementById('modal-encrypted-password');
-        const description = document.getElementById('modal-description');
-        const url = document.getElementById('modal-url');
-        const creationDate = document.getElementById('modal-creation-date');
-        if (!accountModal || !serviceName || !login || !encryptedPassword || !description || !url || !creationDate) return;
-
-        serviceName.textContent = account.serviceName;
-        login.textContent = account.login;
-        encryptedPassword.textContent = account.encryptedPassword || 'Не указан';
-        description.textContent = account.description || 'Не указано';
-        url.textContent = account.url || 'Не указан';
-        creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
-
-        accountModal.style.display = 'flex';
-    };
-
-    let currentNoteId: number | null = null;
-    const openNoteModal = (noteId: number) => {
-        const note = favorites.notes.find(n => n.id === noteId);
-        if (!note) return;
-
-        currentNoteId = noteId;
-
-        const noteModal = document.getElementById('note-modal');
-        const title = document.getElementById('modal-note-title');
-        const content = document.getElementById('modal-note-content');
-        const creationDate = document.getElementById('modal-note-creation-date');
-        const updatedDate = document.getElementById('modal-note-updated-date');
-        if (!noteModal || !title || !content || !creationDate || !updatedDate) return;
-
-        title.textContent = note.title;
-        content.textContent = note.encryptedContent;
-        creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
-        updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
-
-        noteModal.style.display = 'flex';
-    };
-
-    const accountModal = document.getElementById('account-modal');
-    const noteModal = document.getElementById('note-modal');
-    if (!accountModal || !noteModal) return;
-
-    const closeButtons = document.querySelectorAll('.modal-close-btn');
-    closeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            accountModal.style.display = 'none';
-            noteModal.style.display = 'none';
-            toggleAccountEditMode(false);
-            toggleNoteEditMode(false);
-        });
-    });
-
-    accountModal.addEventListener('click', (e) => {
-        if (e.target === accountModal) {
-            accountModal.style.display = 'none';
-            toggleAccountEditMode(false);
-        }
-    });
-
-    noteModal.addEventListener('click', (e) => {
-        if (e.target === noteModal) {
-            noteModal.style.display = 'none';
-            toggleNoteEditMode(false);
-        }
-    });
-
-    const accountDeleteBtn = document.getElementById('account-delete-btn');
-    if (accountDeleteBtn) {
-        accountDeleteBtn.addEventListener('click', async () => {
-            if (!currentAccountId) return;
-            try {
-                await deleteAccount(currentAccountId);
-                accountModal.style.display = 'none';
-                await loadFavorites();
-            } catch (error: any) {
-                alert('Ошибка при удалении аккаунта: ' + error.message);
-            }
-        });
-    }
-
-    const noteDeleteBtn = document.getElementById('note-delete-btn');
-    if (noteDeleteBtn) {
-        noteDeleteBtn.addEventListener('click', async () => {
-            if (!currentNoteId) return;
-            try {
-                await deleteNote(currentNoteId);
-                noteModal.style.display = 'none';
-                await loadFavorites();
-            } catch (error: any) {
-                alert('Ошибка при удалении заметки: ' + error.message);
-            }
-        });
-    }
-
-    let isAccountEditMode = false;
-    const accountUpdateBtn = document.getElementById('account-update-btn');
     const toggleAccountEditMode = (enable: boolean) => {
         isAccountEditMode = enable;
-        const serviceName = document.getElementById('modal-service-name');
-        const login = document.getElementById('modal-login');
-        const encryptedPassword = document.getElementById('modal-encrypted-password');
-        const description = document.getElementById('modal-description');
-        const url = document.getElementById('modal-url');
-        const creationDate = document.getElementById('modal-creation-date');
-        if (!serviceName || !login || !encryptedPassword || !description || !url || !creationDate || !accountUpdateBtn) return;
+        const serviceName = document.getElementById('modal-service-name') as HTMLElement;
+        const login = document.getElementById('modal-login') as HTMLElement;
+        const encryptedPassword = document.getElementById('modal-encrypted-password') as HTMLElement;
+        const description = document.getElementById('modal-description') as HTMLElement;
+        const url = document.getElementById('modal-url') as HTMLElement;
+        const creationDate = document.getElementById('modal-creation-date') as HTMLElement;
 
         if (enable) {
             serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
@@ -377,137 +291,192 @@ document.addEventListener('DOMContentLoaded', async () => {
             description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
             accountUpdateBtn.textContent = 'Сохранить';
-        } else {
-            const account = favorites.accounts.find(acc => acc.id === currentAccountId);
-            if (account) {
-                serviceName.textContent = account.serviceName;
-                login.textContent = account.login;
-                encryptedPassword.textContent = account.encryptedPassword || 'Не указан';
-                description.textContent = account.description || 'Не указано';
-                url.textContent = account.url || 'Не указан';
-                creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
-            }
-            accountUpdateBtn.textContent = 'Изменить';
+            return;
         }
+
+        const account = favorites.accounts.find(item => item.id === currentAccountId);
+        if (account) {
+            serviceName.textContent = account.serviceName;
+            login.textContent = account.login;
+            encryptedPassword.textContent = account.encryptedPassword || 'Не указан';
+            description.textContent = account.description || 'Не указано';
+            url.textContent = account.url || 'Не указан';
+            creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+        }
+        accountUpdateBtn.textContent = 'Изменить';
     };
 
-    if (accountUpdateBtn) {
-        accountUpdateBtn.addEventListener('click', async () => {
-            if (!isAccountEditMode) {
-                toggleAccountEditMode(true);
-            } else if (currentAccountId) {
-                const login = (document.getElementById('edit-login') as HTMLInputElement).value;
-                const password = (document.getElementById('edit-encrypted-password') as HTMLInputElement).value;
-                const serviceName = (document.getElementById('edit-service-name') as HTMLInputElement).value;
-                const url = (document.getElementById('edit-url') as HTMLInputElement).value;
-                const description = (document.getElementById('edit-description') as HTMLTextAreaElement).value;
-
-                try {
-                    await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
-                    await loadFavorites();
-                    toggleAccountEditMode(false);
-                } catch (error: any) {
-                    alert('Ошибка при обновлении аккаунта: ' + error.message);
-                }
-            }
-        });
-    }
-
-    let isNoteEditMode = false;
-    const noteUpdateBtn = document.getElementById('note-update-btn');
     const toggleNoteEditMode = (enable: boolean) => {
         isNoteEditMode = enable;
-        const title = document.getElementById('modal-note-title');
-        const content = document.getElementById('modal-note-content');
-        const creationDate = document.getElementById('modal-note-creation-date');
-        const updatedDate = document.getElementById('modal-note-updated-date');
-        if (!title || !content || !creationDate || !updatedDate || !noteUpdateBtn) return;
+        const title = document.getElementById('modal-note-title') as HTMLElement;
+        const content = document.getElementById('modal-note-content') as HTMLElement;
+        const creationDate = document.getElementById('modal-note-creation-date') as HTMLElement;
+        const updatedDate = document.getElementById('modal-note-updated-date') as HTMLElement;
 
         if (enable) {
             title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
             content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = 'Сохранить';
-        } else {
-            const note = favorites.notes.find(n => n.id === currentNoteId);
-            if (note) {
-                title.textContent = note.title;
-                content.textContent = note.encryptedContent;
-                creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
-                updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
-            }
-            noteUpdateBtn.textContent = 'Изменить';
+            return;
         }
+
+        const note = favorites.notes.find(item => item.id === currentNoteId);
+        if (note) {
+            title.textContent = note.title;
+            content.textContent = note.encryptedContent;
+            creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU');
+            updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
+        }
+        noteUpdateBtn.textContent = 'Изменить';
     };
 
-    if (noteUpdateBtn) {
-        noteUpdateBtn.addEventListener('click', async () => {
-            if (!isNoteEditMode) {
-                toggleNoteEditMode(true);
-            } else if (currentNoteId) {
-                const newTitle = (document.getElementById('edit-note-title') as HTMLInputElement).value;
-                const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement).value;
-                try {
-                    await updateNote(currentNoteId, newTitle, newContent, masterPassword);
-                    await loadFavorites();
-                    toggleNoteEditMode(false);
-                } catch (error: any) {
-                    alert('Ошибка при обновлении заметки: ' + error.message);
-                }
-            }
+    const openAccountModal = (accountId: number) => {
+        const account = favorites.accounts.find(item => item.id === accountId);
+        if (!account) {
+            return;
+        }
+
+        currentAccountId = accountId;
+        (document.getElementById('modal-service-name') as HTMLElement).textContent = account.serviceName;
+        (document.getElementById('modal-login') as HTMLElement).textContent = account.login;
+        (document.getElementById('modal-encrypted-password') as HTMLElement).textContent = account.encryptedPassword || 'Не указан';
+        (document.getElementById('modal-description') as HTMLElement).textContent = account.description || 'Не указано';
+        (document.getElementById('modal-url') as HTMLElement).textContent = account.url || 'Не указан';
+        (document.getElementById('modal-creation-date') as HTMLElement).textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+        accountModal.style.display = 'flex';
+    };
+
+    const openNoteModal = (noteId: number) => {
+        const note = favorites.notes.find(item => item.id === noteId);
+        if (!note) {
+            return;
+        }
+
+        currentNoteId = noteId;
+        (document.getElementById('modal-note-title') as HTMLElement).textContent = note.title;
+        (document.getElementById('modal-note-content') as HTMLElement).textContent = note.encryptedContent;
+        (document.getElementById('modal-note-creation-date') as HTMLElement).textContent = new Date(note.createdAt).toLocaleString('ru-RU');
+        (document.getElementById('modal-note-updated-date') as HTMLElement).textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
+        noteModal.style.display = 'flex';
+    };
+
+    document.querySelectorAll('.modal-close-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            accountModal.style.display = 'none';
+            noteModal.style.display = 'none';
+            toggleAccountEditMode(false);
+            toggleNoteEditMode(false);
         });
-    }
+    });
 
-    const dropdown = document.querySelector('.profile-dropdown');
-    const menu = document.getElementById('profileMenu');
-    if (dropdown && menu) {
-        dropdown.addEventListener('click', () => {
-            const isMenuOpen = menu.style.display === 'block';
-            menu.style.display = isMenuOpen ? 'none' : 'block';
-            dropdown.textContent = isMenuOpen ? '▼' : '▲';
-        });
+    accountModal.addEventListener('click', (event) => {
+        if (event.target === accountModal) {
+            accountModal.style.display = 'none';
+            toggleAccountEditMode(false);
+        }
+    });
 
-        document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target as Node) && !menu.contains(e.target as Node)) {
-                menu.style.display = 'none';
-                dropdown.textContent = '▼';
-            }
-        });
-    }
+    noteModal.addEventListener('click', (event) => {
+        if (event.target === noteModal) {
+            noteModal.style.display = 'none';
+            toggleNoteEditMode(false);
+        }
+    });
 
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            localStorage.removeItem('token');
-            sessionStorage.removeItem('masterPassword');
-            sessionStorage.removeItem('username');
-            sessionStorage.removeItem('email');
-            window.location.href = '/pages/login-page.html';
-        });
-    }
+    (document.getElementById('account-delete-btn') as HTMLButtonElement).addEventListener('click', async () => {
+        if (!currentAccountId) {
+            return;
+        }
 
-    const sidebar = document.getElementById('sidebar');
-    const hideBtn = document.getElementById('hideBtn');
-    if (sidebar && hideBtn) {
-        hideBtn.addEventListener('click', () => {
-            const isHidden = sidebar.classList.contains('hidden');
-            sidebar.classList.toggle('hidden');
-            hideBtn.textContent = isHidden ? '≪' : '≫';
-        });
-    }
+        try {
+            await deleteAccount(currentAccountId);
+            removeStoredAccount(currentAccountId);
+            accountModal.style.display = 'none';
+            renderFavorites();
+        } catch (error: any) {
+            alert(`Ошибка при удалении аккаунта: ${error.message}`);
+        }
+    });
 
-    const debouncedSearch = debounce(async () => {
-        let filteredFavorites = filterFavorites(favorites, searchInput.value);
-        filteredFavorites = sortFavorites(filteredFavorites, sortDropdown.value);
-        renderFavorites(filteredFavorites);
-    }, 300);
-    searchInput.addEventListener('input', debouncedSearch);
+    (document.getElementById('note-delete-btn') as HTMLButtonElement).addEventListener('click', async () => {
+        if (!currentNoteId) {
+            return;
+        }
 
-    const debouncedSort = debounce(async () => {
-        let filteredFavorites = filterFavorites(favorites, searchInput.value);
-        filteredFavorites = sortFavorites(filteredFavorites, sortDropdown.value);
-        renderFavorites(filteredFavorites);
-    }, 300);
-    sortDropdown.addEventListener('change', debouncedSort);
+        try {
+            await deleteNote(currentNoteId);
+            removeStoredNote(currentNoteId);
+            noteModal.style.display = 'none';
+            renderFavorites();
+        } catch (error: any) {
+            alert(`Ошибка при удалении заметки: ${error.message}`);
+        }
+    });
 
-    setInterval(syncFavorites, 10000);
+    accountUpdateBtn.addEventListener('click', async () => {
+        if (!isAccountEditMode) {
+            toggleAccountEditMode(true);
+            return;
+        }
+
+        if (!currentAccountId) {
+            return;
+        }
+
+        const patch = {
+            serviceName: (document.getElementById('edit-service-name') as HTMLInputElement).value,
+            login: (document.getElementById('edit-login') as HTMLInputElement).value,
+            encryptedPassword: (document.getElementById('edit-encrypted-password') as HTMLInputElement).value,
+            description: (document.getElementById('edit-description') as HTMLTextAreaElement).value,
+            url: (document.getElementById('edit-url') as HTMLInputElement).value
+        };
+
+        try {
+            await updateAccount({
+                id: currentAccountId,
+                newLogin: patch.login,
+                newPassword: patch.encryptedPassword,
+                newURL: patch.url,
+                newDescription: patch.description,
+                newServiceName: patch.serviceName,
+                masterPassword
+            });
+            updateStoredAccount(currentAccountId, patch);
+            toggleAccountEditMode(false);
+            renderFavorites();
+        } catch (error: any) {
+            alert(`Ошибка при обновлении аккаунта: ${error.message}`);
+        }
+    });
+
+    noteUpdateBtn.addEventListener('click', async () => {
+        if (!isNoteEditMode) {
+            toggleNoteEditMode(true);
+            return;
+        }
+
+        if (!currentNoteId) {
+            return;
+        }
+
+        const patch = {
+            title: (document.getElementById('edit-note-title') as HTMLInputElement).value,
+            encryptedContent: (document.getElementById('edit-note-content') as HTMLTextAreaElement).value,
+            updatedAt: new Date().toISOString()
+        };
+
+        try {
+            await updateNote(currentNoteId, patch.title, patch.encryptedContent, masterPassword);
+            updateStoredNote(currentNoteId, patch);
+            toggleNoteEditMode(false);
+            renderFavorites();
+        } catch (error: any) {
+            alert(`Ошибка при обновлении заметки: ${error.message}`);
+        }
+    });
+
+    searchInput.addEventListener('input', debounce(renderFavorites, 300));
+    sortDropdown.addEventListener('change', debounce(renderFavorites, 300));
+
+    await loadFavorites();
 });

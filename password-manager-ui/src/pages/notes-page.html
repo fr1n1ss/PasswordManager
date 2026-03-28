@@ -14,9 +14,10 @@
   <aside class="sidebar" id="sidebar">
     <ul>
       <li><a href="../index.html">Все элементы</a></li>
-      <li><a href="favorite-page.html" onclick="console.log('Navigating to favorite-page.html')">Избранное</a></li>
-      <li><a href="accounts-page.html" onclick="console.log('Navigating to accounts-page.html')">Аккаунты</a></li>
+      <li><a href="favorite-page.html">Избранное</a></li>
+      <li><a href="accounts-page.html">Аккаунты</a></li>
       <li><a href="notes-page.html" class="active">Заметки</a></li>
+      <li><a href="totp-page.html">TOTP</a></li>
     </ul>
   </aside>
   <div class="content-area">
@@ -28,7 +29,7 @@
           <span class="username"></span>
           <span class="user-email"></span>
         </div>
-        <div class="profile" onclick="toggleDropdown()">
+        <div class="profile">
           <span class="profile-dropdown">▼</span>
           <div class="dropdown-menu" id="profileMenu">
             <button id="logoutBtn">Выход</button>
@@ -55,10 +56,8 @@
   </div>
 </div>
 
-<!-- Круглая кнопка в правом нижнем углу -->
 <div class="fab-button" id="fabButton">+</div>
 
-<!-- Модальное окно добавления заметки -->
 <div class="modal" id="add-note-modal">
   <div class="modal-content">
     <h2>Добавить заметку</h2>
@@ -76,7 +75,6 @@
   </div>
 </div>
 
-<!-- Модальное окно заметки -->
 <div id="note-modal" class="modal">
   <div class="modal-content">
     <h2 id="modal-note-title"></h2>
@@ -92,6 +90,7 @@
       <span class="modal-label">Дата обновления:</span>
       <span id="modal-note-updated-date"></span>
     </div>
+    <button id="note-favorite-btn" class="favorite-btn">Добавить в избранное</button>
     <button class="modal-update-btn" id="note-update-btn">Изменить</button>
     <button class="modal-delete-btn" id="note-delete-btn">Удалить</button>
     <button class="modal-close-btn">Закрыть</button>

@@ -13,6 +13,7 @@ namespace PasswordManagerAPI.Services
     {
         private readonly AppDbContext _context;
         private readonly RSAEncryption _rsaEncryption;
+
         public FavoriteService(AppDbContext context, RSAEncryption rSA)
         {
             _context = context;
@@ -22,7 +23,6 @@ namespace PasswordManagerAPI.Services
         public async Task<Favorite> AddToFavoritesAsync(int userId, string entityType, int entityId)
         {
             var exists = await IsFavoriteAsync(userId, entityType, entityId);
-
             if (exists)
                 throw new ArgumentException("Already favorite");
 
@@ -40,11 +40,8 @@ namespace PasswordManagerAPI.Services
 
         public async Task<FavoriteResult> GetUserFavoritesAsync(int userId, string masterPassword)
         {
-
             var favorites = await _context.Favorites.Where(f => f.UserId == userId).ToListAsync();
-
             var noteIds = favorites.Where(f => f.EntityType.ToLower() == "note").Select(f => f.EntityId).ToList();
-
             var accountIds = favorites.Where(f => f.EntityType.ToLower() == "account").Select(f => f.EntityId).ToList();
 
             var notes = new List<Note>();
@@ -52,16 +49,16 @@ namespace PasswordManagerAPI.Services
 
             foreach (var noteId in noteIds)
             {
-                var note = GetNoteByIdAsync(userId, noteId, masterPassword).Result;
+                var note = await GetNoteByIdAsync(userId, noteId, masterPassword);
                 if (note != null)
-                    notes.Add(note);              
+                    notes.Add(note);
             }
-            
-            foreach(var accountId in accountIds)
+
+            foreach (var accountId in accountIds)
             {
-                var account = GetAccountByIdAsync(userId, accountId, masterPassword).Result;
+                var account = await GetAccountByIdAsync(userId, accountId, masterPassword);
                 if (account != null)
-                    accounts.Add(account);              
+                    accounts.Add(account);
             }
 
             return new FavoriteResult
@@ -86,22 +83,20 @@ namespace PasswordManagerAPI.Services
                 await _context.SaveChangesAsync();
             }
         }
+
         public async Task<string> GetHashAsync(int userId)
         {
             var favorites = await _context.Favorites.Where(n => n.UserId == userId).ToListAsync();
-
             string favoritesJson = JsonConvert.SerializeObject(favorites);
 
             using var sha256 = SHA256.Create();
             var favoritesHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(favoritesJson)));
-
             return favoritesHash.ToLower();
         }
 
         private async Task<Account> GetAccountByIdAsync(int userId, int accountId, string masterPassword)
         {
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
-
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
             if (account == null)
@@ -110,12 +105,10 @@ namespace PasswordManagerAPI.Services
             if (user == null)
                 throw new ArgumentNullException("User with this ID not found");
 
-            UpdateRSA(user, masterPassword);
-
-            account.EncryptedPassword = _rsaEncryption.DecryptText(account.EncryptedPassword);
-
+            account.EncryptedPassword = DecryptPassword(account.EncryptedPassword, user, masterPassword);
             return account;
         }
+
         private async Task<Note> GetNoteByIdAsync(int userId, int noteId, string masterPassword)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -126,16 +119,36 @@ namespace PasswordManagerAPI.Services
             if (note == null)
                 throw new ArgumentException("Note with this noteId not found");
 
-            UpdateRSA(user, masterPassword);
-
-            note.EncryptedContent = _rsaEncryption.DecryptText(note.EncryptedContent);
-
+            note.EncryptedContent = DecryptContent(note.EncryptedContent, user, masterPassword);
             return note;
         }
+
         private void UpdateRSA(User user, string masterPassword)
         {
             var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
             _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
+        }
+
+        private string DecryptPassword(string encryptedPassword, User user, string masterPassword)
+        {
+            if (KuznyechikStorageProtection.IsProtectedPayload(encryptedPassword))
+            {
+                return KuznyechikStorageProtection.Decrypt(encryptedPassword, masterPassword, user.Salt);
+            }
+
+            UpdateRSA(user, masterPassword);
+            return _rsaEncryption.DecryptText(encryptedPassword);
+        }
+
+        private string DecryptContent(string encryptedContent, User user, string masterPassword)
+        {
+            if (KuznyechikStorageProtection.IsProtectedPayload(encryptedContent))
+            {
+                return KuznyechikStorageProtection.Decrypt(encryptedContent, masterPassword, user.Salt);
+            }
+
+            UpdateRSA(user, masterPassword);
+            return _rsaEncryption.DecryptText(encryptedContent);
         }
     }
 }

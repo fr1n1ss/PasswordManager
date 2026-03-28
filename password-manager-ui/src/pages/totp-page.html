@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TOTP Codes</title>
+  <link rel="stylesheet" href="/styles/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;900&display=swap" rel="stylesheet">
+  <script type="module" src="/scripts/totp.ts"></script>
+</head>
+<body>
+<div class="container">
+  <button class="hide-btn" id="hideBtn">≪</button>
+  <aside class="sidebar" id="sidebar">
+    <ul>
+      <li><a href="../index.html">Все элементы</a></li>
+      <li><a href="favorite-page.html">Избранное</a></li>
+      <li><a href="accounts-page.html">Аккаунты</a></li>
+      <li><a href="notes-page.html">Заметки</a></li>
+      <li><a href="totp-page.html" class="active">TOTP</a></li>
+    </ul>
+  </aside>
+  <div class="content-area">
+    <header class="header">
+      <h1 class="title">МЕНЕДЖЕР ПАРОЛЕЙ</h1>
+      <div class="user-info">
+        <div class="profile-photo"></div>
+        <div class="user-details">
+          <span class="username"></span>
+          <span class="user-email"></span>
+        </div>
+        <div class="profile">
+          <span class="profile-dropdown">▼</span>
+          <div class="dropdown-menu" id="profileMenu">
+            <button id="logoutBtn">Выход</button>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="main-content">
+      <section class="totp-hero">
+        <div>
+          <h2 class="section-title totp-title">TOTP коды</h2>
+          <p class="totp-subtitle">Смотрите актуальные коды двухфакторной аутентификации и добавляйте новые записи через `otpauth://` ссылку или QR-код.</p>
+        </div>
+        <div class="totp-timer-card">
+          <span class="totp-timer-label">Обновление через</span>
+          <span class="totp-timer-value" id="globalSecondsLeft">30с</span>
+          <div class="totp-progress">
+            <div class="totp-progress-bar" id="globalProgressBar"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="search-container totp-toolbar">
+        <form autocomplete="off">
+          <input type="text" class="search-bar" id="searchInput" placeholder="Поиск по сервису или issuer...">
+        </form>
+      </div>
+
+      <div class="totp-grid" id="totpGrid"></div>
+
+      <div class="error-container" id="errorContainer" style="display: none;">
+        <span id="errorMessage" class="error"></span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="fab-button" id="fabButton">+</div>
+
+<div class="modal" id="add-totp-modal">
+  <div class="modal-content">
+    <h2>Добавить TOTP</h2>
+    <div class="modal-field">
+      <label class="modal-label" for="totp-uri">OTPAuth URI</label>
+      <textarea id="totp-uri" placeholder="otpauth://totp/..."></textarea>
+    </div>
+    <div class="totp-divider"><span>или</span></div>
+    <div class="modal-field">
+      <label class="modal-label" for="totp-qr-file">Импорт из QR-кода</label>
+      <input type="file" id="totp-qr-file" accept="image/*">
+    </div>
+    <div class="modal-error" id="totp-error"></div>
+    <button class="modal-close-btn" id="cancel-totp">Отмена</button>
+    <button class="modal-update-btn" id="submit-totp">Добавить</button>
+  </div>
+</div>
+</body>
+</html>

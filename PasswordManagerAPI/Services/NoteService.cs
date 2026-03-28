@@ -24,9 +24,7 @@ namespace PasswordManagerAPI.Services
             if (user == null)
                 throw new ArgumentException("User with this userId not found");
 
-            UpdateRSA(user, masterPassword);
-
-            var encryptedNote = _rsaEncryption.EncryptText(content);
+            var encryptedNote = KuznyechikStorageProtection.Encrypt(content, masterPassword, user.Salt);
 
             var note = new Note(userId, title, encryptedNote, DateTime.Now, DateTime.Now);
 
@@ -66,9 +64,7 @@ namespace PasswordManagerAPI.Services
             if (note == null)
                 throw new ArgumentException("Note with this noteId not found");
 
-            UpdateRSA(user, masterPassword);
-
-            note.EncryptedContent = _rsaEncryption.DecryptText(note.EncryptedContent);
+            note.EncryptedContent = DecryptContent(note.EncryptedContent, user, masterPassword);
 
             return note;
         }
@@ -83,10 +79,8 @@ namespace PasswordManagerAPI.Services
             if (notes.Count == 0)
                 return new List<Note>();
 
-            UpdateRSA(user, masterPassword);
-
             foreach (var note in notes)
-                note.EncryptedContent = _rsaEncryption.DecryptText(note.EncryptedContent);
+                note.EncryptedContent = DecryptContent(note.EncryptedContent, user, masterPassword);
 
             return notes;
         }
@@ -103,8 +97,6 @@ namespace PasswordManagerAPI.Services
             if (note == null)
                 throw new ArgumentException("Note with this noteId not found");
 
-            UpdateRSA(user, masterPassword);
-
             if (!string.IsNullOrEmpty(newTitle))
             {
                 note.Title = newTitle;
@@ -113,7 +105,7 @@ namespace PasswordManagerAPI.Services
 
             if (!string.IsNullOrEmpty(newContent))
             {
-                note.EncryptedContent = _rsaEncryption.EncryptText(newContent);
+                note.EncryptedContent = KuznyechikStorageProtection.Encrypt(newContent, masterPassword, user.Salt);
                 wasChanged = true;
             }
 
@@ -144,6 +136,17 @@ namespace PasswordManagerAPI.Services
         {
             var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
             _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
+        }
+
+        private string DecryptContent(string encryptedContent, User user, string masterPassword)
+        {
+            if (KuznyechikStorageProtection.IsProtectedPayload(encryptedContent))
+            {
+                return KuznyechikStorageProtection.Decrypt(encryptedContent, masterPassword, user.Salt);
+            }
+
+            UpdateRSA(user, masterPassword);
+            return _rsaEncryption.DecryptText(encryptedContent);
         }
     }
 }

@@ -1,4 +1,4 @@
-import { getAccounts, getUserInfo, getUserNotes, ping } from '../services/api.ts';
+import { getAccounts, getUserInfo, getUserNotes, ping, validateMasterPassword } from '../services/api.ts';
 
 interface Account {
     id: number;
@@ -24,17 +24,17 @@ async function checkServerAvailability(): Promise<boolean> {
     try {
         const data = await ping();
         return data.status === 'ok';
-    } catch (error) {
+    } catch {
         return false;
     }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const errorContainer = document.getElementById('errorContainer')!;
-    const errorMessage = document.getElementById('errorMessage')!;
-    const modal = document.getElementById('master-password-modal')!;
+    const errorContainer = document.getElementById('errorContainer') as HTMLDivElement;
+    const errorMessage = document.getElementById('errorMessage') as HTMLDivElement;
+    const modal = document.getElementById('master-password-modal') as HTMLDivElement;
     const modalTitle = document.querySelector('#master-password-modal .modal-content h2') as HTMLElement;
-    const modalErrorMessage = document.getElementById('modal-error-message')!;
+    const modalErrorMessage = document.getElementById('modal-error-message') as HTMLDivElement;
     const masterPasswordInput = document.getElementById('master-password-input') as HTMLInputElement;
     const retryBtn = document.querySelector('.retry-btn') as HTMLButtonElement;
     const logoutBtn = document.querySelector('.logout-btn') as HTMLButtonElement;
@@ -42,8 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     modal.style.display = 'none';
     errorContainer.style.display = 'none';
 
-    const isDataLoaded = sessionStorage.getItem('isDataLoaded');
-    if (isDataLoaded === 'true') {
+    if (sessionStorage.getItem('isDataLoaded') === 'true') {
         window.location.href = '/index.html';
         return;
     }
@@ -51,42 +50,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     const token = localStorage.getItem('token');
     if (!token) {
         const isServerAvailable = await checkServerAvailability();
+        errorContainer.style.display = 'block';
         if (isServerAvailable) {
-            errorContainer.style.display = 'block';
             errorMessage.textContent = 'Токен отсутствует. Перенаправляем на страницу логина...';
             setTimeout(() => window.location.href = '/pages/login-page.html', 2000);
         } else {
-            errorContainer.style.display = 'block';
-            errorMessage.innerHTML = '<p>Сервер недоступен. Пожалуйста, попробуйте снова.</p> <button class="retry-button" onclick="window.location.reload()">Повторить</button>';
+            errorMessage.innerHTML = '<p>Сервер недоступен. Пожалуйста, попробуйте снова.</p><button class="retry-button" onclick="window.location.reload()">Повторить</button>';
         }
         return;
     }
 
-    const isServerAvailable = await checkServerAvailability();
-    if (!isServerAvailable) {
+    if (!await checkServerAvailability()) {
         errorContainer.style.display = 'block';
         errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже. <button class="retry-button" onclick="window.location.reload()">Повторить</button>';
         return;
     }
 
-    let user;
+    let user: { username: string; email: string; salt: string };
     try {
         user = await getUserInfo();
         if (!user.username || !user.email) {
-            throw new Error('Пользовательские данные (username или email) отсутствуют');
+            throw new Error('Не удалось получить данные пользователя');
         }
     } catch (error: any) {
+        errorContainer.style.display = 'block';
         if (error.response?.status === 401) {
-            errorContainer.style.display = 'block';
             errorMessage.textContent = 'Сессия истекла или авторизация не удалась. Пожалуйста, войдите заново.';
             localStorage.removeItem('token');
             setTimeout(() => window.location.href = '/pages/login-page.html', 2000);
         } else {
-            errorContainer.style.display = 'block';
-            errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже: ' + error.message + ' (Статус: ' + (error.response?.status || 'нет статуса') + ') <button onclick="window.location.reload()">Повторить</button>';
+            errorMessage.innerHTML = `Ошибка загрузки пользователя: ${error.message} <button onclick="window.location.reload()">Повторить</button>`;
         }
         return;
     }
+
+    const persistUserContext = (masterPassword: string) => {
+        sessionStorage.setItem('masterPassword', masterPassword);
+        sessionStorage.setItem('username', user.username || '');
+        sessionStorage.setItem('email', user.email || '');
+        sessionStorage.setItem('cryptoSalt', user.salt || '');
+    };
 
     let masterPassword = sessionStorage.getItem('masterPassword');
     if (!masterPassword) {
@@ -94,50 +97,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         modalTitle.textContent = 'Ввод мастер-пароля';
         modalErrorMessage.textContent = 'Пожалуйста, введите мастер-пароль';
     } else {
-        sessionStorage.setItem('username', user.username || '');
-        sessionStorage.setItem('email', user.email || '');
+        persistUserContext(masterPassword);
     }
 
     const loadData = async (mp: string) => {
-        let accounts: Account[] = [];
         try {
-            accounts = await getAccounts(mp) as Account[];
-            if (accounts.length > 0) console.log('First account structure:', accounts[0]);
-            else console.log('No accounts found');
+            const accounts = await getAccounts(mp) as Account[];
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
         } catch (error: any) {
-            throw error;
+            console.error('[loading] accounts load failed:', error);
+            sessionStorage.setItem('accounts', JSON.stringify([]));
+            sessionStorage.setItem('accountsLoadError', 'true');
         }
 
-        let notes: Note[] = [];
         try {
-            notes = await getUserNotes(mp) as Note[];
-            if (notes.length > 0) console.log('First note structure:', notes[0]);
-            else console.log('No notes found');
+            const notes = await getUserNotes(mp) as Note[];
             sessionStorage.setItem('notes', JSON.stringify(notes));
         } catch (error: any) {
-            if (error.response?.status !== 400 || error.response?.data?.message !== 'No notes found') throw error;
-            else {
-                sessionStorage.setItem('notes', JSON.stringify([]));
-            }
+            console.error('[loading] notes load failed:', error);
+            sessionStorage.setItem('notes', JSON.stringify([]));
+            sessionStorage.setItem('notesLoadError', 'true');
         }
-
-        return { accounts, notes };
     };
 
     const tryLoadData = async (mp: string) => {
+        sessionStorage.removeItem('accountsLoadError');
+        sessionStorage.removeItem('notesLoadError');
+
         try {
+            await validateMasterPassword(mp);
+            persistUserContext(mp);
             await loadData(mp);
             sessionStorage.setItem('isDataLoaded', 'true');
             window.location.href = '/index.html';
         } catch (error: any) {
+            sessionStorage.removeItem('masterPassword');
+            sessionStorage.removeItem('accounts');
+            sessionStorage.removeItem('notes');
+
             if (error.response?.status === 400 || error.response?.status === 401 || error.response?.status === 403) {
                 modalTitle.textContent = 'Ошибка';
                 modalErrorMessage.textContent = 'Неверный мастер-пароль. Пожалуйста, попробуйте снова.';
                 modal.style.display = 'flex';
             } else {
                 errorContainer.style.display = 'block';
-                errorMessage.innerHTML = 'Ошибка загрузки данных: ' + error.message + ' (Статус: ' + (error.response?.status || 'нет статуса') + ') <button onclick="window.location.reload()">Повторить</button>';
+                errorMessage.innerHTML = `Ошибка загрузки данных: ${error.message} <button onclick="window.location.reload()">Повторить</button>`;
             }
         }
     };
@@ -161,9 +165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             modalErrorMessage.textContent = 'Мастер-пароль не введён. Пожалуйста, введите мастер-пароль.';
             return;
         }
-        sessionStorage.setItem('masterPassword', newMasterPassword);
-        sessionStorage.setItem('username', user.username || '');
-        sessionStorage.setItem('email', user.email || '');
+
         modal.style.display = 'none';
         masterPasswordInput.value = '';
         await tryLoadData(newMasterPassword);
@@ -174,8 +176,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.removeItem('masterPassword');
         sessionStorage.removeItem('username');
         sessionStorage.removeItem('email');
+        sessionStorage.removeItem('cryptoSalt');
         sessionStorage.removeItem('accounts');
         sessionStorage.removeItem('notes');
+        sessionStorage.removeItem('notesLoadError');
         sessionStorage.removeItem('isDataLoaded');
         window.location.href = '/pages/login-page.html';
     };

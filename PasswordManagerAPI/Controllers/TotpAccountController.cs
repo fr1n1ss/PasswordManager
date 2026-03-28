@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PasswordManagerAPI.Entities;
+using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
-using Security.RSA;
 
 namespace PasswordManagerAPI.Controllers
 {
@@ -13,15 +13,15 @@ namespace PasswordManagerAPI.Controllers
     {
         private readonly AppDbContext _context;
         private readonly ITotpAccountService _totpAccountService;
-        private readonly RSAEncryption _rsaEncryption;
         private readonly IQrReaderService _qrCodeService;
-        public TotpAccountController(AppDbContext context, ITotpAccountService totpAccountService, RSAEncryption encryption, IQrReaderService readerService)
+
+        public TotpAccountController(AppDbContext context, ITotpAccountService totpAccountService, IQrReaderService readerService)
         {
             _context = context;
             _totpAccountService = totpAccountService;
-            _rsaEncryption = encryption;
             _qrCodeService = readerService;
         }
+
         [HttpPost("addAccount")]
         public IActionResult Add([FromBody] string uri)
         {
@@ -35,6 +35,33 @@ namespace PasswordManagerAPI.Controllers
 
             return Ok(account);
         }
+
+        [HttpPost("addEncrypted")]
+        public IActionResult AddEncrypted([FromBody] AddEncryptedTotpAccountModel model)
+        {
+            if (string.IsNullOrWhiteSpace(model.EncryptedPayload) || string.IsNullOrWhiteSpace(model.Nonce))
+            {
+                return BadRequest("Encrypted payload and nonce are required.");
+            }
+
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+
+            var account = new TotpAccount
+            {
+                UserId = userId,
+                ServiceName = $"encrypted-totp-v{model.Version}",
+                Issuer = model.Nonce,
+                Secret = $"zk1:{model.EncryptedPayload}",
+                Digits = 0,
+                Period = 0
+            };
+
+            _context.TotpAccounts.Add(account);
+            _context.SaveChanges();
+
+            return Ok(account);
+        }
+
         [HttpPost("import")]
         [Consumes("multipart/form-data")]
         public IActionResult Import(IFormFile file)
@@ -44,7 +71,6 @@ namespace PasswordManagerAPI.Controllers
             var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
             using var stream = file.OpenReadStream();
-
             var qrText = _qrCodeService.ReadQrCode(stream);
 
             if (string.IsNullOrEmpty(qrText)) return BadRequest("QR is not recognized");
@@ -66,6 +92,21 @@ namespace PasswordManagerAPI.Controllers
 
             return Ok(account);
         }
+
+        [HttpPost("importQrText")]
+        [Consumes("multipart/form-data")]
+        public IActionResult ImportQrText(IFormFile file)
+        {
+            if (file == null || file.Length == 0) return BadRequest("File not upload");
+
+            using var stream = file.OpenReadStream();
+            var qrText = _qrCodeService.ReadQrCode(stream);
+
+            if (string.IsNullOrEmpty(qrText)) return BadRequest("QR is not recognized");
+
+            return Ok(new { qrText });
+        }
+
         [HttpGet("getAccounts")]
         public IActionResult GetAccounts()
         {
@@ -74,11 +115,12 @@ namespace PasswordManagerAPI.Controllers
 
             return Ok(accounts);
         }
+
         [HttpGet("codes")]
         public IActionResult GetCodes()
         {
             var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-            var accounts = _context.TotpAccounts.Where(a => a.UserId == userId).ToList();
+            var accounts = _context.TotpAccounts.Where(a => a.UserId == userId && a.Digits > 0 && a.Period > 0).ToList();
             var result = accounts.Select(a => new
             {
                 a.Id,
