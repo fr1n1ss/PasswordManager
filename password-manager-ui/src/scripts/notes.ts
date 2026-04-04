@@ -1,5 +1,6 @@
-import { getUserNotes, deleteNote, updateNote, addNote, addToFavorites, removeFromFavorites, isFavorite } from '../services/api.ts';
+import { addNote, addToFavorites, deleteNote, getUserNotes, removeFromFavorites, updateNote } from '../services/api.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
+import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
 interface Note {
     id: number;
@@ -37,7 +38,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noteError = document.getElementById('note-error') as HTMLDivElement | null;
     const searchInput = document.querySelector('.search-bar') as HTMLInputElement | null;
     const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement | null;
-    const noteFavoriteBtn = document.getElementById('note-favorite-btn') as HTMLButtonElement | null;
 
     if (!notesCards || !errorContainer || !fabButton || !addNoteModal || !noteModal || !cancelNoteBtn || !submitNoteBtn || !noteError || !searchInput || !sortDropdown) {
         return;
@@ -72,8 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const updateStoredNote = (noteId: number, patch: Partial<Note>) => {
-        const notes = getStoredNotes().map(note => note.id === noteId ? { ...note, ...patch } : note);
-        setStoredNotes(notes);
+        setStoredNotes(getStoredNotes().map((note) => note.id === noteId ? { ...note, ...patch } : note));
     };
 
     const filterNotes = (notes: Note[]) => {
@@ -82,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return notes;
         }
 
-        return notes.filter(note => note.title.toLowerCase().includes(term));
+        return notes.filter((note) => note.title.toLowerCase().includes(term));
     };
 
     const sortNotes = (notes: Note[]) => {
@@ -115,11 +114,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (enable) {
             title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
             content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
-            noteUpdateBtn.textContent = 'Сохранить';
+            noteUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
 
-        const note = getStoredNotes().find(item => item.id === currentNoteId);
+        const note = getStoredNotes().find((item) => item.id === currentNoteId);
         if (note) {
             title.textContent = note.title;
             content.textContent = note.encryptedContent;
@@ -127,67 +126,60 @@ document.addEventListener('DOMContentLoaded', async () => {
             updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
         }
 
-        noteUpdateBtn.textContent = 'Изменить';
+        noteUpdateBtn.textContent = UI_TEXT.common.edit;
     };
 
-    const applyFavoriteState = (noteId: number, isFav: boolean) => {
-        if (!noteFavoriteBtn) {
-            return;
-        }
-
-        noteFavoriteBtn.textContent = isFav ? 'Удалить из избранного' : 'Добавить в избранное';
-        updateStoredNote(noteId, { isFavorite: isFav });
-    };
-
-    const openNoteModal = async (noteId: number) => {
-        const note = getStoredNotes().find(item => item.id === noteId);
+    const openNoteModal = (noteId: number) => {
+        const note = getStoredNotes().find((item) => item.id === noteId);
         if (!note) {
             return;
         }
 
         currentNoteId = noteId;
-
         (document.getElementById('modal-note-title') as HTMLElement).textContent = note.title;
         (document.getElementById('modal-note-content') as HTMLElement).textContent = note.encryptedContent;
         (document.getElementById('modal-note-creation-date') as HTMLElement).textContent = new Date(note.createdAt).toLocaleString('ru-RU');
         (document.getElementById('modal-note-updated-date') as HTMLElement).textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
-
-        if (noteFavoriteBtn) {
-            applyFavoriteState(noteId, Boolean(note.isFavorite));
-            noteFavoriteBtn.onclick = async () => {
-                try {
-                    const currentFavStatus = Boolean(getStoredNotes().find(item => item.id === noteId)?.isFavorite);
-                    if (currentFavStatus) {
-                        await removeFromFavorites('note', noteId);
-                        applyFavoriteState(noteId, false);
-                    } else {
-                        await addToFavorites('note', noteId);
-                        applyFavoriteState(noteId, true);
-                    }
-                } catch (error: any) {
-                    alert(`Ошибка: ${error.message}`);
-                }
-            };
-        }
-
         noteModal.style.display = 'flex';
+    };
 
-        if (noteFavoriteBtn) {
-            void isFavorite('note', noteId)
-                .then((isFav) => applyFavoriteState(noteId, isFav))
-                .catch(() => undefined);
+    const toggleFavorite = async (noteId: number, nextState: boolean) => {
+        if (nextState) {
+            await addToFavorites('note', noteId);
+        } else {
+            await removeFromFavorites('note', noteId);
         }
+
+        updateStoredNote(noteId, { isFavorite: nextState });
     };
 
     const bindCards = () => {
-        notesCards.querySelectorAll<HTMLElement>('.card[data-note-id]').forEach(card => {
+        notesCards.querySelectorAll<HTMLElement>('.card[data-note-id]').forEach((card) => {
             card.addEventListener('click', () => {
-                void openNoteModal(Number(card.dataset.noteId));
+                openNoteModal(Number(card.dataset.noteId));
             });
         });
 
-        notesCards.querySelectorAll<HTMLElement>('.add-new-card').forEach(card => {
+        notesCards.querySelectorAll<HTMLElement>('.add-new-card').forEach((card) => {
             card.addEventListener('click', openAddNoteModal);
+        });
+
+        notesCards.querySelectorAll<HTMLElement>('.card-favorite-toggle').forEach((button) => {
+            button.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                const noteId = Number(button.dataset.itemId);
+                const isCurrentlyFavorite = button.dataset.isFavorite === 'true';
+                if (!noteId) {
+                    return;
+                }
+
+                try {
+                    await toggleFavorite(noteId, !isCurrentlyFavorite);
+                    await loadNotes();
+                } catch (error: any) {
+                    alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
+                }
+            });
         });
     };
 
@@ -200,19 +192,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const visibleNotes = sortNotes(filterNotes(notes));
-        if (visibleNotes.length === 0) {
-            notesCards.innerHTML = '<div class="add-new-card">+</div>';
-        } else {
-            notesCards.innerHTML = visibleNotes.map((note) => `
-                <div class="card" data-note-id="${note.id}">
-                    <div class="card-logo"></div>
-                    <div class="card-details">
-                        <h3>${note.title}</h3>
-                        <p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
-                    </div>
+        notesCards.innerHTML = visibleNotes.map((note) => `
+            <div class="card" data-note-id="${note.id}">
+                <button
+                    type="button"
+                    class="card-favorite-toggle${note.isFavorite ? ' is-active' : ''}"
+                    data-item-id="${note.id}"
+                    data-is-favorite="${note.isFavorite ? 'true' : 'false'}"
+                    aria-label="${favoriteButtonLabel(Boolean(note.isFavorite))}"
+                    title="${favoriteButtonLabel(Boolean(note.isFavorite))}"
+                >★</button>
+                <div class="card-logo"></div>
+                <div class="card-details">
+                    <h3>${note.title}</h3>
+                    <p>${UI_TEXT.common.created}: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                 </div>
-            `).join('') + '<div class="add-new-card">+</div>';
-        }
+            </div>
+        `).join('') + '<button type="button" class="add-new-card" aria-label="Добавить заметку">+</button>';
 
         bindCards();
     };
@@ -230,6 +226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     fabButton.addEventListener('click', openAddNoteModal);
+
     addNoteModal.addEventListener('click', (event) => {
         if (event.target === addNoteModal) {
             closeAllModals();
@@ -253,14 +250,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const newNote = await addNote(title, content, masterPassword);
-            const notes = [...getStoredNotes(), { ...newNote, encryptedContent: content, isFavorite: false }];
-            setStoredNotes(notes);
+            setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent: content, isFavorite: false }]);
             await loadNotes();
             clearAddForm();
             closeAllModals();
         } catch (error: any) {
             noteError.style.display = 'block';
-            noteError.textContent = `Ошибка: ${error.message}`;
+            noteError.textContent = `${UI_TEXT.common.errorPrefix}: ${error.message}`;
         }
     });
 
@@ -271,7 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.querySelectorAll('.modal-close-btn').forEach(button => {
+    document.querySelectorAll('.modal-close-btn').forEach((button) => {
         button.addEventListener('click', () => {
             noteModal.style.display = 'none';
             toggleNoteEditMode(false);
@@ -285,7 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             await deleteNote(currentNoteId);
-            sessionStorage.removeItem('notes');
+            setStoredNotes(getStoredNotes().filter((note) => note.id !== currentNoteId));
             noteModal.style.display = 'none';
             await loadNotes();
         } catch (error: any) {
@@ -308,17 +304,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             await updateNote(currentNoteId, newTitle, newContent, masterPassword);
-            const notes = getStoredNotes();
-            const noteIndex = notes.findIndex(item => item.id === currentNoteId);
-            if (noteIndex !== -1) {
-                notes[noteIndex] = {
-                    ...notes[noteIndex],
-                    title: newTitle,
-                    encryptedContent: newContent,
-                    updatedAt: new Date().toISOString()
-                };
-            }
-            setStoredNotes(notes);
+            updateStoredNote(currentNoteId, {
+                title: newTitle,
+                encryptedContent: newContent,
+                updatedAt: new Date().toISOString()
+            });
             toggleNoteEditMode(false);
             await loadNotes();
         } catch (error: any) {

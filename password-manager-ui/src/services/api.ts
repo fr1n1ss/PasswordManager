@@ -19,9 +19,12 @@ api.interceptors.request.use((config) => {
 
 export const login = async (username: string, password: string) => {
   const response = await api.post('/auth/login', { username, password });
-  const { token } = response.data;
-  localStorage.setItem('token', token);
-  return token;
+  return response.data as { token?: string; requires2FA?: boolean; tempToken?: string };
+};
+
+export const loginWith2FA = async (tempToken: string, code: string) => {
+  const response = await api.post('/auth/2fa/login', { tempToken, code });
+  return response.data as { token: string };
 };
 
 export const register = async (username: string, email: string, password: string, masterPassword: string) => {
@@ -104,6 +107,21 @@ export const getUserInfo = async  () => {
 
 export const validateMasterPassword = async (masterPassword: string) => {
   const response = await api.post('/auth/validate-master-password', { masterPassword });
+  return response.data;
+}
+
+export const setup2FA = async () => {
+  const response = await api.post('/auth/2fa/setup');
+  return response.data as { uri: string };
+}
+
+export const verify2FA = async (code: string) => {
+  const response = await api.post('/auth/2fa/verify', JSON.stringify(code));
+  return response.data;
+}
+
+export const disable2FA = async () => {
+  const response = await api.post('/auth/2fa/disable');
   return response.data;
 }
 

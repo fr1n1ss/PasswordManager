@@ -33,8 +33,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const errorContainer = document.getElementById('errorContainer') as HTMLDivElement;
     const errorMessage = document.getElementById('errorMessage') as HTMLDivElement;
     const modal = document.getElementById('master-password-modal') as HTMLDivElement;
-    const modalTitle = document.querySelector('#master-password-modal .modal-content h2') as HTMLElement;
-    const modalErrorMessage = document.getElementById('modal-error-message') as HTMLDivElement;
+    const modalTitle = document.querySelector('#master-password-modal .auth-modal-title') as HTMLElement;
+    const modalErrorMessage = document.getElementById('modal-error-message') as HTMLParagraphElement;
     const masterPasswordInput = document.getElementById('master-password-input') as HTMLInputElement;
     const retryBtn = document.querySelector('.retry-btn') as HTMLButtonElement;
     const logoutBtn = document.querySelector('.logout-btn') as HTMLButtonElement;
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    let user: { username: string; email: string; salt: string };
+    let user: { username: string; email: string; salt: string; is2FaEnabled?: boolean };
     try {
         user = await getUserInfo();
         if (!user.username || !user.email) {
@@ -94,8 +94,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let masterPassword = sessionStorage.getItem('masterPassword');
     if (!masterPassword) {
         modal.style.display = 'flex';
-        modalTitle.textContent = 'Ввод мастер-пароля';
-        modalErrorMessage.textContent = 'Пожалуйста, введите мастер-пароль';
+        modalTitle.textContent = 'Введите мастер-пароль';
+        modalErrorMessage.textContent = 'Пожалуйста, введите мастер-пароль.';
     } else {
         persistUserContext(masterPassword);
     }
@@ -136,8 +136,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             sessionStorage.removeItem('notes');
 
             if (error.response?.status === 400 || error.response?.status === 401 || error.response?.status === 403) {
-                modalTitle.textContent = 'Ошибка';
-                modalErrorMessage.textContent = 'Неверный мастер-пароль. Пожалуйста, попробуйте снова.';
+                modalTitle.textContent = 'Введите мастер-пароль';
+                modalErrorMessage.textContent = 'Неверный мастер-пароль. Попробуйте еще раз.';
                 modal.style.display = 'flex';
             } else {
                 errorContainer.style.display = 'block';
@@ -161,8 +161,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     (window as any).retryMasterPassword = async () => {
         const newMasterPassword = masterPasswordInput.value.trim();
         if (!newMasterPassword) {
-            modalTitle.textContent = 'Ошибка';
-            modalErrorMessage.textContent = 'Мастер-пароль не введён. Пожалуйста, введите мастер-пароль.';
+            modalTitle.textContent = 'Введите мастер-пароль';
+            modalErrorMessage.textContent = 'Мастер-пароль не введен. Пожалуйста, заполните поле.';
             return;
         }
 

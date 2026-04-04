@@ -1,5 +1,6 @@
-import { getAccounts, deleteAccount, updateAccount, addAccount, getAccountById, addToFavorites, removeFromFavorites, isFavorite } from '../services/api.ts';
+import { addAccount, addToFavorites, deleteAccount, getAccountById, getAccounts, removeFromFavorites, updateAccount } from '../services/api.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
+import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
 interface Account {
     id: number;
@@ -39,7 +40,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const accountError = document.getElementById('account-error') as HTMLDivElement | null;
     const searchInput = document.querySelector('.search-bar') as HTMLInputElement | null;
     const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement | null;
-    const accountFavoriteBtn = document.getElementById('account-favorite-btn') as HTMLButtonElement | null;
 
     if (!passwordCards || !errorContainer || !fabButton || !addAccountModal || !accountModal || !cancelAccountBtn || !submitAccountBtn || !accountError || !searchInput || !sortDropdown) {
         return;
@@ -77,8 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const updateStoredAccount = (accountId: number, patch: Partial<Account>) => {
-        const accounts = getStoredAccounts().map(account => account.id === accountId ? { ...account, ...patch } : account);
-        setStoredAccounts(accounts);
+        setStoredAccounts(getStoredAccounts().map((account) => account.id === accountId ? { ...account, ...patch } : account));
     };
 
     const filterAccounts = (accounts: Account[]) => {
@@ -87,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return accounts;
         }
 
-        return accounts.filter(account => account.serviceName.toLowerCase().includes(term));
+        return accounts.filter((account) => account.serviceName.toLowerCase().includes(term));
     };
 
     const sortAccounts = (accounts: Account[]) => {
@@ -125,83 +124,76 @@ document.addEventListener('DOMContentLoaded', async () => {
             encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${encryptedPassword.textContent || ''}" />`;
             description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
-            accountUpdateBtn.textContent = 'Сохранить';
+            accountUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
 
-        const account = getStoredAccounts().find(item => item.id === currentAccountId);
+        const account = getStoredAccounts().find((item) => item.id === currentAccountId);
         if (account) {
             serviceName.textContent = account.serviceName;
             login.textContent = account.login;
-            encryptedPassword.textContent = account.encryptedPassword || 'Не указан';
-            description.textContent = account.description || 'Не указано';
-            url.textContent = account.url || 'Не указан';
+            encryptedPassword.textContent = account.encryptedPassword || UI_TEXT.common.notSpecified;
+            description.textContent = account.description || UI_TEXT.common.notSpecifiedNeuter;
+            url.textContent = account.url || UI_TEXT.common.notSpecified;
             creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU');
         }
 
-        accountUpdateBtn.textContent = 'Изменить';
+        accountUpdateBtn.textContent = UI_TEXT.common.edit;
     };
 
-    const applyFavoriteState = (accountId: number, isFav: boolean) => {
-        if (!accountFavoriteBtn) {
-            return;
-        }
-
-        accountFavoriteBtn.textContent = isFav ? 'Удалить из избранного' : 'Добавить в избранное';
-        updateStoredAccount(accountId, { isFavorite: isFav });
-    };
-
-    const openAccountModal = async (accountId: number) => {
-        const account = getStoredAccounts().find(item => item.id === accountId);
+    const openAccountModal = (accountId: number) => {
+        const account = getStoredAccounts().find((item) => item.id === accountId);
         if (!account) {
             return;
         }
 
         currentAccountId = accountId;
-
         (document.getElementById('modal-service-name') as HTMLElement).textContent = account.serviceName;
         (document.getElementById('modal-login') as HTMLElement).textContent = account.login;
-        (document.getElementById('modal-encrypted-password') as HTMLElement).textContent = account.encryptedPassword || 'Не указан';
-        (document.getElementById('modal-description') as HTMLElement).textContent = account.description || 'Не указано';
-        (document.getElementById('modal-url') as HTMLElement).textContent = account.url || 'Не указан';
+        (document.getElementById('modal-encrypted-password') as HTMLElement).textContent = account.encryptedPassword || UI_TEXT.common.notSpecified;
+        (document.getElementById('modal-description') as HTMLElement).textContent = account.description || UI_TEXT.common.notSpecifiedNeuter;
+        (document.getElementById('modal-url') as HTMLElement).textContent = account.url || UI_TEXT.common.notSpecified;
         (document.getElementById('modal-creation-date') as HTMLElement).textContent = new Date(account.creationDate).toLocaleString('ru-RU');
-
-        if (accountFavoriteBtn) {
-            applyFavoriteState(accountId, Boolean(account.isFavorite));
-            accountFavoriteBtn.onclick = async () => {
-                try {
-                    const currentFavStatus = Boolean(getStoredAccounts().find(item => item.id === accountId)?.isFavorite);
-                    if (currentFavStatus) {
-                        await removeFromFavorites('account', accountId);
-                        applyFavoriteState(accountId, false);
-                    } else {
-                        await addToFavorites('account', accountId);
-                        applyFavoriteState(accountId, true);
-                    }
-                } catch (error: any) {
-                    alert(`Ошибка: ${error.message}`);
-                }
-            };
-        }
-
         accountModal.style.display = 'flex';
+    };
 
-        if (accountFavoriteBtn) {
-            void isFavorite('account', accountId)
-                .then((isFav) => applyFavoriteState(accountId, isFav))
-                .catch(() => undefined);
+    const toggleFavorite = async (accountId: number, nextState: boolean) => {
+        if (nextState) {
+            await addToFavorites('account', accountId);
+        } else {
+            await removeFromFavorites('account', accountId);
         }
+
+        updateStoredAccount(accountId, { isFavorite: nextState });
     };
 
     const bindCards = () => {
-        passwordCards.querySelectorAll<HTMLElement>('.card[data-account-id]').forEach(card => {
+        passwordCards.querySelectorAll<HTMLElement>('.card[data-account-id]').forEach((card) => {
             card.addEventListener('click', () => {
-                void openAccountModal(Number(card.dataset.accountId));
+                openAccountModal(Number(card.dataset.accountId));
             });
         });
 
-        passwordCards.querySelectorAll<HTMLElement>('.add-new-card').forEach(card => {
+        passwordCards.querySelectorAll<HTMLElement>('.add-new-card').forEach((card) => {
             card.addEventListener('click', openAddAccountModal);
+        });
+
+        passwordCards.querySelectorAll<HTMLElement>('.card-favorite-toggle').forEach((button) => {
+            button.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                const accountId = Number(button.dataset.itemId);
+                const isCurrentlyFavorite = button.dataset.isFavorite === 'true';
+                if (!accountId) {
+                    return;
+                }
+
+                try {
+                    await toggleFavorite(accountId, !isCurrentlyFavorite);
+                    await loadAccounts();
+                } catch (error: any) {
+                    alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
+                }
+            });
         });
     };
 
@@ -214,27 +206,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const visibleAccounts = sortAccounts(filterAccounts(accounts));
-        if (visibleAccounts.length === 0) {
-            passwordCards.innerHTML = '<div class="add-new-card">+</div>';
-        } else {
-            passwordCards.innerHTML = visibleAccounts.map((account) => {
-                const logoUrl = account.url
-                    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                    : 'https://via.placeholder.com/32';
+        passwordCards.innerHTML = visibleAccounts.map((account) => {
+            const logoUrl = account.url
+                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
+                : 'https://via.placeholder.com/32';
 
-                return `
-                    <div class="card" data-account-id="${account.id}">
-                        <div class="card-logo">
-                            <img src="${logoUrl}" alt="${account.serviceName} logo" />
-                        </div>
-                        <div class="card-details">
-                            <h3>${account.serviceName}</h3>
-                            <p>${account.login}</p>
-                        </div>
+            return `
+                <div class="card" data-account-id="${account.id}">
+                    <button
+                        type="button"
+                        class="card-favorite-toggle${account.isFavorite ? ' is-active' : ''}"
+                        data-item-id="${account.id}"
+                        data-is-favorite="${account.isFavorite ? 'true' : 'false'}"
+                        aria-label="${favoriteButtonLabel(Boolean(account.isFavorite))}"
+                        title="${favoriteButtonLabel(Boolean(account.isFavorite))}"
+                    >★</button>
+                    <div class="card-logo">
+                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
                     </div>
-                `;
-            }).join('') + '<div class="add-new-card">+</div>';
-        }
+                    <div class="card-details">
+                        <h3>${account.serviceName}</h3>
+                        <p>${account.login}</p>
+                    </div>
+                </div>
+            `;
+        }).join('') + '<button type="button" class="add-new-card" aria-label="Добавить аккаунт">+</button>';
 
         bindCards();
     };
@@ -252,6 +248,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     fabButton.addEventListener('click', openAddAccountModal);
+
     addAccountModal.addEventListener('click', (event) => {
         if (event.target === addAccountModal) {
             closeAllModals();
@@ -279,14 +276,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const newAccount = await addAccount({ serviceName, login, password, description, url, masterPassword });
             const decryptedAccount = await getAccountById(newAccount.id, masterPassword);
-            const accounts = [...getStoredAccounts(), { ...decryptedAccount, isFavorite: false }];
-            setStoredAccounts(accounts);
+            setStoredAccounts([...getStoredAccounts(), { ...decryptedAccount, isFavorite: false }]);
             await loadAccounts();
             clearAddForm();
             closeAllModals();
         } catch (error: any) {
             accountError.style.display = 'block';
-            accountError.textContent = `Ошибка: ${error.message}`;
+            accountError.textContent = `${UI_TEXT.common.errorPrefix}: ${error.message}`;
         }
     });
 
@@ -297,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.querySelectorAll('.modal-close-btn').forEach(button => {
+    document.querySelectorAll('.modal-close-btn').forEach((button) => {
         button.addEventListener('click', () => {
             accountModal.style.display = 'none';
             toggleAccountEditMode(false);
@@ -311,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             await deleteAccount(currentAccountId);
-            sessionStorage.removeItem('accounts');
+            setStoredAccounts(getStoredAccounts().filter((account) => account.id !== currentAccountId));
             accountModal.style.display = 'none';
             await loadAccounts();
         } catch (error: any) {
@@ -336,8 +332,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         const description = (document.getElementById('edit-description') as HTMLTextAreaElement).value;
 
         try {
-            await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
-            sessionStorage.removeItem('accounts');
+            await updateAccount({
+                id: currentAccountId,
+                newLogin: login,
+                newPassword: password,
+                newURL: url,
+                newDescription: description,
+                newServiceName: serviceName,
+                masterPassword
+            });
+
+            updateStoredAccount(currentAccountId, {
+                login,
+                encryptedPassword: password,
+                serviceName,
+                url,
+                description
+            });
+
             toggleAccountEditMode(false);
             await loadAccounts();
         } catch (error: any) {

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Настройки</title>
+  <link rel="stylesheet" href="../styles/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;900&display=swap" rel="stylesheet">
+  <script type="module" src="../scripts/settings.ts"></script>
+</head>
+<body>
+<div class="container">
+  <button class="hide-btn" id="hideBtn">≪</button>
+  <aside class="sidebar" id="sidebar">
+    <ul>
+      <li><a href="../index.html">Все элементы</a></li>
+      <li><a href="favorite-page.html">Избранное</a></li>
+      <li><a href="accounts-page.html">Аккаунты</a></li>
+      <li><a href="notes-page.html">Заметки</a></li>
+      <li><a href="totp-page.html">TOTP</a></li>
+    </ul>
+  </aside>
+  <div class="content-area">
+    <header class="header">
+      <h1 class="title">МЕНЕДЖЕР ПАРОЛЕЙ</h1>
+      <div class="user-info">
+        <div class="profile-photo"></div>
+        <div class="user-details">
+          <span class="username"></span>
+          <span class="user-email"></span>
+        </div>
+        <div class="profile">
+          <span class="profile-dropdown">▼</span>
+          <div class="dropdown-menu" id="profileMenu">
+            <button id="settingsBtn">Настройки</button>
+            <button id="logoutBtn">Выход</button>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="main-content">
+      <section class="settings-panel">
+        <div class="settings-header">
+          <h2 class="section-title settings-title">Настройки безопасности</h2>
+          <p class="settings-subtitle">Здесь можно включить двухфакторную аутентификацию для входа и управлять ее текущим состоянием.</p>
+        </div>
+        <article class="settings-card">
+          <div class="settings-card-header">
+            <div>
+              <h3>Защита входа</h3>
+              <p id="twofaStatusText" class="settings-muted">Проверяем текущий статус 2FA...</p>
+            </div>
+            <span id="twofaStatusBadge" class="settings-badge">Загрузка</span>
+          </div>
+
+          <div class="settings-actions">
+            <button id="start2faSetupBtn" class="modal-update-btn">Включить 2FA</button>
+            <button id="disable2faBtn" class="modal-delete-btn">Отключить 2FA</button>
+          </div>
+
+          <div id="twofaSetupPanel" class="settings-setup" style="display: none;">
+            <div class="settings-setup-grid">
+              <div class="settings-qr-card">
+                <div class="settings-qr-frame">
+                  <img id="twofaQrImage" alt="QR code for 2FA setup">
+                </div>
+                <p class="settings-qr-caption">Отсканируйте QR-код в приложении-аутентификаторе.</p>
+              </div>
+
+              <div class="settings-setup-form">
+                <label class="modal-label" for="twofaUri">OTPAuth URI</label>
+                <textarea id="twofaUri" readonly></textarea>
+                <p class="settings-muted">Если QR-код не считывается, скопируйте URI и добавьте его вручную.</p>
+                <label class="modal-label" for="twofaCode">Код подтверждения</label>
+                <input type="text" id="twofaCode" class="settings-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
+                <button id="verify2faBtn" class="favorite-btn settings-confirm-btn">Подтвердить и включить</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="settingsError" class="modal-error"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>

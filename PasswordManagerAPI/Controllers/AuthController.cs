@@ -173,6 +173,23 @@ namespace PasswordManagerAPI.Controllers
             return Ok("2FA enabled successfully.");
         }
 
+        [Authorize]
+        [HttpPost("2fa/disable")]
+        public IActionResult Disable2FA()
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+            var user = _context.Users.FirstOrDefault(u => u.Id == userId);
+
+            if (user == null)
+                return Unauthorized();
+
+            user.Is2FaEnabled = false;
+            user.TotpSecret = null;
+            _context.SaveChanges();
+
+            return Ok(new { message = "2FA disabled successfully." });
+        }
+
         [HttpGet("ping")]
         public IActionResult Ping()
         {

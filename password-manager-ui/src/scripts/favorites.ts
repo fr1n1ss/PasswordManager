@@ -3,7 +3,8 @@ import {
     deleteAccount,
     deleteNote,
     updateAccount,
-    updateNote
+    updateNote,
+    removeFromFavorites
 } from '../services/api.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 
@@ -16,6 +17,7 @@ interface Account {
     description: string;
     url: string;
     creationDate: string;
+    isFavorite?: boolean;
 }
 
 interface Note {
@@ -25,6 +27,7 @@ interface Note {
     encryptedContent: string;
     createdAt: string;
     updatedAt: string;
+    isFavorite?: boolean;
 }
 
 interface FavoritesResponse {
@@ -66,6 +69,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isAccountEditMode = false;
     let isNoteEditMode = false;
 
+    const syncAccountFavoriteState = (accountId: number, isFavorite: boolean) => {
+        const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
+        sessionStorage.setItem(
+            'accounts',
+            JSON.stringify(accounts.map(account => account.id === accountId ? { ...account, isFavorite } : account))
+        );
+    };
+
+    const syncNoteFavoriteState = (noteId: number, isFavorite: boolean) => {
+        const notes = JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
+        sessionStorage.setItem(
+            'notes',
+            JSON.stringify(notes.map(note => note.id === noteId ? { ...note, isFavorite } : note))
+        );
+    };
+
     const syncSharedAccount = (account: Account) => {
         const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
         const accountIndex = accounts.findIndex(item => item.id === account.id);
@@ -75,6 +94,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
+    const removeSharedAccount = (accountId: number) => {
+        const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
+        sessionStorage.setItem('accounts', JSON.stringify(accounts.filter(account => account.id !== accountId)));
+    };
+
     const syncSharedNote = (note: Note) => {
         const notes = JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
         const noteIndex = notes.findIndex(item => item.id === note.id);
@@ -82,11 +106,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             notes[noteIndex] = { ...notes[noteIndex], ...note };
             sessionStorage.setItem('notes', JSON.stringify(notes));
         }
-    };
-
-    const removeSharedAccount = (accountId: number) => {
-        const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
-        sessionStorage.setItem('accounts', JSON.stringify(accounts.filter(account => account.id !== accountId)));
     };
 
     const removeSharedNote = (noteId: number) => {
@@ -112,12 +131,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const removeStoredAccount = (accountId: number) => {
         favorites.accounts = favorites.accounts.filter(account => account.id !== accountId);
-        removeSharedAccount(accountId);
+        syncAccountFavoriteState(accountId, false);
     };
 
     const removeStoredNote = (noteId: number) => {
         favorites.notes = favorites.notes.filter(note => note.id !== noteId);
-        removeSharedNote(noteId);
+        syncNoteFavoriteState(noteId, false);
+    };
+
+    const unfavoriteAccount = async (accountId: number) => {
+        await removeFromFavorites('account', accountId);
+        removeStoredAccount(accountId);
+        if (currentAccountId === accountId) {
+            accountModal.style.display = 'none';
+            currentAccountId = null;
+        }
+        renderFavorites();
+    };
+
+    const unfavoriteNote = async (noteId: number) => {
+        await removeFromFavorites('note', noteId);
+        removeStoredNote(noteId);
+        if (currentNoteId === noteId) {
+            noteModal.style.display = 'none';
+            currentNoteId = null;
+        }
+        renderFavorites();
     };
 
     const filterFavorites = (source: FavoritesResponse): FavoritesResponse => {
@@ -168,6 +207,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             return `
                 <div class="card" data-account-id="${account.id}">
+                    <button
+                        type="button"
+                        class="card-favorite-toggle is-active"
+                        data-unfavorite-account-id="${account.id}"
+                        aria-label="Убрать из избранного"
+                        title="Убрать из избранного"
+                    >★</button>
                     <div class="card-logo">
                         <img src="${logoUrl}" alt="${account.serviceName} logo" />
                     </div>
@@ -181,6 +227,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         notesCards.innerHTML = visibleFavorites.notes.map((note) => `
             <div class="card" data-note-id="${note.id}">
+                <button
+                    type="button"
+                    class="card-favorite-toggle is-active"
+                    data-unfavorite-note-id="${note.id}"
+                    aria-label="Убрать из избранного"
+                    title="Убрать из избранного"
+                >★</button>
                 <div class="card-logo"></div>
                 <div class="card-details">
                     <h3>${note.title}</h3>
@@ -199,7 +252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             errorContainer.style.display = 'none';
         } catch (error: any) {
             errorContainer.style.display = 'block';
-            errorMessage.textContent = `Ошибка загрузки избранного: ${error.message}`;
+            errorMessage.textContent = `Favorites loading error: ${error.message}`;
         }
     };
 
@@ -208,8 +261,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             card.addEventListener('click', () => openAccountModal(Number(card.dataset.accountId)));
         });
 
+        passwordCards.querySelectorAll<HTMLElement>('[data-unfavorite-account-id]').forEach(button => {
+            button.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                try {
+                    await unfavoriteAccount(Number(button.dataset.unfavoriteAccountId));
+                } catch (error: any) {
+                    alert(`Failed to remove account from favorites: ${error.message}`);
+                }
+            });
+        });
+
         notesCards.querySelectorAll<HTMLElement>('.card[data-note-id]').forEach(card => {
             card.addEventListener('click', () => openNoteModal(Number(card.dataset.noteId)));
+        });
+
+        notesCards.querySelectorAll<HTMLElement>('[data-unfavorite-note-id]').forEach(button => {
+            button.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                try {
+                    await unfavoriteNote(Number(button.dataset.unfavoriteNoteId));
+                } catch (error: any) {
+                    alert(`Failed to remove note from favorites: ${error.message}`);
+                }
+            });
         });
     };
 
@@ -237,6 +312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span class="modal-label">Дата создания:</span>
                     <span id="modal-creation-date"></span>
                 </div>
+                <button class="favorite-btn favorite-btn-remove" id="account-unfavorite-btn">Убрать из избранного</button>
                 <button class="modal-update-btn" id="account-update-btn">Изменить</button>
                 <button class="modal-delete-btn" id="account-delete-btn">Удалить</button>
                 <button class="modal-close-btn">Закрыть</button>
@@ -260,6 +336,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span class="modal-label">Дата обновления:</span>
                     <span id="modal-note-updated-date"></span>
                 </div>
+                <button class="favorite-btn favorite-btn-remove" id="note-unfavorite-btn">Убрать из избранного</button>
                 <button class="modal-update-btn" id="note-update-btn">Изменить</button>
                 <button class="modal-delete-btn" id="note-delete-btn">Удалить</button>
                 <button class="modal-close-btn">Закрыть</button>
@@ -274,6 +351,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noteModal = document.getElementById('note-modal') as HTMLDivElement;
     const accountUpdateBtn = document.getElementById('account-update-btn') as HTMLButtonElement;
     const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
+    const accountUnfavoriteBtn = document.getElementById('account-unfavorite-btn') as HTMLButtonElement;
+    const noteUnfavoriteBtn = document.getElementById('note-unfavorite-btn') as HTMLButtonElement;
 
     const toggleAccountEditMode = (enable: boolean) => {
         isAccountEditMode = enable;
@@ -383,6 +462,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    accountUnfavoriteBtn.addEventListener('click', async () => {
+        if (!currentAccountId) {
+            return;
+        }
+
+        try {
+            await unfavoriteAccount(currentAccountId);
+        } catch (error: any) {
+            alert(`Failed to remove account from favorites: ${error.message}`);
+        }
+    });
+
+    noteUnfavoriteBtn.addEventListener('click', async () => {
+        if (!currentNoteId) {
+            return;
+        }
+
+        try {
+            await unfavoriteNote(currentNoteId);
+        } catch (error: any) {
+            alert(`Failed to remove note from favorites: ${error.message}`);
+        }
+    });
+
     (document.getElementById('account-delete-btn') as HTMLButtonElement).addEventListener('click', async () => {
         if (!currentAccountId) {
             return;
@@ -390,11 +493,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             await deleteAccount(currentAccountId);
+            removeSharedAccount(currentAccountId);
             removeStoredAccount(currentAccountId);
             accountModal.style.display = 'none';
             renderFavorites();
         } catch (error: any) {
-            alert(`Ошибка при удалении аккаунта: ${error.message}`);
+            alert(`Account deletion error: ${error.message}`);
         }
     });
 
@@ -405,11 +509,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             await deleteNote(currentNoteId);
+            removeSharedNote(currentNoteId);
             removeStoredNote(currentNoteId);
             noteModal.style.display = 'none';
             renderFavorites();
         } catch (error: any) {
-            alert(`Ошибка при удалении заметки: ${error.message}`);
+            alert(`Note deletion error: ${error.message}`);
         }
     });
 
@@ -445,7 +550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             toggleAccountEditMode(false);
             renderFavorites();
         } catch (error: any) {
-            alert(`Ошибка при обновлении аккаунта: ${error.message}`);
+            alert(`Account update error: ${error.message}`);
         }
     });
 
@@ -471,7 +576,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             toggleNoteEditMode(false);
             renderFavorites();
         } catch (error: any) {
-            alert(`Ошибка при обновлении заметки: ${error.message}`);
+            alert(`Note update error: ${error.message}`);
         }
     });
 

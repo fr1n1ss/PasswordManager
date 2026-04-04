@@ -1,5 +1,7 @@
 import { addEncryptedTotpAccount, getTotpAccounts, importTotpQrText } from '../services/api.ts';
 import { decryptStringWithKuznyechik, encryptStringWithKuznyechik } from '../services/kuznyechik.ts';
+import { initializeSharedPageShell } from './shared-page.ts';
+import { UI_TEXT } from './ui-text.ts';
 
 interface TotpAccount {
     id: number;
@@ -23,7 +25,6 @@ interface TotpViewModel {
     id: number;
     serviceName: string;
     issuer: string;
-    secret: string;
     digits: number;
     period: number;
     code: string;
@@ -53,8 +54,8 @@ function decodeBase32(input: string): Uint8Array {
     }
 
     const bytes: number[] = [];
-    for (let i = 0; i + 8 <= bits.length; i += 8) {
-        bytes.push(parseInt(bits.slice(i, i + 8), 2));
+    for (let index = 0; index + 8 <= bits.length; index += 8) {
+        bytes.push(parseInt(bits.slice(index, index + 8), 2));
     }
 
     return new Uint8Array(bytes);
@@ -114,11 +115,12 @@ function parseOtpAuthUri(uri: string): TotpPayload {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const isDataLoaded = sessionStorage.getItem('isDataLoaded');
-    if (!isDataLoaded) {
+    if (!sessionStorage.getItem('isDataLoaded')) {
         window.location.href = '/pages/loading-page.html';
         return;
     }
+
+    initializeSharedPageShell();
 
     const token = localStorage.getItem('token');
     const masterPassword = sessionStorage.getItem('masterPassword');
@@ -127,14 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = '/pages/login-page.html';
         return;
     }
-
-    const username = sessionStorage.getItem('username');
-    const email = sessionStorage.getItem('email');
-    const usernameElement = document.querySelector('.username');
-    const emailElement = document.querySelector('.user-email');
-
-    if (usernameElement && username) usernameElement.textContent = username;
-    if (emailElement && email) emailElement.textContent = email;
 
     const totpGrid = document.getElementById('totpGrid') as HTMLDivElement | null;
     const errorContainer = document.getElementById('errorContainer') as HTMLDivElement | null;
@@ -149,13 +143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
     const globalSecondsLeft = document.getElementById('globalSecondsLeft') as HTMLSpanElement | null;
     const globalProgressBar = document.getElementById('globalProgressBar') as HTMLDivElement | null;
-    const dropdown = document.querySelector('.profile-dropdown') as HTMLSpanElement | null;
-    const menu = document.getElementById('profileMenu') as HTMLDivElement | null;
-    const logoutBtn = document.getElementById('logoutBtn') as HTMLButtonElement | null;
-    const sidebar = document.getElementById('sidebar') as HTMLElement | null;
-    const hideBtn = document.getElementById('hideBtn') as HTMLButtonElement | null;
 
-    if (!totpGrid || !errorContainer || !errorMessage || !fabButton || !addModal || !cancelButton || !submitButton || !uriInput || !qrInput || !totpError || !searchInput || !globalSecondsLeft || !globalProgressBar || !dropdown || !menu || !logoutBtn || !sidebar || !hideBtn) {
+    if (!totpGrid || !errorContainer || !errorMessage || !fabButton || !addModal || !cancelButton || !submitButton || !uriInput || !qrInput || !totpError || !searchInput || !globalSecondsLeft || !globalProgressBar) {
         return;
     }
 
@@ -196,7 +185,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 id: account.id,
                 serviceName: payload.serviceName,
                 issuer: payload.issuer,
-                secret: payload.secret,
                 digits: payload.digits,
                 period: payload.period || 30,
                 code: await generateTotpCode(payload.secret, payload.digits, payload.period || 30),
@@ -207,7 +195,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const filterItems = (items: TotpViewModel[]) => {
         const searchTerm = searchInput.value.trim().toLowerCase();
-        if (!searchTerm) return items;
+        if (!searchTerm) {
+            return items;
+        }
 
         return items.filter((item) =>
             item.serviceName.toLowerCase().includes(searchTerm) ||
@@ -226,31 +216,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (items.length === 0) {
             totpGrid.innerHTML = `
                 <div class="totp-empty-state">
-                    <h3>TOTP пока не добавлены</h3>
-                    <p>Нажмите на кнопку + и вставьте OTPAuth URI или импортируйте QR-код.</p>
+                    <h3>${UI_TEXT.totp.emptyTitle}</h3>
+                    <p>${UI_TEXT.totp.emptyDescription}</p>
                 </div>
             `;
             return;
         }
 
         totpGrid.innerHTML = items.map((item) => {
-            const progress = Math.max(0, Math.min(100, (item.secondsLeft / (item.period || 30)) * 100));
+            const progress = Math.max(0, Math.min(100, (item.secondsLeft / item.period) * 100));
             return `
                 <article class="totp-card" data-id="${item.id}">
                     <div class="totp-card-header">
                         <div>
-                            <p class="totp-issuer">${item.issuer || 'Authenticator'}</p>
+                            <p class="totp-issuer">${item.issuer || UI_TEXT.totp.authenticator}</p>
                             <h3>${item.serviceName}</h3>
                         </div>
-                        <span class="totp-badge">${item.digits} digits</span>
+                        <span class="totp-badge">${item.digits} ${UI_TEXT.totp.digitsSuffix}</span>
                     </div>
                     <button class="totp-code-button" data-code="${item.code}">
                         <span class="totp-code">${formatCode(item.code)}</span>
-                        <span class="totp-copy-hint">Нажмите, чтобы скопировать</span>
+                        <span class="totp-copy-hint">${UI_TEXT.totp.copyHint}</span>
                     </button>
                     <div class="totp-meta">
-                        <span>Обновление через ${item.secondsLeft}с</span>
-                        <span>Период ${item.period}с</span>
+                        <span>${UI_TEXT.totp.refreshIn} ${item.secondsLeft}${UI_TEXT.totp.secondsSuffix}</span>
+                        <span>${UI_TEXT.totp.period} ${item.period}${UI_TEXT.totp.secondsSuffix}</span>
                     </div>
                     <div class="totp-progress">
                         <div class="totp-progress-bar" style="width: ${progress}%"></div>
@@ -262,17 +252,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         totpGrid.querySelectorAll<HTMLButtonElement>('.totp-code-button').forEach((button) => {
             button.addEventListener('click', async () => {
                 const code = button.dataset.code;
-                if (!code || code === '------') return;
+                if (!code || code === '------') {
+                    return;
+                }
 
                 try {
                     await navigator.clipboard.writeText(code);
                     const hint = button.querySelector('.totp-copy-hint');
-                    if (!hint) return;
+                    if (!hint) {
+                        return;
+                    }
 
                     const previous = hint.textContent;
-                    hint.textContent = 'Скопировано';
+                    hint.textContent = UI_TEXT.totp.copied;
                     window.setTimeout(() => {
-                        hint.textContent = previous || 'Нажмите, чтобы скопировать';
+                        hint.textContent = previous || UI_TEXT.totp.copyHint;
                     }, 1200);
                 } catch (error) {
                     console.error('Failed to copy TOTP code', error);
@@ -283,7 +277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const renderGlobalTimer = () => {
         const secondsLeft = getSecondsLeft(30);
-        globalSecondsLeft.textContent = `${secondsLeft}с`;
+        globalSecondsLeft.textContent = `${secondsLeft}${UI_TEXT.totp.secondsSuffix}`;
         globalProgressBar.style.width = `${(secondsLeft / 30) * 100}%`;
     };
 
@@ -299,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             errorContainer.style.display = 'none';
         } catch (error: any) {
             errorContainer.style.display = 'block';
-            errorMessage.textContent = `Ошибка загрузки TOTP: ${error.message}`;
+            errorMessage.textContent = `${UI_TEXT.totp.loadError}: ${error.message}`;
         }
     };
 
@@ -329,7 +323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!uri && !file) {
             totpError.style.display = 'block';
-            totpError.textContent = 'Добавьте OTPAuth URI или выберите файл QR-кода.';
+            totpError.textContent = UI_TEXT.totp.addValidation;
             return;
         }
 
@@ -350,41 +344,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeModal();
         } catch (error: any) {
             totpError.style.display = 'block';
-            totpError.textContent = `Ошибка: ${error.message}`;
+            totpError.textContent = `${UI_TEXT.common.errorPrefix}: ${error.message}`;
         } finally {
             submitButton.disabled = false;
         }
     });
 
-    const debouncedSearch = debounce(() => {
+    searchInput.addEventListener('input', debounce(() => {
         void render();
-    }, 200);
-    searchInput.addEventListener('input', debouncedSearch);
-
-    dropdown.addEventListener('click', () => {
-        const isMenuOpen = menu.style.display === 'block';
-        menu.style.display = isMenuOpen ? 'none' : 'block';
-        dropdown.textContent = isMenuOpen ? '▼' : '▲';
-    });
-
-    document.addEventListener('click', (event) => {
-        if (!dropdown.contains(event.target as Node) && !menu.contains(event.target as Node)) {
-            menu.style.display = 'none';
-            dropdown.textContent = '▼';
-        }
-    });
-
-    logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('token');
-        sessionStorage.clear();
-        window.location.href = '/pages/login-page.html';
-    });
-
-    hideBtn.addEventListener('click', () => {
-        const isHidden = sidebar.classList.contains('hidden');
-        sidebar.classList.toggle('hidden');
-        hideBtn.textContent = isHidden ? '≪' : '≫';
-    });
+    }, 200));
 
     await loadData();
 

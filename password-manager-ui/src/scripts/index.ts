@@ -1,13 +1,19 @@
-import { getAccounts, getUserNotes, deleteAccount, deleteNote, updateAccount, updateNote, addAccount, addNote, getAccountById, addToFavorites, removeFromFavorites, isFavorite, hashAll } from '../services/api.ts';
-
-async function hashData(data: any): Promise<string> {
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(JSON.stringify(data));
-    const buffer = await crypto.subtle.digest('SHA-256', encoded);
-    return Array.from(new Uint8Array(buffer))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-}
+import {
+    addAccount,
+    addNote,
+    addToFavorites,
+    deleteAccount,
+    deleteNote,
+    getAccountById,
+    getAccounts,
+    getUserNotes,
+    hashAll,
+    removeFromFavorites,
+    updateAccount,
+    updateNote
+} from '../services/api.ts';
+import { initializeSharedPageShell } from './shared-page.ts';
+import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
 interface Account {
     id: number;
@@ -31,7 +37,6 @@ interface Note {
     isFavorite?: boolean;
 }
 
-// Функция debounce
 function debounce(func: Function, delay: number) {
     let timeoutId: NodeJS.Timeout;
     return (...args: any[]) => {
@@ -40,302 +45,418 @@ function debounce(func: Function, delay: number) {
     };
 }
 
+async function hashData(data: unknown): Promise<string> {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(JSON.stringify(data));
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-    const isDataLoaded = sessionStorage.getItem('isDataLoaded');
-    if (!isDataLoaded) {
+    if (!sessionStorage.getItem('isDataLoaded')) {
         window.location.href = '/pages/loading-page.html';
         return;
     }
 
-    const username = sessionStorage.getItem('username');
-    const email = sessionStorage.getItem('email');
-    const usernameElement = document.querySelector('.username');
-    const emailElement = document.querySelector('.user-email');
-    if (usernameElement && username) usernameElement.textContent = username;
-    if (emailElement && email) emailElement.textContent = email;
+    initializeSharedPageShell();
 
-    const passwordCards = document.getElementById('passwordCards');
-    const notesCards = document.getElementById('notesCards');
-    const errorContainer = document.getElementById('errorContainer');
-    const fabButton = document.getElementById('fabButton');
-    const addChoiceModal = document.getElementById('add-choice-modal');
-    const addAccountModal = document.getElementById('add-account-modal');
-    const addNoteModal = document.getElementById('add-note-modal');
-    const chooseAccountBtn = document.getElementById('chooseAccount');
-    const chooseNoteBtn = document.getElementById('chooseNote');
-    const cancelAccountBtn = document.getElementById('cancel-account');
-    const cancelNoteBtn = document.getElementById('cancel-note');
-    const submitAccountBtn = document.getElementById('submit-account');
-    const submitNoteBtn = document.getElementById('submit-note');
-    const accountError = document.getElementById('account-error');
-    const noteError = document.getElementById('note-error');
-    const accountModal = document.getElementById('account-modal');
-    const noteModal = document.getElementById('note-modal');
-    const searchInput = document.querySelector('.search-bar') as HTMLInputElement;
-    const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement;
+    const passwordCards = document.getElementById('passwordCards') as HTMLDivElement | null;
+    const notesCards = document.getElementById('notesCards') as HTMLDivElement | null;
+    const errorContainer = document.getElementById('errorContainer') as HTMLDivElement | null;
+    const fabButton = document.getElementById('fabButton') as HTMLDivElement | null;
+    const addChoiceModal = document.getElementById('add-choice-modal') as HTMLDivElement | null;
+    const addAccountModal = document.getElementById('add-account-modal') as HTMLDivElement | null;
+    const addNoteModal = document.getElementById('add-note-modal') as HTMLDivElement | null;
+    const chooseAccountBtn = document.getElementById('chooseAccount') as HTMLButtonElement | null;
+    const chooseNoteBtn = document.getElementById('chooseNote') as HTMLButtonElement | null;
+    const cancelAccountBtn = document.getElementById('cancel-account') as HTMLButtonElement | null;
+    const cancelNoteBtn = document.getElementById('cancel-note') as HTMLButtonElement | null;
+    const submitAccountBtn = document.getElementById('submit-account') as HTMLButtonElement | null;
+    const submitNoteBtn = document.getElementById('submit-note') as HTMLButtonElement | null;
+    const accountError = document.getElementById('account-error') as HTMLDivElement | null;
+    const noteError = document.getElementById('note-error') as HTMLDivElement | null;
+    const accountModal = document.getElementById('account-modal') as HTMLDivElement | null;
+    const noteModal = document.getElementById('note-modal') as HTMLDivElement | null;
+    const searchInput = document.querySelector('.search-bar') as HTMLInputElement | null;
+    const sortDropdown = document.querySelector('.sort-dropdown') as HTMLSelectElement | null;
 
     if (!passwordCards || !notesCards || !errorContainer || !fabButton || !addChoiceModal || !addAccountModal || !addNoteModal || !chooseAccountBtn || !chooseNoteBtn || !cancelAccountBtn || !cancelNoteBtn || !submitAccountBtn || !submitNoteBtn || !accountError || !noteError || !accountModal || !noteModal || !searchInput || !sortDropdown) {
         return;
     }
 
-    const masterPassword = sessionStorage.getItem('masterPassword');
-    if (!masterPassword) {
-        window.location.href = '/pages/login-page.html';
-        return;
-    }
-
-    const syncData = async () => {
-        const masterPassword = sessionStorage.getItem('masterPassword');
-        if (!masterPassword) return;
-
-        try {
-            const cachedAccounts = JSON.parse(sessionStorage.getItem('accounts') || '[]');
-            const cachedNotes = JSON.parse(sessionStorage.getItem('notes') || '[]');
-
-            const localAccountsHash = await hashData(cachedAccounts);
-            const localNotesHash = await hashData(cachedNotes);
-
-            const { accountsHash, notesHash } = await hashAll();
-
-            if (localAccountsHash !== accountsHash) {
-                const updatedAccounts = await getAccounts(masterPassword);
-                sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
-                await loadAccounts();
-                console.log('[sync] Accounts обновлены');
-            }
-
-            if (localNotesHash !== notesHash) {
-                const updatedNotes = await getUserNotes(masterPassword);
-                sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
-                await loadNotes();
-                console.log('[sync] Notes обновлены');
-            }
-        } catch (err) {
-            console.error('[syncData] Ошибка синхронизации:', err);
-        }
-    };
-
     const token = localStorage.getItem('token');
-    if (!token) {
+    const masterPassword = sessionStorage.getItem('masterPassword');
+    if (!token || !masterPassword) {
         window.location.href = '/pages/login-page.html';
         return;
     }
-
-    const filterCards = (items: any[], searchTerm: string, type: 'account' | 'note') => {
-        if (!searchTerm) return items;
-        return items.filter(item =>
-            type === 'account' ? item.serviceName.toLowerCase().includes(searchTerm.toLowerCase()) :
-                item.title.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    };
-
-    const sortCards = (items: any[], sortBy: string, type: 'account' | 'note') => {
-        const sortedItems = [...items];
-        switch (sortBy) {
-            case 'az':
-                sortedItems.sort((a, b) =>
-                    type === 'account' ? a.serviceName.localeCompare(b.serviceName) :
-                        a.title.localeCompare(b.title)
-                );
-                break;
-            case 'za':
-                sortedItems.sort((a, b) =>
-                    type === 'account' ? b.serviceName.localeCompare(a.serviceName) :
-                        b.title.localeCompare(a.title)
-                );
-                break;
-            case 'oldest':
-                sortedItems.sort((a, b) =>
-                    type === 'account' ? new Date(a.creationDate).getTime() - new Date(b.creationDate).getTime() :
-                        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                );
-                break;
-            case 'newest':
-                sortedItems.sort((a, b) =>
-                    type === 'account' ? new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime() :
-                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                );
-                break;
-        }
-        return sortedItems;
-    };
-
-    const loadAccounts = async () => {
-        try {
-            let accounts: Account[] = [];
-            const accountsStr = sessionStorage.getItem('accounts');
-            if (accountsStr) {
-                accounts = JSON.parse(accountsStr);
-            } else {
-                accounts = await getAccounts(masterPassword) as Account[];
-                sessionStorage.setItem('accounts', JSON.stringify(accounts));
-            }
-
-            let filteredAccounts = filterCards(accounts, searchInput.value, 'account');
-            filteredAccounts = sortCards(filteredAccounts, sortDropdown.value, 'account');
-
-            if (filteredAccounts.length === 0) {
-                passwordCards.innerHTML = '<div class="add-new-card">+</div>';
-            } else {
-                // Кэшируем результаты isFavorite
-                const favoritePromises = filteredAccounts.map(account => isFavorite('account', account.id).catch(() => false));
-                const favoriteStatuses = await Promise.all(favoritePromises);
-                const accountsWithFavorite = filteredAccounts.map((account, index) => ({
-                    ...account,
-                    isFavorite: favoriteStatuses[index]
-                }));
-                passwordCards.innerHTML = accountsWithFavorite
-                    .map((account) => `
-                        <div class="card" data-id="${account.id}">
-                            <div class="card-logo"><img src="${account.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}` : 'https://via.placeholder.com/32'}" alt="${account.serviceName} logo" /></div>
-                            <div class="card-details"><h3>${account.serviceName}</h3><p>${account.login}</p></div>
-                        </div>
-                    `)
-                    .join('') + '<div class="add-new-card">+</div>';
-                bindCardListeners();
-            }
-        } catch (error) {
-            passwordCards.innerHTML = '<div class="add-new-card">+</div>';
-            bindCardListeners();
-        }
-    };
-
-    const loadNotes = async () => {
-        try {
-            let notes: Note[] = [];
-            const notesStr = sessionStorage.getItem('notes');
-            if (notesStr) {
-                notes = JSON.parse(notesStr);
-            } else {
-                notes = await getUserNotes(masterPassword) as Note[];
-                sessionStorage.setItem('notes', JSON.stringify(notes));
-            }
-
-            let filteredNotes = filterCards(notes, searchInput.value, 'note');
-            filteredNotes = sortCards(filteredNotes, sortDropdown.value, 'note');
-
-            if (filteredNotes.length === 0) {
-                notesCards.innerHTML = '<div class="add-new-card">+</div>';
-            } else {
-                // Кэшируем результаты isFavorite
-                const favoritePromises = filteredNotes.map(note => isFavorite('note', note.id).catch(() => false));
-                const favoriteStatuses = await Promise.all(favoritePromises);
-                const notesWithFavorite = filteredNotes.map((note, index) => ({
-                    ...note,
-                    isFavorite: favoriteStatuses[index]
-                }));
-                notesCards.innerHTML = notesWithFavorite
-                    .map((note) => `
-                        <div class="card" data-id="${note.id}">
-                            <div class="card-logo"></div>
-                            <div class="card-details"><h3>${note.title}</h3><p>Создана: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p></div>
-                        </div>
-                    `)
-                    .join('') + '<div class="add-new-card">+</div>';
-                bindCardListeners();
-            }
-        } catch (error) {
-            notesCards.innerHTML = '<div class="add-new-card">+</div>';
-            bindCardListeners();
-        }
-    };
-
-    const bindCardListeners = () => {
-        const accountCards = passwordCards.querySelectorAll('.card');
-        accountCards.forEach(card => {
-            const accountId = parseInt(card.getAttribute('data-id') || '0', 10);
-            card.addEventListener('click', () => openAccountModal(accountId));
-        });
-
-        const noteCards = notesCards.querySelectorAll('.card');
-        noteCards.forEach(card => {
-            const noteId = parseInt(card.getAttribute('data-id') || '0', 10);
-            card.addEventListener('click', () => openNoteModal(noteId));
-        });
-
-        const addAccountCards = passwordCards.querySelectorAll('.add-new-card');
-        addAccountCards.forEach(card => card.addEventListener('click', () => {
-            closeAllModals();
-            addAccountModal.style.display = 'flex';
-        }));
-
-        const addNoteCards = notesCards.querySelectorAll('.add-new-card');
-        addNoteCards.forEach(card => card.addEventListener('click', () => {
-            closeAllModals();
-            addNoteModal.style.display = 'flex';
-        }));
-    };
-
-    await Promise.all([loadAccounts(), loadNotes()]);
-    errorContainer.style.display = 'none';
-
-    // Оптимизированный поиск с debounce (задержка 300мс)
-    const debouncedSearch = debounce(async () => {
-        await Promise.all([loadAccounts(), loadNotes()]);
-    }, 300);
-    searchInput.addEventListener('input', debouncedSearch);
-
-    // Оптимизированная сортировка с debounce (задержка 300мс)
-    const debouncedSort = debounce(async () => {
-        await Promise.all([loadAccounts(), loadNotes()]);
-    }, 300);
-    sortDropdown.addEventListener('change', debouncedSort);
 
     let currentAccountId: number | null = null;
     let currentNoteId: number | null = null;
+    let isAccountEditMode = false;
+    let isNoteEditMode = false;
+
+    const getStoredAccounts = () => JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
+    const getStoredNotes = () => JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
+    const setStoredAccounts = (accounts: Account[]) => sessionStorage.setItem('accounts', JSON.stringify(accounts));
+    const setStoredNotes = (notes: Note[]) => sessionStorage.setItem('notes', JSON.stringify(notes));
 
     const closeAllModals = () => {
-        [addChoiceModal, addAccountModal, addNoteModal, accountModal, noteModal].forEach(modal => {
+        [addChoiceModal, addAccountModal, addNoteModal, accountModal, noteModal].forEach((modal) => {
             modal.style.display = 'none';
-            const accountFavBtn = document.getElementById('account-favorite-btn');
-            const noteFavBtn = document.getElementById('note-favorite-btn');
-            if (accountFavBtn) {
-                accountFavBtn.textContent = '';
-                accountFavBtn.innerHTML = '';
-            }
-            if (noteFavBtn) {
-                noteFavBtn.textContent = '';
-                noteFavBtn.innerHTML = '';
-            }
         });
         accountError.style.display = 'none';
         noteError.style.display = 'none';
     };
+
+    const clearAccountForm = () => {
+        (document.getElementById('account-service-name') as HTMLInputElement).value = '';
+        (document.getElementById('account-login') as HTMLInputElement).value = '';
+        (document.getElementById('account-password') as HTMLInputElement).value = '';
+        (document.getElementById('account-description') as HTMLTextAreaElement).value = '';
+        (document.getElementById('account-url') as HTMLInputElement).value = '';
+    };
+
+    const clearNoteForm = () => {
+        (document.getElementById('note-title') as HTMLInputElement).value = '';
+        (document.getElementById('note-content') as HTMLTextAreaElement).value = '';
+    };
+
+    const openAddAccountModal = () => {
+        closeAllModals();
+        addAccountModal.style.display = 'flex';
+    };
+
+    const openAddNoteModal = () => {
+        closeAllModals();
+        addNoteModal.style.display = 'flex';
+    };
+
+    const filterCards = <T extends Account | Note>(items: T[], type: 'account' | 'note') => {
+        const term = searchInput.value.trim().toLowerCase();
+        if (!term) {
+            return items;
+        }
+
+        return items.filter((item) =>
+            type === 'account'
+                ? (item as Account).serviceName.toLowerCase().includes(term)
+                : (item as Note).title.toLowerCase().includes(term)
+        );
+    };
+
+    const sortAccounts = (accounts: Account[]) => {
+        const sorted = [...accounts];
+        switch (sortDropdown.value) {
+            case 'az':
+                sorted.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
+                break;
+            case 'za':
+                sorted.sort((a, b) => b.serviceName.localeCompare(a.serviceName));
+                break;
+            case 'oldest':
+                sorted.sort((a, b) => new Date(a.creationDate).getTime() - new Date(b.creationDate).getTime());
+                break;
+            case 'newest':
+                sorted.sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime());
+                break;
+        }
+        return sorted;
+    };
+
+    const sortNotes = (notes: Note[]) => {
+        const sorted = [...notes];
+        switch (sortDropdown.value) {
+            case 'az':
+                sorted.sort((a, b) => a.title.localeCompare(b.title));
+                break;
+            case 'za':
+                sorted.sort((a, b) => b.title.localeCompare(a.title));
+                break;
+            case 'oldest':
+                sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                break;
+            case 'newest':
+                sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                break;
+        }
+        return sorted;
+    };
+
+    const updateStoredAccount = (accountId: number, patch: Partial<Account>) => {
+        setStoredAccounts(getStoredAccounts().map((account) => account.id === accountId ? { ...account, ...patch } : account));
+    };
+
+    const updateStoredNote = (noteId: number, patch: Partial<Note>) => {
+        setStoredNotes(getStoredNotes().map((note) => note.id === noteId ? { ...note, ...patch } : note));
+    };
+
+    const toggleFavorite = async (type: 'account' | 'note', itemId: number, nextState: boolean) => {
+        if (nextState) {
+            await addToFavorites(type, itemId);
+        } else {
+            await removeFromFavorites(type, itemId);
+        }
+
+        if (type === 'account') {
+            updateStoredAccount(itemId, { isFavorite: nextState });
+        } else {
+            updateStoredNote(itemId, { isFavorite: nextState });
+        }
+    };
+
+    const loadAccounts = async () => {
+        let accounts = getStoredAccounts();
+        if (!sessionStorage.getItem('accounts')) {
+            accounts = await getAccounts(masterPassword) as Account[];
+            setStoredAccounts(accounts);
+        }
+
+        const filtered = sortAccounts(filterCards(accounts, 'account'));
+        passwordCards.innerHTML = filtered.map((account) => `
+            <div class="card" data-account-id="${account.id}">
+                <button
+                    type="button"
+                    class="card-favorite-toggle${account.isFavorite ? ' is-active' : ''}"
+                    data-favorite-type="account"
+                    data-item-id="${account.id}"
+                    data-is-favorite="${account.isFavorite ? 'true' : 'false'}"
+                    aria-label="${favoriteButtonLabel(Boolean(account.isFavorite))}"
+                    title="${favoriteButtonLabel(Boolean(account.isFavorite))}"
+                >★</button>
+                <div class="card-logo">
+                    <img src="${account.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}` : 'https://via.placeholder.com/32'}" alt="${account.serviceName} logo" />
+                </div>
+                <div class="card-details">
+                    <h3>${account.serviceName}</h3>
+                    <p>${account.login}</p>
+                </div>
+            </div>
+        `).join('') + '<button type="button" class="add-new-card" data-add-type="account" aria-label="Добавить аккаунт">+</button>';
+    };
+
+    const loadNotes = async () => {
+        let notes = getStoredNotes();
+        if (!sessionStorage.getItem('notes')) {
+            notes = await getUserNotes(masterPassword) as Note[];
+            setStoredNotes(notes);
+        }
+
+        const filtered = sortNotes(filterCards(notes, 'note'));
+        notesCards.innerHTML = filtered.map((note) => `
+            <div class="card" data-note-id="${note.id}">
+                <button
+                    type="button"
+                    class="card-favorite-toggle${note.isFavorite ? ' is-active' : ''}"
+                    data-favorite-type="note"
+                    data-item-id="${note.id}"
+                    data-is-favorite="${note.isFavorite ? 'true' : 'false'}"
+                    aria-label="${favoriteButtonLabel(Boolean(note.isFavorite))}"
+                    title="${favoriteButtonLabel(Boolean(note.isFavorite))}"
+                >★</button>
+                <div class="card-logo"></div>
+                <div class="card-details">
+                    <h3>${note.title}</h3>
+                    <p>${UI_TEXT.common.created}: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
+                </div>
+            </div>
+        `).join('') + '<button type="button" class="add-new-card" data-add-type="note" aria-label="Добавить заметку">+</button>';
+    };
+
+    const bindCards = () => {
+        passwordCards.querySelectorAll<HTMLElement>('.card[data-account-id]').forEach((card) => {
+            card.addEventListener('click', () => openAccountModal(Number(card.dataset.accountId)));
+        });
+
+        notesCards.querySelectorAll<HTMLElement>('.card[data-note-id]').forEach((card) => {
+            card.addEventListener('click', () => openNoteModal(Number(card.dataset.noteId)));
+        });
+
+        passwordCards.querySelectorAll<HTMLElement>('.add-new-card').forEach((card) => {
+            card.addEventListener('click', openAddAccountModal);
+        });
+
+        notesCards.querySelectorAll<HTMLElement>('.add-new-card').forEach((card) => {
+            card.addEventListener('click', openAddNoteModal);
+        });
+
+        document.querySelectorAll<HTMLElement>('.card-favorite-toggle').forEach((button) => {
+            button.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                const type = button.dataset.favoriteType as 'account' | 'note' | undefined;
+                const itemId = Number(button.dataset.itemId);
+                const isCurrentlyFavorite = button.dataset.isFavorite === 'true';
+
+                if (!type || !itemId) {
+                    return;
+                }
+
+                try {
+                    await toggleFavorite(type, itemId, !isCurrentlyFavorite);
+                    await reloadVisibleCards();
+                } catch (error: any) {
+                    alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
+                }
+            });
+        });
+    };
+
+    const reloadVisibleCards = async () => {
+        await Promise.all([loadAccounts(), loadNotes()]);
+        bindCards();
+        errorContainer.style.display = 'none';
+    };
+
+    const syncData = async () => {
+        try {
+            const localAccountsHash = await hashData(getStoredAccounts());
+            const localNotesHash = await hashData(getStoredNotes());
+            const { accountsHash, notesHash } = await hashAll();
+
+            if (localAccountsHash !== accountsHash) {
+                setStoredAccounts(await getAccounts(masterPassword) as Account[]);
+            }
+
+            if (localNotesHash !== notesHash) {
+                setStoredNotes(await getUserNotes(masterPassword) as Note[]);
+            }
+
+            if (localAccountsHash !== accountsHash || localNotesHash !== notesHash) {
+                await reloadVisibleCards();
+            }
+        } catch (error) {
+            console.error('[syncData] Ошибка синхронизации:', error);
+        }
+    };
+
+    const toggleAccountEditMode = (enable: boolean) => {
+        isAccountEditMode = enable;
+        const serviceName = document.getElementById('modal-service-name') as HTMLElement;
+        const login = document.getElementById('modal-login') as HTMLElement;
+        const encryptedPassword = document.getElementById('modal-encrypted-password') as HTMLElement;
+        const description = document.getElementById('modal-description') as HTMLElement;
+        const url = document.getElementById('modal-url') as HTMLElement;
+        const creationDate = document.getElementById('modal-creation-date') as HTMLElement;
+        const accountUpdateBtn = document.getElementById('account-update-btn') as HTMLButtonElement;
+
+        if (enable) {
+            serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
+            login.innerHTML = `<input type="text" id="edit-login" value="${login.textContent || ''}" />`;
+            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${encryptedPassword.textContent || ''}" />`;
+            description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
+            url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
+            accountUpdateBtn.textContent = UI_TEXT.common.save;
+            return;
+        }
+
+        const account = getStoredAccounts().find((item) => item.id === currentAccountId);
+        if (account) {
+            serviceName.textContent = account.serviceName;
+            login.textContent = account.login;
+            encryptedPassword.textContent = account.encryptedPassword || UI_TEXT.common.notSpecified;
+            description.textContent = account.description || UI_TEXT.common.notSpecifiedNeuter;
+            url.textContent = account.url || UI_TEXT.common.notSpecified;
+            creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+        }
+
+        accountUpdateBtn.textContent = UI_TEXT.common.edit;
+    };
+
+    const toggleNoteEditMode = (enable: boolean) => {
+        isNoteEditMode = enable;
+        const title = document.getElementById('modal-note-title') as HTMLElement;
+        const content = document.getElementById('modal-note-content') as HTMLElement;
+        const creationDate = document.getElementById('modal-note-creation-date') as HTMLElement;
+        const updatedDate = document.getElementById('modal-note-updated-date') as HTMLElement;
+        const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
+
+        if (enable) {
+            title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
+            content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
+            noteUpdateBtn.textContent = UI_TEXT.common.save;
+            return;
+        }
+
+        const note = getStoredNotes().find((item) => item.id === currentNoteId);
+        if (note) {
+            title.textContent = note.title;
+            content.textContent = note.encryptedContent;
+            creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU');
+            updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
+        }
+
+        noteUpdateBtn.textContent = UI_TEXT.common.edit;
+    };
+
+    const openAccountModal = (accountId: number) => {
+        const account = getStoredAccounts().find((item) => item.id === accountId);
+        if (!account) {
+            return;
+        }
+
+        currentAccountId = accountId;
+        (document.getElementById('modal-service-name') as HTMLElement).textContent = account.serviceName;
+        (document.getElementById('modal-login') as HTMLElement).textContent = account.login;
+        (document.getElementById('modal-encrypted-password') as HTMLElement).textContent = account.encryptedPassword || UI_TEXT.common.notSpecified;
+        (document.getElementById('modal-description') as HTMLElement).textContent = account.description || UI_TEXT.common.notSpecifiedNeuter;
+        (document.getElementById('modal-url') as HTMLElement).textContent = account.url || UI_TEXT.common.notSpecified;
+        (document.getElementById('modal-creation-date') as HTMLElement).textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+        accountModal.style.display = 'flex';
+    };
+
+    const openNoteModal = (noteId: number) => {
+        const note = getStoredNotes().find((item) => item.id === noteId);
+        if (!note) {
+            return;
+        }
+
+        currentNoteId = noteId;
+        (document.getElementById('modal-note-title') as HTMLElement).textContent = note.title;
+        (document.getElementById('modal-note-content') as HTMLElement).textContent = note.encryptedContent;
+        (document.getElementById('modal-note-creation-date') as HTMLElement).textContent = new Date(note.createdAt).toLocaleString('ru-RU');
+        (document.getElementById('modal-note-updated-date') as HTMLElement).textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
+        noteModal.style.display = 'flex';
+    };
+
+    try {
+        await reloadVisibleCards();
+    } catch (error) {
+        errorContainer.style.display = 'block';
+        const errorMessage = document.getElementById('errorMessage');
+        if (errorMessage) {
+            errorMessage.textContent = 'Ошибка при загрузке данных';
+        }
+        return;
+    }
 
     fabButton.addEventListener('click', () => {
         closeAllModals();
         addChoiceModal.style.display = 'flex';
     });
 
-    chooseAccountBtn.addEventListener('click', () => {
-        closeAllModals();
-        addAccountModal.style.display = 'flex';
-    });
+    chooseAccountBtn.addEventListener('click', openAddAccountModal);
+    chooseNoteBtn.addEventListener('click', openAddNoteModal);
 
-    chooseNoteBtn.addEventListener('click', () => {
-        closeAllModals();
-        addNoteModal.style.display = 'flex';
-    });
-
-    [addChoiceModal, addAccountModal, addNoteModal].forEach(modal => {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeAllModals();
+    [addChoiceModal, addAccountModal, addNoteModal, accountModal, noteModal].forEach((modal) => {
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeAllModals();
+                toggleAccountEditMode(false);
+                toggleNoteEditMode(false);
+            }
         });
     });
 
     cancelAccountBtn.addEventListener('click', () => {
         closeAllModals();
-        (document.getElementById('account-service-name') as HTMLInputElement).value = '';
-        (document.getElementById('account-login') as HTMLInputElement).value = '';
-        (document.getElementById('account-password') as HTMLInputElement).value = '';
-        (document.getElementById('account-description') as HTMLTextAreaElement).value = '';
-        (document.getElementById('account-url') as HTMLTextAreaElement).value = '';
+        clearAccountForm();
     });
 
     cancelNoteBtn.addEventListener('click', () => {
         closeAllModals();
-        (document.getElementById('note-title') as HTMLInputElement).value = '';
-        (document.getElementById('note-content') as HTMLTextAreaElement).value = '';
+        clearNoteForm();
     });
 
     submitAccountBtn.addEventListener('click', async () => {
@@ -343,7 +464,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const login = (document.getElementById('account-login') as HTMLInputElement).value.trim();
         const password = (document.getElementById('account-password') as HTMLInputElement).value.trim();
         const description = (document.getElementById('account-description') as HTMLTextAreaElement).value.trim();
-        const url = (document.getElementById('account-url') as HTMLTextAreaElement).value.trim();
+        const url = (document.getElementById('account-url') as HTMLInputElement).value.trim();
 
         if (!serviceName || !login || !password) {
             accountError.style.display = 'block';
@@ -352,16 +473,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            const newAccount = await addAccount({ serviceName, login, password, url, description, masterPassword });
+            const newAccount = await addAccount({ serviceName, login, password, description, url, masterPassword });
             const decryptedAccount = await getAccountById(newAccount.id, masterPassword);
-            const accounts = [...JSON.parse(sessionStorage.getItem('accounts') || '[]'), { ...decryptedAccount, isFavorite: false }];
-            sessionStorage.setItem('accounts', JSON.stringify(accounts));
-            await loadAccounts();
+            setStoredAccounts([...getStoredAccounts(), { ...decryptedAccount, isFavorite: false }]);
+            clearAccountForm();
             closeAllModals();
-            alert('Аккаунт успешно добавлен!');
+            await reloadVisibleCards();
         } catch (error: any) {
             accountError.style.display = 'block';
-            accountError.textContent = `Ошибка: ${error.message}`;
+            accountError.textContent = `${UI_TEXT.common.errorPrefix}: ${error.message}`;
         }
     });
 
@@ -377,300 +497,130 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const newNote = await addNote(title, content, masterPassword);
-            const notes = [...JSON.parse(sessionStorage.getItem('notes') || '[]'), { ...newNote, isFavorite: false }];
-            sessionStorage.setItem('notes', JSON.stringify(notes));
-            await loadNotes();
+            setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent: content, isFavorite: false }]);
+            clearNoteForm();
             closeAllModals();
-            alert('Заметка успешно добавлена!');
+            await reloadVisibleCards();
         } catch (error: any) {
             noteError.style.display = 'block';
-            noteError.textContent = `Ошибка: ${error.message}`;
+            noteError.textContent = `${UI_TEXT.common.errorPrefix}: ${error.message}`;
         }
     });
 
-    const openAccountModal = async (accountId: number) => {
-        const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === accountId);
-        if (!account) return;
-
-        currentAccountId = accountId;
-
-        const serviceName = document.getElementById('modal-service-name');
-        const login = document.getElementById('modal-login');
-        const encryptedPassword = document.getElementById('modal-encrypted-password');
-        const description = document.getElementById('modal-description');
-        const url = document.getElementById('modal-url');
-        const creationDate = document.getElementById('modal-creation-date');
-        const favoriteBtn = document.getElementById('account-favorite-btn');
-
-        if (!serviceName || !login || !encryptedPassword || !description || !url || !creationDate || !favoriteBtn) return;
-
-        serviceName.textContent = account.serviceName;
-        login.textContent = account.login;
-        encryptedPassword.textContent = account.encryptedPassword || 'Не указан';
-        description.textContent = account.description || 'Не указано';
-        url.textContent = account.url || 'Не указан';
-        creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
-
-        const isFav = await isFavorite('account', accountId).catch(() => false);
-        const buttonText = isFav ? 'Удалить из избранного' : 'Добавить в избранное';
-        favoriteBtn.textContent = buttonText;
-        favoriteBtn.style.display = 'inline-block';
-        favoriteBtn.style.visibility = 'visible';
-
-        favoriteBtn.onclick = async () => {
-            try {
-                const currentFavStatus = await isFavorite('account', accountId).catch(() => false);
-                if (currentFavStatus) {
-                    await removeFromFavorites('account', accountId);
-                } else {
-                    await addToFavorites('account', accountId);
-                }
-                const updatedFavStatus = await isFavorite('account', accountId).catch(() => false);
-                const updatedText = updatedFavStatus ? 'Удалить из избранного' : 'Добавить в избранное';
-                favoriteBtn.textContent = updatedText;
-                const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]');
-                const updatedAccounts = accounts.map((acc: Account) => acc.id === accountId ? { ...acc, isFavorite: updatedFavStatus } : acc);
-                sessionStorage.setItem('accounts', JSON.stringify(updatedAccounts));
-            } catch (error: any) {
-                alert(`Ошибка: ${error.message}`);
-            }
-        };
-
-        accountModal.style.display = 'flex';
-    };
-
-    const openNoteModal = async (noteId: number) => {
-        const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Note) => n.id === noteId);
-        if (!note) return;
-
-        currentNoteId = noteId;
-
-        const title = document.getElementById('modal-note-title');
-        const content = document.getElementById('modal-note-content');
-        const creationDate = document.getElementById('modal-note-creation-date');
-        const updatedDate = document.getElementById('modal-note-updated-date');
-        const favoriteBtn = document.getElementById('note-favorite-btn');
-
-        if (!title || !content || !creationDate || !updatedDate || !favoriteBtn) return;
-
-        title.textContent = note.title;
-        content.textContent = note.encryptedContent;
-        creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
-        updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
-
-        const isFav = await isFavorite('note', noteId).catch(() => false);
-        const buttonText = isFav ? 'Удалить из избранного' : 'Добавить в избранное';
-        favoriteBtn.textContent = buttonText;
-        favoriteBtn.style.display = 'inline-block';
-        favoriteBtn.style.visibility = 'visible';
-
-        favoriteBtn.onclick = async () => {
-            try {
-                const currentFavStatus = await isFavorite('note', noteId).catch(() => false);
-                if (currentFavStatus) {
-                    await removeFromFavorites('note', noteId);
-                } else {
-                    await addToFavorites('note', noteId);
-                }
-                const updatedFavStatus = await isFavorite('note', noteId).catch(() => false);
-                const updatedText = updatedFavStatus ? 'Удалить из избранного' : 'Добавить в избранное';
-                favoriteBtn.textContent = updatedText;
-                const notes = JSON.parse(sessionStorage.getItem('notes') || '[]');
-                const updatedNotes = notes.map((n: Note) => n.id === noteId ? { ...n, isFavorite: updatedFavStatus } : n);
-                sessionStorage.setItem('notes', JSON.stringify(updatedNotes));
-            } catch (error: any) {
-                alert(`Ошибка: ${error.message}`);
-            }
-        };
-
-        noteModal.style.display = 'flex';
-    };
-
-    const closeButtons = document.querySelectorAll('.modal-close-btn');
-    closeButtons.forEach(btn => {
-        btn.addEventListener('click', closeAllModals);
-    });
-
-    [accountModal, noteModal].forEach(modal => {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeAllModals();
+    document.querySelectorAll('.modal-close-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+            closeAllModals();
+            toggleAccountEditMode(false);
+            toggleNoteEditMode(false);
         });
     });
 
-    const accountDeleteBtn = document.getElementById('account-delete-btn');
-    if (accountDeleteBtn) {
-        accountDeleteBtn.addEventListener('click', async () => {
-            if (!currentAccountId) return;
-            try {
-                await deleteAccount(currentAccountId);
-                const accounts = await getAccounts(masterPassword) as Account[];
-                sessionStorage.setItem('accounts', JSON.stringify(accounts));
-                await loadAccounts();
-                closeAllModals();
-            } catch (error: any) {
-                alert('Ошибка: ' + error.message);
-            }
-        });
-    }
-
-    const noteDeleteBtn = document.getElementById('note-delete-btn');
-    if (noteDeleteBtn) {
-        noteDeleteBtn.addEventListener('click', async () => {
-            if (!currentNoteId) return;
-            try {
-                await deleteNote(currentNoteId);
-                const notes = await getUserNotes(masterPassword) as Note[];
-                sessionStorage.setItem('notes', JSON.stringify(notes));
-                await loadNotes();
-                closeAllModals();
-            } catch (error: any) {
-                alert('Ошибка: ' + error.message);
-            }
-        });
-    }
-
-    let isAccountEditMode = false;
-    const accountUpdateBtn = document.getElementById('account-update-btn');
-    const toggleAccountEditMode = (enable: boolean) => {
-        isAccountEditMode = enable;
-        const serviceName = document.getElementById('modal-service-name');
-        const login = document.getElementById('modal-login');
-        const encryptedPassword = document.getElementById('modal-encrypted-password');
-        const description = document.getElementById('modal-description');
-        const url = document.getElementById('modal-url');
-        const creationDate = document.getElementById('modal-creation-date');
-
-        if (!serviceName || !login || !encryptedPassword || !description || !url || !creationDate || !accountUpdateBtn) return;
-
-        if (enable) {
-            serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
-            login.innerHTML = `<input type="text" id="edit-login" value="${login.textContent || ''}" />`;
-            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${encryptedPassword.textContent || ''}" />`;
-            description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
-            url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
-            accountUpdateBtn.textContent = 'Сохранить';
-        } else {
-            const account = JSON.parse(sessionStorage.getItem('accounts') || '[]').find((acc: Account) => acc.id === currentAccountId);
-            if (account) {
-                serviceName.textContent = account.serviceName;
-                login.textContent = account.login;
-                encryptedPassword.textContent = account.encryptedPassword || 'Не указан';
-                description.textContent = account.description || 'Не указано';
-                url.textContent = account.url || 'Не указан';
-                creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU') || 'Не указана';
-            }
-            accountUpdateBtn.textContent = 'Изменить';
+    (document.getElementById('account-delete-btn') as HTMLButtonElement).addEventListener('click', async () => {
+        if (!currentAccountId) {
+            return;
         }
-    };
 
-    if (accountUpdateBtn) {
-        accountUpdateBtn.addEventListener('click', async () => {
-            if (!isAccountEditMode) {
-                toggleAccountEditMode(true);
-            } else if (currentAccountId) {
-                const login = (document.getElementById('edit-login') as HTMLInputElement)?.value;
-                const password = (document.getElementById('edit-encrypted-password') as HTMLInputElement)?.value;
-                const serviceName = (document.getElementById('edit-service-name') as HTMLInputElement)?.value;
-                const url = (document.getElementById('edit-url') as HTMLInputElement)?.value;
-                const description = (document.getElementById('edit-description') as HTMLTextAreaElement)?.value;
-
-                if (login && password && serviceName && url && description) {
-                    try {
-                        await updateAccount({ id: currentAccountId, newLogin: login, newPassword: password, newURL: url, newDescription: description, newServiceName: serviceName, masterPassword });
-                        const accounts = await getAccounts(masterPassword) as Account[];
-                        sessionStorage.setItem('accounts', JSON.stringify(accounts));
-                        toggleAccountEditMode(false);
-                        await loadAccounts();
-                    } catch (error: any) {
-                        alert('Ошибка: ' + error.message);
-                    }
-                }
-            }
-        });
-    }
-
-    let isNoteEditMode = false;
-    const noteUpdateBtn = document.getElementById('note-update-btn');
-    const toggleNoteEditMode = (enable: boolean) => {
-        isNoteEditMode = enable;
-        const title = document.getElementById('modal-note-title');
-        const content = document.getElementById('modal-note-content');
-        const creationDate = document.getElementById('modal-note-creation-date');
-        const updatedDate = document.getElementById('modal-note-updated-date');
-
-        if (!title || !content || !creationDate || !updatedDate || !noteUpdateBtn) return;
-
-        if (enable) {
-            title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
-            content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
-            noteUpdateBtn.textContent = 'Сохранить';
-        } else {
-            const note = JSON.parse(sessionStorage.getItem('notes') || '[]').find((n: Note) => n.id === currentNoteId);
-            if (note) {
-                title.textContent = note.title;
-                content.textContent = note.encryptedContent;
-                creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU') || 'Не указана';
-                updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU') || 'Не указана';
-            }
-            noteUpdateBtn.textContent = 'Изменить';
+        try {
+            await deleteAccount(currentAccountId);
+            setStoredAccounts(getStoredAccounts().filter((account) => account.id !== currentAccountId));
+            closeAllModals();
+            await reloadVisibleCards();
+        } catch (error: any) {
+            alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
         }
-    };
+    });
 
-    if (noteUpdateBtn) {
-        noteUpdateBtn.addEventListener('click', async () => {
-            if (!isNoteEditMode) {
-                toggleNoteEditMode(true);
-            } else if (currentNoteId) {
-                const newTitle = (document.getElementById('edit-note-title') as HTMLInputElement)?.value;
-                const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement)?.value;
+    (document.getElementById('note-delete-btn') as HTMLButtonElement).addEventListener('click', async () => {
+        if (!currentNoteId) {
+            return;
+        }
 
-                if (newTitle && newContent) {
-                    try {
-                        await updateNote(currentNoteId, newTitle, newContent, masterPassword);
-                        const notes = await getUserNotes(masterPassword) as Note[];
-                        sessionStorage.setItem('notes', JSON.stringify(notes));
-                        toggleNoteEditMode(false);
-                        await loadNotes();
-                    } catch (error: any) {
-                        alert('Ошибка: ' + error.message);
-                    }
-                }
-            }
-        });
-    }
+        try {
+            await deleteNote(currentNoteId);
+            setStoredNotes(getStoredNotes().filter((note) => note.id !== currentNoteId));
+            closeAllModals();
+            await reloadVisibleCards();
+        } catch (error: any) {
+            alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
+        }
+    });
 
-    const dropdown = document.querySelector('.profile-dropdown');
-    const menu = document.getElementById('profileMenu');
-    if (dropdown && menu) {
-        dropdown.addEventListener('click', () => {
-            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-            dropdown.textContent = menu.style.display === 'block' ? '▲' : '▼';
-        });
-        document.addEventListener('click', (e) => {
-            if (!dropdown.contains(e.target as Node) && !menu.contains(e.target as Node)) {
-                menu.style.display = 'none';
-                dropdown.textContent = '▼';
-            }
-        });
-    }
+    (document.getElementById('account-update-btn') as HTMLButtonElement).addEventListener('click', async () => {
+        if (!isAccountEditMode) {
+            toggleAccountEditMode(true);
+            return;
+        }
 
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            localStorage.removeItem('token');
-            sessionStorage.clear();
-            window.location.href = '/pages/login-page.html';
-        });
-    }
+        if (!currentAccountId) {
+            return;
+        }
 
-    const sidebar = document.getElementById('sidebar');
-    const hideBtn = document.getElementById('hideBtn');
-    if (sidebar && hideBtn) {
-        hideBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('hidden');
-            hideBtn.textContent = sidebar.classList.contains('hidden') ? '≪' : '≫';
-        });
-    }
+        const login = (document.getElementById('edit-login') as HTMLInputElement).value;
+        const password = (document.getElementById('edit-encrypted-password') as HTMLInputElement).value;
+        const serviceName = (document.getElementById('edit-service-name') as HTMLInputElement).value;
+        const url = (document.getElementById('edit-url') as HTMLInputElement).value;
+        const description = (document.getElementById('edit-description') as HTMLTextAreaElement).value;
+
+        try {
+            await updateAccount({
+                id: currentAccountId,
+                newLogin: login,
+                newPassword: password,
+                newURL: url,
+                newDescription: description,
+                newServiceName: serviceName,
+                masterPassword
+            });
+
+            updateStoredAccount(currentAccountId, {
+                login,
+                encryptedPassword: password,
+                serviceName,
+                url,
+                description
+            });
+
+            toggleAccountEditMode(false);
+            await reloadVisibleCards();
+        } catch (error: any) {
+            alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
+        }
+    });
+
+    (document.getElementById('note-update-btn') as HTMLButtonElement).addEventListener('click', async () => {
+        if (!isNoteEditMode) {
+            toggleNoteEditMode(true);
+            return;
+        }
+
+        if (!currentNoteId) {
+            return;
+        }
+
+        const newTitle = (document.getElementById('edit-note-title') as HTMLInputElement).value;
+        const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement).value;
+
+        try {
+            await updateNote(currentNoteId, newTitle, newContent, masterPassword);
+            updateStoredNote(currentNoteId, {
+                title: newTitle,
+                encryptedContent: newContent,
+                updatedAt: new Date().toISOString()
+            });
+            toggleNoteEditMode(false);
+            await reloadVisibleCards();
+        } catch (error: any) {
+            alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
+        }
+    });
+
+    searchInput.addEventListener('input', debounce(async () => {
+        await reloadVisibleCards();
+    }, 300));
+
+    sortDropdown.addEventListener('change', debounce(async () => {
+        await reloadVisibleCards();
+    }, 300));
 
     setInterval(syncData, 10000);
 });

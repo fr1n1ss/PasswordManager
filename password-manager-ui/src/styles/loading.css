@@ -1,13 +1,11 @@
-/* Переменные цветов */
 :root {
-    --background-primary: #1F252A;
-    --background-secondary: #2A3B47;
-    --accent: #00A3FF;
-    --text-primary: #D3D7DB;
-    --text-secondary: #A3A3A3;
+    --background-primary: #1f252a;
+    --background-secondary: #2a3b47;
+    --accent: #00a3ff;
+    --text-primary: #d3d7db;
+    --text-secondary: #a3a3a3;
 }
 
-/* Базовые стили */
 * {
     margin: 0;
     padding: 0;
@@ -18,29 +16,30 @@ html, body {
     width: 100%;
     height: 100%;
     font-family: 'Montserrat', sans-serif;
-    background-color: var(--background-primary);
+    background:
+        radial-gradient(circle at top, rgba(0, 163, 255, 0.08), transparent 32%),
+        linear-gradient(180deg, #1b2025 0%, #11161a 100%);
     color: var(--text-primary);
 }
 
-/* Стили для контейнера загрузки */
 .loading-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
+    min-height: 100vh;
     text-align: center;
+    padding: 24px;
 }
 
-/* Стили для спиннера */
 .spinner {
-    border: 4px solid rgba(0, 0, 0, 0.1);
+    border: 4px solid rgba(255, 255, 255, 0.08);
     border-left: 4px solid var(--accent);
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    width: 46px;
+    height: 46px;
     animation: spin 1s linear infinite;
-    margin-bottom: 20px;
+    margin-bottom: 22px;
 }
 
 @keyframes spin {
@@ -48,110 +47,119 @@ html, body {
     100% { transform: rotate(360deg); }
 }
 
-/* Стили для текста загрузки */
 .loading-text {
-    font-size: 1.2em;
-    margin-bottom: 10px;
+    font-size: 19px;
+    font-weight: 600;
 }
 
-/* Стили для контейнера ошибок */
 .error-container {
     display: none;
-    color: var(--accent);
+    color: #ff9e9e;
     margin-top: 20px;
+    max-width: 560px;
+    line-height: 1.6;
 }
 
-/* Стили для модального окна */
 .modal {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background-color: rgba(4, 8, 11, 0.74);
+    backdrop-filter: blur(8px);
     z-index: 1000;
-    display: flex; /* Всегда flex для центрирования */
-    justify-content: center;
+}
+
+.modal[style*="block"],
+.modal[style*="flex"] {
+    display: flex;
     align-items: center;
+    justify-content: center;
 }
 
-.modal-content {
-    background-color: var(--background-secondary);
-    padding: 20px;
-    border-radius: 5px;
-    width: 90%;
-    max-width: 400px;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+.auth-modal-card {
+    width: min(92vw, 430px);
+    padding: 28px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(42, 59, 71, 0.98) 0%, rgba(26, 33, 39, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+    text-align: left;
+}
+
+.auth-modal-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
     color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
 }
 
-.modal-content h2 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 1.5em;
+.auth-modal-title {
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.auth-modal-text {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.auth-modal-input {
+    width: 100%;
+    padding: 16px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: rgba(13, 18, 22, 0.78);
     color: var(--text-primary);
+    font-size: 18px;
+    font-family: inherit;
+    margin-bottom: 14px;
 }
 
-.modal-content p {
-    margin: 10px 0;
+.auth-modal-input::placeholder {
     color: var(--text-secondary);
 }
 
-.modal-content input {
-    width: 100%;
-    padding: 10px;
-    margin: 10px 0;
-    border: none;
-    border-radius: 5px;
-    background-color: var(--background-primary);
-    color: var(--text-primary);
-    box-sizing: border-box;
-}
-
-.modal-content button {
-    padding: 10px 20px;
-    margin: 5px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1em;
-}
-
-.modal-content .retry-btn {
-    background-color: #4CAF50;
-    color: white;
-}
-
-.modal-content .retry-btn:hover {
-    background-color: color-mix(in srgb, #4CAF50 90%, #FFFFFF);
-}
-
-.modal-content .logout-btn {
-    background-color: #f44336;
-    color: white;
-}
-
-.modal-content .logout-btn:hover {
-    background-color: color-mix(in srgb, #f44336 90%, #FFFFFF);
-}
-
+.auth-modal-primary,
+.auth-modal-secondary,
 .retry-button {
-    background-color: var(--accent);
-    color: var(--text-primary);
-    font-family: "Montserrat";
-    padding: 10px 20px;
+    width: 100%;
+    padding: 14px 16px;
     border: none;
-    border-radius: 6px;
-    font-size: 16px;
-    font-weight: 500;
+    border-radius: 14px;
     cursor: pointer;
-    margin-left: 10px;
-    margin: 2rem;
-    transition: background-color 0.3s ease;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 10px;
 }
 
+.auth-modal-primary,
+.retry-button {
+    background: linear-gradient(90deg, #00a3ff 0%, #33c1ff 100%);
+    color: #f4fbff;
+}
+
+.auth-modal-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.auth-modal-primary:hover,
+.auth-modal-secondary:hover,
 .retry-button:hover {
-    background-color: color-mix(in srgb, var(--accent) 90%, #FFFFFF);
+    filter: brightness(1.05);
 }

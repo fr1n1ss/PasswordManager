@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Вход</title>
   <link rel="stylesheet" href="../styles/login.css" />
 </head>
@@ -20,11 +21,24 @@
 </div>
 
 <div id="master-password-modal" class="modal">
-  <div class="modal-content">
-    <h2>Введите мастер-пароль</h2>
-    <input type="password" id="master-password-input" placeholder="Мастер-пароль">
-    <button onclick="submitMasterPassword()">Подтвердить</button>
-    <button onclick="cancelMasterPassword()">Отмена</button>
+  <div class="modal-content auth-modal-card">
+    <div class="auth-modal-badge">PM</div>
+    <h2 class="auth-modal-title">Введите мастер-пароль</h2>
+    <p class="auth-modal-text">Он нужен для расшифровки ваших данных на устройстве.</p>
+    <input type="password" id="master-password-input" class="auth-modal-input" placeholder="Мастер-пароль">
+    <button class="auth-modal-primary" onclick="submitMasterPassword()">Подтвердить</button>
+    <button class="auth-modal-secondary" onclick="cancelMasterPassword()">Отмена</button>
+  </div>
+</div>
+
+<div id="totp-modal" class="modal">
+  <div class="modal-content auth-modal-card auth-modal-card-compact">
+    <div class="auth-modal-badge auth-modal-badge-accent">2FA</div>
+    <h2 class="auth-modal-title">Введите код подтверждения</h2>
+    <p class="auth-modal-text">Откройте приложение-аутентификатор и введите текущий TOTP-код.</p>
+    <input type="text" id="totp-code-input" class="auth-modal-input auth-modal-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
+    <button id="submit-totp-button" class="auth-modal-primary">Подтвердить</button>
+    <button id="cancel-totp-button" class="auth-modal-secondary">Отмена</button>
   </div>
 </div>
 

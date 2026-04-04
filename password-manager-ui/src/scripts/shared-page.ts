@@ -1,4 +1,5 @@
 export function initializeSharedPageShell(): void {
+    const container = document.querySelector('.container') as HTMLElement | null;
     const username = sessionStorage.getItem('username');
     const email = sessionStorage.getItem('email');
     const usernameElement = document.querySelector('.username');
@@ -12,18 +13,20 @@ export function initializeSharedPageShell(): void {
         emailElement.textContent = email;
     }
 
+    const profile = document.querySelector('.profile') as HTMLElement | null;
     const dropdown = document.querySelector('.profile-dropdown') as HTMLElement | null;
     const menu = document.getElementById('profileMenu');
 
-    if (dropdown && menu) {
-        dropdown.addEventListener('click', () => {
+    if (profile && dropdown && menu) {
+        profile.addEventListener('click', (event) => {
+            event.stopPropagation();
             const isMenuOpen = menu.style.display === 'block';
             menu.style.display = isMenuOpen ? 'none' : 'block';
             dropdown.textContent = isMenuOpen ? '▼' : '▲';
         });
 
         document.addEventListener('click', (event) => {
-            if (!dropdown.contains(event.target as Node) && !menu.contains(event.target as Node)) {
+            if (!profile.contains(event.target as Node) && !menu.contains(event.target as Node)) {
                 menu.style.display = 'none';
                 dropdown.textContent = '▼';
             }
@@ -37,13 +40,26 @@ export function initializeSharedPageShell(): void {
         window.location.href = '/pages/login-page.html';
     });
 
+    const settingsBtn = document.getElementById('settingsBtn');
+    settingsBtn?.addEventListener('click', () => {
+        window.location.href = '/pages/settings-page.html';
+    });
+
     const sidebar = document.getElementById('sidebar');
     const hideBtn = document.getElementById('hideBtn');
-    if (sidebar && hideBtn) {
+    if (container && sidebar && hideBtn) {
+        const renderSidebarToggle = () => {
+            const isHidden = container.classList.contains('sidebar-collapsed');
+            hideBtn.textContent = isHidden ? '≡' : '‹';
+            hideBtn.setAttribute('aria-label', isHidden ? 'Показать боковое меню' : 'Скрыть боковое меню');
+        };
+
+        renderSidebarToggle();
+
         hideBtn.addEventListener('click', () => {
-            const isHidden = sidebar.classList.contains('hidden');
+            container.classList.toggle('sidebar-collapsed');
             sidebar.classList.toggle('hidden');
-            hideBtn.textContent = isHidden ? '≪' : '≫';
+            renderSidebarToggle();
         });
     }
 }
