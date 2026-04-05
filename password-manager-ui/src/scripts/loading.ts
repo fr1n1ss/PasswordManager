@@ -1,4 +1,5 @@
 import { getAccounts, getUserInfo, getUserNotes, ping, validateMasterPassword } from '../services/api.ts';
+import { enhancePasswordField } from './password-visibility.ts';
 
 interface Account {
     id: number;
@@ -41,6 +42,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     modal.style.display = 'none';
     errorContainer.style.display = 'none';
+    enhancePasswordField(masterPasswordInput, {
+        groupClass: 'password-input-group auth-password-input-group',
+        toggleClass: 'password-toggle auth-password-toggle'
+    });
 
     if (sessionStorage.getItem('isDataLoaded') === 'true') {
         window.location.href = '/index.html';

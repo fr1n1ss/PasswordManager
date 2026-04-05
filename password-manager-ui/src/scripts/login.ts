@@ -1,4 +1,5 @@
 import { login, loginWith2FA } from '../services/api.ts';
+import { enhancePasswordField } from './password-visibility.ts';
 
 interface LoginResponse {
     token?: string;
@@ -22,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    enhancePasswordField(passwordInput);
+
     let pendingTempToken = '';
 
     const showError = (message: string) => {
@@ -36,6 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openMasterPasswordModal = () => {
         masterPasswordModal.style.display = 'flex';
+        const masterPasswordInput = document.getElementById('master-password-input') as HTMLInputElement | null;
+        if (masterPasswordInput) {
+            enhancePasswordField(masterPasswordInput, {
+                groupClass: 'password-input-group auth-password-input-group',
+                toggleClass: 'password-toggle auth-password-toggle'
+            });
+        }
 
         (window as any).submitMasterPassword = () => {
             const masterPasswordInput = document.getElementById('master-password-input') as HTMLInputElement;

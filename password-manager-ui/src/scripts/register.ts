@@ -1,17 +1,26 @@
 import { register } from '../services/api.ts';
+import { enhancePasswordField } from './password-visibility.ts';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const registerForm = document.getElementById('registerForm') as HTMLFormElement;
-    const usernameInput = document.getElementById('username') as HTMLInputElement;
-    const passwordInput = document.getElementById('password') as HTMLInputElement;
-    const passwordConfirm = document.getElementById('confirmPassword') as HTMLInputElement;
-    const emailInput = document.getElementById('email') as HTMLInputElement;
-    const masterPasswordInput = document.getElementById('masterPassword') as HTMLInputElement;
-    const errorContainer = document.getElementById('errorContainer')!;
-    const errorMessage = document.getElementById('errorMessage')!;
+    const registerForm = document.getElementById('registerForm') as HTMLFormElement | null;
+    const usernameInput = document.getElementById('username') as HTMLInputElement | null;
+    const passwordInput = document.getElementById('password') as HTMLInputElement | null;
+    const passwordConfirm = document.getElementById('confirmPassword') as HTMLInputElement | null;
+    const emailInput = document.getElementById('email') as HTMLInputElement | null;
+    const masterPasswordInput = document.getElementById('masterPassword') as HTMLInputElement | null;
+    const errorContainer = document.getElementById('errorContainer') as HTMLDivElement | null;
+    const errorMessage = document.getElementById('errorMessage') as HTMLParagraphElement | null;
 
-    registerForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    if (!registerForm || !usernameInput || !passwordInput || !passwordConfirm || !emailInput || !masterPasswordInput || !errorContainer || !errorMessage) {
+        return;
+    }
+
+    enhancePasswordField(passwordInput);
+    enhancePasswordField(passwordConfirm);
+    enhancePasswordField(masterPasswordInput);
+
+    registerForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
 
         const username = usernameInput.value.trim();
         const password = passwordInput.value.trim();
@@ -25,22 +34,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if(password !== confirmPassword){
+        if (password !== confirmPassword) {
             errorContainer.style.display = 'block';
             errorMessage.textContent = 'Введённые пароли не совпадают';
-            return
+            return;
         }
 
-        if(password === masterPassword){
+        if (password === masterPassword) {
             errorContainer.style.display = 'block';
             errorMessage.textContent = 'Пароль и мастер-пароль должны отличаться';
-            return
+            return;
         }
 
         try {
             await register(username, email, password, masterPassword);
-            alert('Регистрация прошла успешно!');
-            window.location.href = 'login.html';
+            alert('Регистрация прошла успешно');
+            window.location.href = './login-page.html';
         } catch (error: any) {
             errorContainer.style.display = 'block';
             errorMessage.textContent = `Ошибка регистрации: ${error.message}`;

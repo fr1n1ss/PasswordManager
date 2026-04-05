@@ -2,20 +2,23 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Регистрация</title>
   <link rel="stylesheet" href="../styles/register.css" />
 </head>
 <body>
-<div class="register-container">
+<div class="register-container auth-panel">
   <form id="registerForm">
+    <div class="auth-panel-badge">PM</div>
     <h2>Регистрация</h2>
+    <p class="auth-panel-subtitle">Создайте аккаунт и задайте мастер-пароль для локальной защиты ваших данных.</p>
     <input type="text" id="username" placeholder="Имя пользователя" required />
     <input type="email" id="email" placeholder="E-mail" required />
     <input type="password" id="password" placeholder="Пароль" required />
     <input type="password" id="confirmPassword" placeholder="Повторите пароль" required />
     <input type="password" id="masterPassword" placeholder="Мастер-пароль" required />
-    <button type="submit" onclick="">Зарегистрироваться</button>
-    <a class="login-link" href="./login-page.html">Уже есть аккаунт? Войти</a>
+    <button type="submit">Зарегистрироваться</button>
+    <p>Уже есть аккаунт? <a class="login-link" href="./login-page.html">Войти</a></p>
   </form>
   <div id="errorContainer" style="display: none;">
     <p id="errorMessage" class="error-message"></p>
