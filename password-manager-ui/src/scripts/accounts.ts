@@ -1,4 +1,5 @@
-import { addAccount, addToFavorites, deleteAccount, getAccountById, getAccounts, removeFromFavorites, updateAccount } from '../services/api.ts';
+import { addAccount, addToFavorites, deleteAccount, getAccounts, removeFromFavorites, updateAccount } from '../services/api.ts';
+import { decryptAccounts, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
@@ -46,7 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const masterPassword = sessionStorage.getItem('masterPassword');
-    if (!masterPassword) {
+    const cryptoSalt = sessionStorage.getItem('cryptoSalt');
+    if (!masterPassword || !cryptoSalt) {
         window.location.href = '/pages/login-page.html';
         return;
     }
@@ -201,7 +203,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         let accounts = getStoredAccounts();
 
         if (!sessionStorage.getItem('accounts')) {
-            accounts = await getAccounts(masterPassword) as Account[];
+            const encryptedAccounts = await getAccounts() as Account[];
+            accounts = await decryptAccounts(encryptedAccounts, masterPassword, cryptoSalt);
             setStoredAccounts(accounts);
         }
 
@@ -220,7 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         data-is-favorite="${account.isFavorite ? 'true' : 'false'}"
                         aria-label="${favoriteButtonLabel(Boolean(account.isFavorite))}"
                         title="${favoriteButtonLabel(Boolean(account.isFavorite))}"
-                    >★</button>
+                    >&starf;</button>
                     <div class="card-logo">
                         <img src="${logoUrl}" alt="${account.serviceName} logo" />
                     </div>
@@ -238,7 +241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadAccounts();
         errorContainer.style.display = 'none';
-    } catch (error) {
+    } catch {
         errorContainer.style.display = 'block';
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
@@ -274,9 +277,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            const newAccount = await addAccount({ serviceName, login, password, description, url, masterPassword });
-            const decryptedAccount = await getAccountById(newAccount.id, masterPassword);
-            setStoredAccounts([...getStoredAccounts(), { ...decryptedAccount, isFavorite: false }]);
+            const encryptedPassword = await encryptOpaquePayload(password, masterPassword, cryptoSalt);
+            const newAccount = await addAccount({ serviceName, login, password: encryptedPassword, description, url });
+
+            setStoredAccounts([...getStoredAccounts(), {
+                ...newAccount,
+                encryptedPassword: password,
+                isFavorite: false
+            }]);
+
             await loadAccounts();
             clearAddForm();
             closeAllModals();
@@ -311,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             accountModal.style.display = 'none';
             await loadAccounts();
         } catch (error: any) {
-            alert(`Ошибка при удалении аккаунта: ${error.message}`);
+            alert(`РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё Р°РєРєР°СѓРЅС‚Р°: ${error.message}`);
         }
     });
 
@@ -332,14 +341,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const description = (document.getElementById('edit-description') as HTMLTextAreaElement).value;
 
         try {
+            const encryptedPassword = await encryptOpaquePayload(password, masterPassword, cryptoSalt);
             await updateAccount({
                 id: currentAccountId,
                 newLogin: login,
-                newPassword: password,
+                newPassword: encryptedPassword,
                 newURL: url,
                 newDescription: description,
                 newServiceName: serviceName,
-                masterPassword
             });
 
             updateStoredAccount(currentAccountId, {

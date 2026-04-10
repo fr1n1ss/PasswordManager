@@ -31,7 +31,7 @@ namespace PasswordManagerAPI.Controllers
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-                var newAccount = _accountService.AddAccount(userId, account.Login, account.ServiceName, account.Password, account.URL, account.Description, account.MasterPassword);
+                var newAccount = _accountService.AddAccount(userId, account.Login, account.ServiceName, account.Password, account.URL, account.Description);
 
                 return Ok(newAccount);
             }
@@ -45,14 +45,11 @@ namespace PasswordManagerAPI.Controllers
         [HttpPost("UpdateAccount")]
         public async Task<IActionResult> UpdateAccountAsync([FromBody] UpdateAccountModel updatedAccount)
         {
-            if (string.IsNullOrEmpty(updatedAccount.MasterPassword))
-                return BadRequest("Not all required fields are filled in");
-
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _accountService.UpdateAccountAsync(userId, updatedAccount.ID, updatedAccount.NewLogin, updatedAccount.NewServiceName, updatedAccount.NewPassword, updatedAccount.NewURL, updatedAccount.NewDescription, updatedAccount.MasterPassword);
+                await _accountService.UpdateAccountAsync(userId, updatedAccount.ID, updatedAccount.NewLogin, updatedAccount.NewServiceName, updatedAccount.NewPassword, updatedAccount.NewURL, updatedAccount.NewDescription);
 
                 return Ok();
             }
@@ -68,14 +65,14 @@ namespace PasswordManagerAPI.Controllers
         #region GET
         [HttpGet("GetAccounts")]
 
-        public async Task<IActionResult> GetAccountsAsync(string masterPassword)
+        public async Task<IActionResult> GetAccountsAsync()
         {
             try
             {
 
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var accounts = await _accountService.GetUserAccountsAsync(userId, masterPassword);
+                var accounts = await _accountService.GetUserAccountsAsync(userId);
 
                 return Ok(accounts);
             }
@@ -86,13 +83,13 @@ namespace PasswordManagerAPI.Controllers
 
         }
         [HttpGet("GetAccountById")]
-        public async Task<IActionResult> GetAccountByIdAsync(int accountId, string masterPassword)
+        public async Task<IActionResult> GetAccountByIdAsync(int accountId)
         {
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var account = await _accountService.GetAccountByIdAsync(userId, accountId, masterPassword);
+                var account = await _accountService.GetAccountByIdAsync(userId, accountId);
 
                 return Ok(account);
             }

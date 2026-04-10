@@ -33,7 +33,7 @@ namespace PasswordManagerAPI.Controllers
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-                var newNote = _noteService.AddNote(userId, note.Title, note.Content, note.MasterPassword);
+                var newNote = _noteService.AddNote(userId, note.Title, note.Content);
 
                 return Ok(newNote);
             }
@@ -49,14 +49,11 @@ namespace PasswordManagerAPI.Controllers
         [HttpPost("UpdateNoteAsync")]
         public async Task<IActionResult> UpdateNodeAsync([FromBody] UpdateNoteModel updatedNote)
         {
-            if (string.IsNullOrEmpty(updatedNote.MasterPassword))
-                return BadRequest("Not all required fields are filled in");
-
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                await _noteService.UpdateNoteAsync(userId, updatedNote.ID, updatedNote.NewTitle, updatedNote.NewContent, updatedNote.MasterPassword);
+                await _noteService.UpdateNoteAsync(userId, updatedNote.ID, updatedNote.NewTitle, updatedNote.NewContent);
 
                 return Ok();
             }
@@ -72,14 +69,14 @@ namespace PasswordManagerAPI.Controllers
         #region GET
         [HttpGet("GetNotesAsync")]
 
-        public async Task<IActionResult> GetNotesAsync(string masterPassword)
+        public async Task<IActionResult> GetNotesAsync()
         {
             try
             {
 
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var notes = await _noteService.GetUserNotesAsync(userId, masterPassword);
+                var notes = await _noteService.GetUserNotesAsync(userId);
 
                 return Ok(notes);
             }
@@ -90,13 +87,13 @@ namespace PasswordManagerAPI.Controllers
 
         }
         [HttpGet("GetNoteByIdAsync")]
-        public async Task<IActionResult> GetNoteByIdAsync(int noteId, string masterPassword)
+        public async Task<IActionResult> GetNoteByIdAsync(int noteId)
         {
             try
             {
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var note = await _noteService.GetNoteByIdAsync(userId, noteId, masterPassword);
+                var note = await _noteService.GetNoteByIdAsync(userId, noteId);
 
                 return Ok(note);
             }

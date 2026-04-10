@@ -67,14 +67,14 @@ namespace PasswordManagerAPI.Controllers
         #region GET
         [HttpGet("GetUserFavoritesAsync")]
 
-        public async Task<IActionResult> GetUserFavoritesAsync(string masterPassword)
+        public async Task<IActionResult> GetUserFavoritesAsync()
         {
             try
             {
 
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
-                var favorites = await _favoriteService.GetUserFavoritesAsync(userId, masterPassword);
+                var favorites = await _favoriteService.GetUserFavoritesAsync(userId);
 
                 return Ok(favorites);
             }

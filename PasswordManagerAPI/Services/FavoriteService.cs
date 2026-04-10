@@ -2,8 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
-using Security.RSA;
-using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -12,12 +10,10 @@ namespace PasswordManagerAPI.Services
     public class FavoriteService : IFavoriteService
     {
         private readonly AppDbContext _context;
-        private readonly RSAEncryption _rsaEncryption;
 
-        public FavoriteService(AppDbContext context, RSAEncryption rSA)
+        public FavoriteService(AppDbContext context)
         {
             _context = context;
-            _rsaEncryption = rSA;
         }
 
         public async Task<Favorite> AddToFavoritesAsync(int userId, string entityType, int entityId)
@@ -38,7 +34,7 @@ namespace PasswordManagerAPI.Services
             return favorite;
         }
 
-        public async Task<FavoriteResult> GetUserFavoritesAsync(int userId, string masterPassword)
+        public async Task<FavoriteResult> GetUserFavoritesAsync(int userId)
         {
             var favorites = await _context.Favorites.Where(f => f.UserId == userId).ToListAsync();
             var noteIds = favorites.Where(f => f.EntityType.ToLower() == "note").Select(f => f.EntityId).ToList();
@@ -49,14 +45,14 @@ namespace PasswordManagerAPI.Services
 
             foreach (var noteId in noteIds)
             {
-                var note = await GetNoteByIdAsync(userId, noteId, masterPassword);
+                var note = await GetNoteByIdAsync(userId, noteId);
                 if (note != null)
                     notes.Add(note);
             }
 
             foreach (var accountId in accountIds)
             {
-                var account = await GetAccountByIdAsync(userId, accountId, masterPassword);
+                var account = await GetAccountByIdAsync(userId, accountId);
                 if (account != null)
                     accounts.Add(account);
             }
@@ -94,61 +90,21 @@ namespace PasswordManagerAPI.Services
             return favoritesHash.ToLower();
         }
 
-        private async Task<Account> GetAccountByIdAsync(int userId, int accountId, string masterPassword)
+        private async Task<Account> GetAccountByIdAsync(int userId, int accountId)
         {
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
             if (account == null)
                 throw new ArgumentNullException("Account with this ID not found");
-
-            if (user == null)
-                throw new ArgumentNullException("User with this ID not found");
-
-            account.EncryptedPassword = DecryptPassword(account.EncryptedPassword, user, masterPassword);
             return account;
         }
 
-        private async Task<Note> GetNoteByIdAsync(int userId, int noteId, string masterPassword)
+        private async Task<Note> GetNoteByIdAsync(int userId, int noteId)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            if (user == null)
-                throw new ArgumentException("User with this userId not found");
-
             var note = await _context.Notes.FirstOrDefaultAsync(n => n.ID == noteId && n.UserID == userId);
             if (note == null)
                 throw new ArgumentException("Note with this noteId not found");
-
-            note.EncryptedContent = DecryptContent(note.EncryptedContent, user, masterPassword);
             return note;
-        }
-
-        private void UpdateRSA(User user, string masterPassword)
-        {
-            var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
-            _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
-        }
-
-        private string DecryptPassword(string encryptedPassword, User user, string masterPassword)
-        {
-            if (KuznyechikStorageProtection.IsProtectedPayload(encryptedPassword))
-            {
-                return KuznyechikStorageProtection.Decrypt(encryptedPassword, masterPassword, user.Salt);
-            }
-
-            UpdateRSA(user, masterPassword);
-            return _rsaEncryption.DecryptText(encryptedPassword);
-        }
-
-        private string DecryptContent(string encryptedContent, User user, string masterPassword)
-        {
-            if (KuznyechikStorageProtection.IsProtectedPayload(encryptedContent))
-            {
-                return KuznyechikStorageProtection.Decrypt(encryptedContent, masterPassword, user.Salt);
-            }
-
-            UpdateRSA(user, masterPassword);
-            return _rsaEncryption.DecryptText(encryptedContent);
         }
     }
 }

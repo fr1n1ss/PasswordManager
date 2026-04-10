@@ -1,4 +1,5 @@
 import { addNote, addToFavorites, deleteNote, getUserNotes, removeFromFavorites, updateNote } from '../services/api.ts';
+import { decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
@@ -44,7 +45,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const masterPassword = sessionStorage.getItem('masterPassword');
-    if (!masterPassword) {
+    const cryptoSalt = sessionStorage.getItem('cryptoSalt');
+    if (!masterPassword || !cryptoSalt) {
         window.location.href = '/pages/login-page.html';
         return;
     }
@@ -187,7 +189,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         let notes = getStoredNotes();
 
         if (!sessionStorage.getItem('notes')) {
-            notes = await getUserNotes(masterPassword) as Note[];
+            const encryptedNotes = await getUserNotes() as Note[];
+            notes = await decryptNotes(encryptedNotes, masterPassword, cryptoSalt);
             setStoredNotes(notes);
         }
 
@@ -201,7 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     data-is-favorite="${note.isFavorite ? 'true' : 'false'}"
                     aria-label="${favoriteButtonLabel(Boolean(note.isFavorite))}"
                     title="${favoriteButtonLabel(Boolean(note.isFavorite))}"
-                >★</button>
+                >&starf;</button>
                 <div class="card-logo"></div>
                 <div class="card-details">
                     <h3>${note.title}</h3>
@@ -216,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadNotes();
         errorContainer.style.display = 'none';
-    } catch (error) {
+    } catch {
         errorContainer.style.display = 'block';
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
@@ -249,7 +252,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            const newNote = await addNote(title, content, masterPassword);
+            const encryptedContent = await encryptOpaquePayload(content, masterPassword, cryptoSalt);
+            const newNote = await addNote(title, encryptedContent);
             setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent: content, isFavorite: false }]);
             await loadNotes();
             clearAddForm();
@@ -303,7 +307,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement).value;
 
         try {
-            await updateNote(currentNoteId, newTitle, newContent, masterPassword);
+            const encryptedContent = await encryptOpaquePayload(newContent, masterPassword, cryptoSalt);
+            await updateNote(currentNoteId, newTitle, encryptedContent);
             updateStoredNote(currentNoteId, {
                 title: newTitle,
                 encryptedContent: newContent,

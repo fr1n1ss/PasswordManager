@@ -6,6 +6,7 @@ import {
     updateNote,
     removeFromFavorites
 } from '../services/api.ts';
+import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 
 interface Account {
@@ -58,7 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const masterPassword = sessionStorage.getItem('masterPassword');
-    if (!masterPassword) {
+    const cryptoSalt = sessionStorage.getItem('cryptoSalt');
+    if (!masterPassword || !cryptoSalt) {
         window.location.href = '/pages/login-page.html';
         return;
     }
@@ -213,7 +215,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         data-unfavorite-account-id="${account.id}"
                         aria-label="Убрать из избранного"
                         title="Убрать из избранного"
-                    >★</button>
+                    >&starf;</button>
                     <div class="card-logo">
                         <img src="${logoUrl}" alt="${account.serviceName} logo" />
                     </div>
@@ -233,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     data-unfavorite-note-id="${note.id}"
                     aria-label="Убрать из избранного"
                     title="Убрать из избранного"
-                >★</button>
+                >&starf;</button>
                 <div class="card-logo"></div>
                 <div class="card-details">
                     <h3>${note.title}</h3>
@@ -247,7 +249,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const loadFavorites = async () => {
         try {
-            favorites = await getUserFavorites(masterPassword) as FavoritesResponse;
+            const payload = await getUserFavorites() as FavoritesResponse;
+            favorites = {
+                accounts: await decryptAccounts(payload.accounts, masterPassword, cryptoSalt),
+                notes: await decryptNotes(payload.notes, masterPassword, cryptoSalt)
+            };
             renderFavorites();
             errorContainer.style.display = 'none';
         } catch (error: any) {
@@ -498,7 +504,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             accountModal.style.display = 'none';
             renderFavorites();
         } catch (error: any) {
-            alert(`Account deletion error: ${error.message}`);
+            alert(`Ошибка при удалении аккаунта: ${error.message}`);
         }
     });
 
@@ -514,7 +520,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             noteModal.style.display = 'none';
             renderFavorites();
         } catch (error: any) {
-            alert(`Note deletion error: ${error.message}`);
+            alert(`Ошибка при удалении заметки: ${error.message}`);
         }
     });
 
@@ -537,20 +543,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         try {
+            const encryptedPassword = await encryptOpaquePayload(patch.encryptedPassword, masterPassword, cryptoSalt);
             await updateAccount({
                 id: currentAccountId,
                 newLogin: patch.login,
-                newPassword: patch.encryptedPassword,
+                newPassword: encryptedPassword,
                 newURL: patch.url,
                 newDescription: patch.description,
                 newServiceName: patch.serviceName,
-                masterPassword
             });
             updateStoredAccount(currentAccountId, patch);
             toggleAccountEditMode(false);
             renderFavorites();
         } catch (error: any) {
-            alert(`Account update error: ${error.message}`);
+            alert(`Ошибка при обновлении аккаунта: ${error.message}`);
         }
     });
 
@@ -571,12 +577,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         try {
-            await updateNote(currentNoteId, patch.title, patch.encryptedContent, masterPassword);
+            const encryptedContent = await encryptOpaquePayload(patch.encryptedContent, masterPassword, cryptoSalt);
+            await updateNote(currentNoteId, patch.title, encryptedContent);
             updateStoredNote(currentNoteId, patch);
             toggleNoteEditMode(false);
             renderFavorites();
         } catch (error: any) {
-            alert(`Note update error: ${error.message}`);
+            alert(`Ошибка при обновлении заметки: ${error.message}`);
         }
     });
 

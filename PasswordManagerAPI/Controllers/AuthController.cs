@@ -6,7 +6,6 @@ using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
-using Security.RSA;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -91,12 +90,13 @@ namespace PasswordManagerAPI.Controllers
             if (string.IsNullOrEmpty(model.Email))
                 return BadRequest("No email was entered");
 
-            if (string.IsNullOrEmpty(model.MasterPassword))
-                return BadRequest("No master password was entered");
+            if (string.IsNullOrWhiteSpace(model.Salt))
+                return BadRequest("No salt was provided");
 
-            var rsa = new RSAEncryption();
-            var salt = _securityHelper.GenerateSalt();
-            string encryptedPrivateKey = RsaKeyManager.EncryptPrivateKey(rsa.PrivateKey, model.MasterPassword, salt);
+            if (string.IsNullOrWhiteSpace(model.MasterPasswordVerifier))
+                return BadRequest("No master password verifier was provided");
+
+            var salt = model.Salt;
 
             user = new User
             {
@@ -104,9 +104,10 @@ namespace PasswordManagerAPI.Controllers
                 Email = model.Email,
                 Salt = salt,
                 PasswordHash = _securityHelper.HashPassword(model.Password, salt),
-                EncryptedPrivateKey = encryptedPrivateKey,
-                PublicKey = rsa.PublicKey.ToString(),
-                Modulus = rsa.Modulus.ToString()
+                EncryptedPrivateKey = string.Empty,
+                PublicKey = string.Empty,
+                Modulus = string.Empty,
+                MasterPasswordVerifier = model.MasterPasswordVerifier
             };
 
             _context.Users.Add(user);
@@ -119,24 +120,26 @@ namespace PasswordManagerAPI.Controllers
         [HttpPost("validate-master-password")]
         public IActionResult ValidateMasterPassword([FromBody] ValidateMasterPasswordModel model)
         {
+            return BadRequest(new { message = "Server-side master password validation is disabled in zero-knowledge mode." });
+        }
+
+        [Authorize]
+        [HttpPost("master-password-verifier")]
+        public IActionResult UpdateMasterPasswordVerifier([FromBody] UpdateMasterPasswordVerifierModel model)
+        {
             var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
             var user = _context.Users.FirstOrDefault(u => u.Id == userId);
 
             if (user == null)
                 return Unauthorized();
 
-            if (string.IsNullOrWhiteSpace(model.MasterPassword))
-                return BadRequest("Master password is required");
+            if (string.IsNullOrWhiteSpace(model.MasterPasswordVerifier))
+                return BadRequest("Master password verifier is required");
 
-            try
-            {
-                _ = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, model.MasterPassword, user.Salt);
-                return Ok(new { valid = true });
-            }
-            catch
-            {
-                return Unauthorized(new { message = "Invalid master password" });
-            }
+            user.MasterPasswordVerifier = model.MasterPasswordVerifier;
+            _context.SaveChanges();
+
+            return Ok(new { updated = true });
         }
 
         [Authorize]

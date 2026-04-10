@@ -3,26 +3,20 @@ using PasswordManagerAPI.Entities;
 using Microsoft.EntityFrameworkCore;
 using PasswordManagerAPI.Models;
 using System.Security.Cryptography;
-using System.Numerics;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Newtonsoft.Json;
 using System.Text;
-using Security.RSA;
 namespace PasswordManagerAPI.Services
 {
     public class AccountService : IAccountService
     {
         private readonly AppDbContext _context;
-        private RSAEncryption _rsaEncryption;
 
-        public AccountService(AppDbContext context, RSAEncryption rsaEncryption)
+        public AccountService(AppDbContext context)
         {
             _context = context;
-            _rsaEncryption = rsaEncryption;
         }
 
-        public Account AddAccount(int userId, string login, string serviceName, string password, string url, string? description, string masterPassword)
+        public Account AddAccount(int userId, string login, string serviceName, string encryptedPassword, string url, string? description)
         {
             var user = _context.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId);
             if (user == null)
@@ -34,8 +28,6 @@ namespace PasswordManagerAPI.Services
 
             if (!ValidURL(url))
                 throw new ArgumentException("URL is invalid");
-
-            var encryptedPassword = KuznyechikStorageProtection.Encrypt(password, masterPassword, user.Salt);
 
             var account = new Account
             {
@@ -70,53 +62,34 @@ namespace PasswordManagerAPI.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<Account> GetAccountByIdAsync(int userId, int accountId, string masterPassword)
+        public async Task<Account> GetAccountByIdAsync(int userId, int accountId)
         {
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
             if (account == null)
                 throw new ArgumentNullException("Account with this ID not found");
 
-            if(user == null)
-                throw new ArgumentNullException("User with this ID not found");
-
-            account.EncryptedPassword = DecryptPassword(account.EncryptedPassword, user, masterPassword);
-
             return account;
         }
 
-        public async Task<List<Account>> GetUserAccountsAsync(int userId, string masterPassword)
+        public async Task<List<Account>> GetUserAccountsAsync(int userId)
         {
             var accounts = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
-            if(accounts.Count == 0)
+            if (accounts.Count == 0)
                 return new List<Account>();
-            if(user == null)
-                throw new ArgumentNullException("User with this ID not found");
-
-            foreach (var account in accounts)
-            {
-                account.EncryptedPassword = DecryptPassword(account.EncryptedPassword, user, masterPassword);
-            }
 
             return accounts;
         }
 
-        public async Task UpdateAccountAsync(int userId, int accountId, string? newLogin, string? newServiceName, string? newPassword, string? newUrl, string? newDescription, string masterPassword)
+        public async Task UpdateAccountAsync(int userId, int accountId, string? newLogin, string? newServiceName, string? newPassword, string? newUrl, string? newDescription)
         {
             var wasChanged = false;
 
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-
             if (account == null)
                 throw new ArgumentNullException("Account with this ID not found");
-            if (user == null)
-                throw new ArgumentNullException("User with this ID not found");
 
             if (!string.IsNullOrEmpty(newLogin))
             {
@@ -126,7 +99,7 @@ namespace PasswordManagerAPI.Services
 
             if (!string.IsNullOrEmpty(newPassword))
             {
-                account.EncryptedPassword = KuznyechikStorageProtection.Encrypt(newPassword, masterPassword, user.Salt);
+                account.EncryptedPassword = newPassword;
                 wasChanged = true;
             }
 
@@ -167,22 +140,7 @@ namespace PasswordManagerAPI.Services
 
             return accountsHash = accountsHash.ToLower();
         }
-        private void UpdateRSA(User user, string masterPassword)
-        {
-            var privateKey = RsaKeyManager.DecryptPrivateKey(user.EncryptedPrivateKey, masterPassword, user.Salt);
-            _rsaEncryption.OverrideKeys(BigInteger.Parse(user.PublicKey), privateKey, BigInteger.Parse(user.Modulus));
-        }
 
-        private string DecryptPassword(string encryptedPassword, User user, string masterPassword)
-        {
-            if (KuznyechikStorageProtection.IsProtectedPayload(encryptedPassword))
-            {
-                return KuznyechikStorageProtection.Decrypt(encryptedPassword, masterPassword, user.Salt);
-            }
-
-            UpdateRSA(user, masterPassword);
-            return _rsaEncryption.DecryptText(encryptedPassword);
-        }
         private bool ValidURL(string url)
         {
             return Uri.TryCreate(url, UriKind.Absolute, out Uri? uriResult)

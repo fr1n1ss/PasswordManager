@@ -4,10 +4,10 @@ namespace PasswordManagerAPI.Services
 {
     public interface INoteService
     {
-        Note AddNote(int userId, string title, string content, string masterPassword);
-        Task<List<Note>> GetUserNotesAsync(int userId, string masterPassword);
-        Task<Note> GetNoteByIdAsync(int userId, int noteId, string masterPassword);
-        Task UpdateNoteAsync(int userId, int noteId, string? newTitle, string? newContent, string masterPassword);
+        Note AddNote(int userId, string title, string encryptedContent);
+        Task<List<Note>> GetUserNotesAsync(int userId);
+        Task<Note> GetNoteByIdAsync(int userId, int noteId);
+        Task UpdateNoteAsync(int userId, int noteId, string? newTitle, string? newContent);
         Task<string> GetHashAsync(int userId);
         Task DeleteNoteAsync(int userId, int noteId);
 

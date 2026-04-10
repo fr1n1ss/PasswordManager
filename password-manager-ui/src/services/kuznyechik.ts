@@ -15,6 +15,10 @@ const PI = new Uint8Array([
 ]);
 const L_VECTOR = new Uint8Array([148, 32, 133, 16, 194, 192, 1, 251, 1, 192, 194, 16, 133, 32, 148, 1]);
 
+function cloneBytes(bytes: Uint8Array): Uint8Array {
+  return new Uint8Array(Array.from(bytes));
+}
+
 function xorBlocks(a: Uint8Array, b: Uint8Array): Uint8Array {
   const result = new Uint8Array(BLOCK_SIZE);
   for (let index = 0; index < BLOCK_SIZE; index += 1) {
@@ -46,7 +50,7 @@ function applyS(block: Uint8Array): Uint8Array {
   for (let index = 0; index < BLOCK_SIZE; index += 1) {
     result[index] = PI[block[index]];
   }
-  return result;
+  return cloneBytes(result);
 }
 
 function applyR(block: Uint8Array): Uint8Array {
@@ -61,11 +65,11 @@ function applyR(block: Uint8Array): Uint8Array {
   }
 
   result[0] = first;
-  return result;
+  return cloneBytes(result);
 }
 
 function applyL(block: Uint8Array): Uint8Array {
-  let result = block.slice();
+  let result = cloneBytes(block);
   for (let round = 0; round < BLOCK_SIZE; round += 1) {
     result = applyR(result);
   }
@@ -87,7 +91,7 @@ function splitMasterKey(key: Uint8Array): [Uint8Array, Uint8Array] {
 
 function feistelChain(key1: Uint8Array, key2: Uint8Array, constant: Uint8Array): [Uint8Array, Uint8Array] {
   const transformed = applyL(applyS(xorBlocks(key1, constant)));
-  return [xorBlocks(transformed, key2), key1.slice()];
+  return [xorBlocks(transformed, key2), cloneBytes(key1)];
 }
 
 function getIterationConstants(): Uint8Array[] {
@@ -103,18 +107,18 @@ function getIterationConstants(): Uint8Array[] {
 function expandKey(masterKey: Uint8Array): Uint8Array[] {
   const [first, second] = splitMasterKey(masterKey);
   const iterationKeys: Uint8Array[] = new Array(10);
-  iterationKeys[0] = first.slice();
-  iterationKeys[1] = second.slice();
+  iterationKeys[0] = cloneBytes(first);
+  iterationKeys[1] = cloneBytes(second);
 
   const constants = getIterationConstants();
-  let keyPair: [Uint8Array, Uint8Array] = [first.slice(), second.slice()];
+  let keyPair: [Uint8Array, Uint8Array] = [cloneBytes(first), cloneBytes(second)];
 
   for (let block = 0; block < 4; block += 1) {
     for (let offset = 0; offset < 8; offset += 1) {
       keyPair = feistelChain(keyPair[0], keyPair[1], constants[block * 8 + offset]);
     }
-    iterationKeys[block * 2 + 2] = keyPair[0].slice();
-    iterationKeys[block * 2 + 3] = keyPair[1].slice();
+    iterationKeys[block * 2 + 2] = cloneBytes(keyPair[0]);
+    iterationKeys[block * 2 + 3] = cloneBytes(keyPair[1]);
   }
 
   return iterationKeys;
@@ -122,7 +126,7 @@ function expandKey(masterKey: Uint8Array): Uint8Array[] {
 
 function encryptBlock(masterKey: Uint8Array, input: Uint8Array): Uint8Array {
   const iterationKeys = expandKey(masterKey);
-  let state = input.slice();
+  let state = cloneBytes(input);
 
   for (let round = 0; round < 9; round += 1) {
     state = xorBlocks(iterationKeys[round], state);
@@ -144,7 +148,7 @@ function incrementCounter(counter: Uint8Array): void {
 
 function transformCtr(payload: Uint8Array, masterKey: Uint8Array, nonce: Uint8Array): Uint8Array {
   const result = new Uint8Array(payload.length);
-  const counter = nonce.slice();
+  const counter = cloneBytes(nonce);
 
   for (let offset = 0; offset < payload.length; offset += BLOCK_SIZE) {
     const gamma = encryptBlock(masterKey, counter);
@@ -178,19 +182,19 @@ function base64ToBytes(value: string): Uint8Array {
 }
 
 async function sha256(input: Uint8Array): Promise<Uint8Array> {
-  const hash = await crypto.subtle.digest('SHA-256', input);
+  const hash = await crypto.subtle.digest('SHA-256', cloneBytes(input) as unknown as BufferSource);
   return new Uint8Array(hash);
 }
 
 export async function deriveKuznyechikKey(masterPassword: string, salt: string): Promise<Uint8Array> {
   const encoder = new TextEncoder();
-  let material = encoder.encode(`${masterPassword}:${salt}:kuznyechik-zk`);
+  let material = cloneBytes(encoder.encode(`${masterPassword}:${salt}:kuznyechik-zk`)) as Uint8Array;
 
   for (let round = 0; round < 5000; round += 1) {
-    material = await sha256(material);
+    material = cloneBytes(await sha256(material)) as Uint8Array;
   }
 
-  return material;
+  return cloneBytes(material);
 }
 
 export async function encryptStringWithKuznyechik(plainText: string, masterPassword: string, salt: string): Promise<{ ciphertext: string; nonce: string }> {

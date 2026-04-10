@@ -36,6 +36,7 @@ namespace PasswordManagerAPI.Entities
         public string PublicKey { get; set; }
         [Required]
         public string Modulus { get; set; }
+        public string? MasterPasswordVerifier { get; set; }
         public string? TotpSecret { get; set; }
         public bool Is2FaEnabled { get; set; }
     }

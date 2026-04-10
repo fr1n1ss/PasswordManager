@@ -8,6 +8,5 @@
         public string? NewServiceName { get; set; }
         public string? NewURL { get; set; }
         public string? NewDescription { get; set; }
-        public string MasterPassword { get; set; }
     }
 }

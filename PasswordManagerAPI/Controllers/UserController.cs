@@ -47,6 +47,7 @@ namespace PasswordManagerAPI.Controllers
                 Username = user.Username,
                 Email = user.Email,
                 Salt = user.Salt,
+                MasterPasswordVerifier = user.MasterPasswordVerifier,
                 Is2FaEnabled = user.Is2FaEnabled
             };
         }

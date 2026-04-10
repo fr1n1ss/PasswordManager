@@ -27,27 +27,27 @@ export const loginWith2FA = async (tempToken: string, code: string) => {
   return response.data as { token: string };
 };
 
-export const register = async (username: string, email: string, password: string, masterPassword: string) => {
-  const response = await api.post('/auth/register', { username, email, password, masterPassword });
+export const register = async (username: string, email: string, password: string, salt: string, masterPasswordVerifier: string) => {
+  const response = await api.post('/auth/register', { username, email, password, salt, masterPasswordVerifier });
   return response.data;
 };
 
-export const getAccounts = async (masterPassword: string) => {
-  const response = await api.get('/accounts/GetAccounts', {params: {masterPassword}});
+export const getAccounts = async () => {
+  const response = await api.get('/accounts/GetAccounts');
   return response.data;
 };
 
-export  const getAccountById = async (accountId: number, masterPassword: string) =>{
-  const response = await api.get(`/accounts/GetAccountById?accountId=${accountId}&masterPassword=${masterPassword}`)
+export  const getAccountById = async (accountId: number) =>{
+  const response = await api.get(`/accounts/GetAccountById?accountId=${accountId}`)
   return response.data;
 }
 
-export const addAccount = async (account: { serviceName: string, login: string, password: string, url:string, description?: string, masterPassword: string }) => {
+export const addAccount = async (account: { serviceName: string, login: string, password: string, url:string, description?: string }) => {
   const response = await api.post('/accounts/AddAccount', account);
   return response.data;
 };
 
-export const updateAccount = async(newAccount:{id: number, newLogin: string, newServiceName: string, newPassword: string, newURL: string, newDescription: string, masterPassword: string}) => {
+export const updateAccount = async(newAccount:{id: number, newLogin: string, newServiceName: string, newPassword: string, newURL: string, newDescription: string}) => {
   const response = await api.post('/accounts/UpdateAccount', newAccount);
   return response.data
 }
@@ -56,23 +56,23 @@ export const deleteAccount = async (accountId: number) => {
   await api.delete(`/accounts/DeleteAccount?accountId=${accountId}`);
 };
 
-export const addNote = async (title: string, content: string, masterPassword: string) => {
-  const response = await api.post(`/notes/AddNote`,{ title, content, masterPassword });
+export const addNote = async (title: string, content: string) => {
+  const response = await api.post(`/notes/AddNote`,{ title, content });
   return response.data;
 };
 
-export const getUserNotes = async (masterPassword: string) => {
-  const response = await api.get(`/notes/GetNotesAsync`, { params: { masterPassword }});
+export const getUserNotes = async () => {
+  const response = await api.get(`/notes/GetNotesAsync`);
   return response.data;
 };
 
-export const getNoteById = async (noteId: number, masterPassword: string) => {
-  const response = await api.get(`notes/GetNoteByIdAsync?noteId=${noteId}&masterPassword=${masterPassword}`);
+export const getNoteById = async (noteId: number) => {
+  const response = await api.get(`notes/GetNoteByIdAsync?noteId=${noteId}`);
   return response.data;
 };
 
-export const updateNote = async (id: number, newTitle: string, newContent: string, masterPassword: string) => {
-  const response = await api.post(`/notes/UpdateNoteAsync`,{ id, newTitle, newContent, masterPassword });
+export const updateNote = async (id: number, newTitle: string, newContent: string) => {
+  const response = await api.post(`/notes/UpdateNoteAsync`,{ id, newTitle, newContent });
   return response.data;
 };
 
@@ -90,8 +90,8 @@ export const removeFromFavorites = async (entityType: string, entityId: number) 
   await api.delete(`/favorite/RemoveFromFavoritesAsync?entityType=${entityType}&entityId=${entityId}`);
 };
 
-export const getUserFavorites = async (masterPassword: string) => {
-  const response = await api.get(`/favorite/GetUserFavoritesAsync`, {params: {masterPassword}});
+export const getUserFavorites = async () => {
+  const response = await api.get(`/favorite/GetUserFavoritesAsync`);
   return response.data;
 };
 
@@ -107,6 +107,11 @@ export const getUserInfo = async  () => {
 
 export const validateMasterPassword = async (masterPassword: string) => {
   const response = await api.post('/auth/validate-master-password', { masterPassword });
+  return response.data;
+}
+
+export const updateMasterPasswordVerifier = async (masterPasswordVerifier: string) => {
+  const response = await api.post('/auth/master-password-verifier', { masterPasswordVerifier });
   return response.data;
 }
 

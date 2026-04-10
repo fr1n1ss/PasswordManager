@@ -4,7 +4,6 @@ import {
     addToFavorites,
     deleteAccount,
     deleteNote,
-    getAccountById,
     getAccounts,
     getUserNotes,
     hashAll,
@@ -12,6 +11,7 @@ import {
     updateAccount,
     updateNote
 } from '../services/api.ts';
+import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
@@ -88,7 +88,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const token = localStorage.getItem('token');
     const masterPassword = sessionStorage.getItem('masterPassword');
-    if (!token || !masterPassword) {
+    const cryptoSalt = sessionStorage.getItem('cryptoSalt');
+    if (!token || !masterPassword || !cryptoSalt) {
         window.location.href = '/pages/login-page.html';
         return;
     }
@@ -210,7 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadAccounts = async () => {
         let accounts = getStoredAccounts();
         if (!sessionStorage.getItem('accounts')) {
-            accounts = await getAccounts(masterPassword) as Account[];
+            accounts = await decryptAccounts(await getAccounts() as Account[], masterPassword, cryptoSalt);
             setStoredAccounts(accounts);
         }
 
@@ -225,7 +226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     data-is-favorite="${account.isFavorite ? 'true' : 'false'}"
                     aria-label="${favoriteButtonLabel(Boolean(account.isFavorite))}"
                     title="${favoriteButtonLabel(Boolean(account.isFavorite))}"
-                >★</button>
+                >&starf;</button>
                 <div class="card-logo">
                     <img src="${account.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}` : 'https://via.placeholder.com/32'}" alt="${account.serviceName} logo" />
                 </div>
@@ -234,13 +235,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <p>${account.login}</p>
                 </div>
             </div>
-        `).join('') + '<button type="button" class="add-new-card" data-add-type="account" aria-label="Добавить аккаунт">+</button>';
+        `).join('') + '<button type="button" class="add-new-card" data-add-type="account" aria-label="Р”РѕР±Р°РІРёС‚СЊ Р°РєРєР°СѓРЅС‚">+</button>';
     };
 
     const loadNotes = async () => {
         let notes = getStoredNotes();
         if (!sessionStorage.getItem('notes')) {
-            notes = await getUserNotes(masterPassword) as Note[];
+            notes = await decryptNotes(await getUserNotes() as Note[], masterPassword, cryptoSalt);
             setStoredNotes(notes);
         }
 
@@ -255,14 +256,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     data-is-favorite="${note.isFavorite ? 'true' : 'false'}"
                     aria-label="${favoriteButtonLabel(Boolean(note.isFavorite))}"
                     title="${favoriteButtonLabel(Boolean(note.isFavorite))}"
-                >★</button>
+                >&starf;</button>
                 <div class="card-logo"></div>
                 <div class="card-details">
                     <h3>${note.title}</h3>
                     <p>${UI_TEXT.common.created}: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                 </div>
             </div>
-        `).join('') + '<button type="button" class="add-new-card" data-add-type="note" aria-label="Добавить заметку">+</button>';
+        `).join('') + '<button type="button" class="add-new-card" data-add-type="note" aria-label="Р”РѕР±Р°РІРёС‚СЊ Р·Р°РјРµС‚РєСѓ">+</button>';
     };
 
     const bindCards = () => {
@@ -316,18 +317,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { accountsHash, notesHash } = await hashAll();
 
             if (localAccountsHash !== accountsHash) {
-                setStoredAccounts(await getAccounts(masterPassword) as Account[]);
+                setStoredAccounts(await decryptAccounts(await getAccounts() as Account[], masterPassword, cryptoSalt));
             }
 
             if (localNotesHash !== notesHash) {
-                setStoredNotes(await getUserNotes(masterPassword) as Note[]);
+                setStoredNotes(await decryptNotes(await getUserNotes() as Note[], masterPassword, cryptoSalt));
             }
 
             if (localAccountsHash !== accountsHash || localNotesHash !== notesHash) {
                 await reloadVisibleCards();
             }
         } catch (error) {
-            console.error('[syncData] Ошибка синхронизации:', error);
+            console.error('[syncData] РћС€РёР±РєР° СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё:', error);
         }
     };
 
@@ -422,11 +423,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         await reloadVisibleCards();
-    } catch (error) {
+    } catch {
         errorContainer.style.display = 'block';
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
-            errorMessage.textContent = 'Ошибка при загрузке данных';
+            errorMessage.textContent = 'РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР·РєРµ РґР°РЅРЅС‹С…';
         }
         return;
     }
@@ -468,14 +469,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!serviceName || !login || !password) {
             accountError.style.display = 'block';
-            accountError.textContent = 'Заполните все обязательные поля';
+            accountError.textContent = 'Р—Р°РїРѕР»РЅРёС‚Рµ РІСЃРµ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ';
             return;
         }
 
         try {
-            const newAccount = await addAccount({ serviceName, login, password, description, url, masterPassword });
-            const decryptedAccount = await getAccountById(newAccount.id, masterPassword);
-            setStoredAccounts([...getStoredAccounts(), { ...decryptedAccount, isFavorite: false }]);
+            const encryptedPassword = await encryptOpaquePayload(password, masterPassword, cryptoSalt);
+            const newAccount = await addAccount({ serviceName, login, password: encryptedPassword, description, url });
+            setStoredAccounts([...getStoredAccounts(), { ...newAccount, encryptedPassword: password, isFavorite: false }]);
             clearAccountForm();
             closeAllModals();
             await reloadVisibleCards();
@@ -491,12 +492,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!title || !content) {
             noteError.style.display = 'block';
-            noteError.textContent = 'Заполните все поля';
+            noteError.textContent = 'Р—Р°РїРѕР»РЅРёС‚Рµ РІСЃРµ РїРѕР»СЏ';
             return;
         }
 
         try {
-            const newNote = await addNote(title, content, masterPassword);
+            const encryptedContent = await encryptOpaquePayload(content, masterPassword, cryptoSalt);
+            const newNote = await addNote(title, encryptedContent);
             setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent: content, isFavorite: false }]);
             clearNoteForm();
             closeAllModals();
@@ -562,14 +564,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const description = (document.getElementById('edit-description') as HTMLTextAreaElement).value;
 
         try {
+            const encryptedPassword = await encryptOpaquePayload(password, masterPassword, cryptoSalt);
             await updateAccount({
                 id: currentAccountId,
                 newLogin: login,
-                newPassword: password,
+                newPassword: encryptedPassword,
                 newURL: url,
                 newDescription: description,
                 newServiceName: serviceName,
-                masterPassword
             });
 
             updateStoredAccount(currentAccountId, {
@@ -601,7 +603,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const newContent = (document.getElementById('edit-note-content') as HTMLTextAreaElement).value;
 
         try {
-            await updateNote(currentNoteId, newTitle, newContent, masterPassword);
+            const encryptedContent = await encryptOpaquePayload(newContent, masterPassword, cryptoSalt);
+            await updateNote(currentNoteId, newTitle, encryptedContent);
             updateStoredNote(currentNoteId, {
                 title: newTitle,
                 encryptedContent: newContent,

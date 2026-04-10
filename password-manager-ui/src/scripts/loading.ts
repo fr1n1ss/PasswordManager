@@ -1,4 +1,11 @@
-import { getAccounts, getUserInfo, getUserNotes, ping, validateMasterPassword } from '../services/api.ts';
+import { getAccounts, getUserInfo, getUserNotes, ping, updateMasterPasswordVerifier } from '../services/api.ts';
+import {
+    canDecryptAnyPayload,
+    createMasterPasswordVerifier,
+    decryptAccounts,
+    decryptNotes,
+    verifyMasterPasswordLocally
+} from '../services/zero-knowledge.ts';
 import { enhancePasswordField } from './password-visibility.ts';
 
 interface Account {
@@ -19,6 +26,14 @@ interface Note {
     encryptedContent: string;
     createdAt: string;
     updatedAt: string;
+}
+
+interface UserInfo {
+    username: string;
+    email: string;
+    salt: string;
+    masterPasswordVerifier?: string | null;
+    is2FaEnabled?: boolean;
 }
 
 async function checkServerAvailability(): Promise<boolean> {
@@ -67,11 +82,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!await checkServerAvailability()) {
         errorContainer.style.display = 'block';
-        errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже. <button class="retry-button" onclick="window.location.reload()">Повторить</button>';
+        errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже.<button class="retry-button" onclick="window.location.reload()">Повторить</button>';
         return;
     }
 
-    let user: { username: string; email: string; salt: string; is2FaEnabled?: boolean };
+    let user: UserInfo;
     try {
         user = await getUserInfo();
         if (!user.username || !user.email) {
@@ -96,43 +111,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.setItem('cryptoSalt', user.salt || '');
     };
 
-    let masterPassword = sessionStorage.getItem('masterPassword');
-    if (!masterPassword) {
-        modal.style.display = 'flex';
-        modalTitle.textContent = 'Введите мастер-пароль';
-        modalErrorMessage.textContent = 'Пожалуйста, введите мастер-пароль.';
-    } else {
-        persistUserContext(masterPassword);
-    }
-
-    const loadData = async (mp: string) => {
+    const tryLoadData = async (masterPassword: string) => {
         try {
-            const accounts = await getAccounts(mp) as Account[];
+            const [accountPayloads, notePayloads] = await Promise.all([
+                getAccounts() as Promise<Account[]>,
+                getUserNotes() as Promise<Note[]>
+            ]);
+
+            const verifierValid = await verifyMasterPasswordLocally(masterPassword, user.salt, user.masterPasswordVerifier);
+            const payloadValid = verifierValid || await canDecryptAnyPayload(accountPayloads, notePayloads, masterPassword, user.salt);
+
+            if (!payloadValid && (user.masterPasswordVerifier || accountPayloads.length > 0 || notePayloads.length > 0)) {
+                throw new Error('INVALID_MASTER_PASSWORD');
+            }
+
+            const [accounts, notes] = await Promise.all([
+                decryptAccounts(accountPayloads, masterPassword, user.salt),
+                decryptNotes(notePayloads, masterPassword, user.salt)
+            ]);
+
+            persistUserContext(masterPassword);
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
-        } catch (error: any) {
-            console.error('[loading] accounts load failed:', error);
-            sessionStorage.setItem('accounts', JSON.stringify([]));
-            sessionStorage.setItem('accountsLoadError', 'true');
-        }
-
-        try {
-            const notes = await getUserNotes(mp) as Note[];
             sessionStorage.setItem('notes', JSON.stringify(notes));
-        } catch (error: any) {
-            console.error('[loading] notes load failed:', error);
-            sessionStorage.setItem('notes', JSON.stringify([]));
-            sessionStorage.setItem('notesLoadError', 'true');
-        }
-    };
 
-    const tryLoadData = async (mp: string) => {
-        sessionStorage.removeItem('accountsLoadError');
-        sessionStorage.removeItem('notesLoadError');
+            if (!user.masterPasswordVerifier) {
+                const verifier = await createMasterPasswordVerifier(masterPassword, user.salt);
+                await updateMasterPasswordVerifier(verifier);
+                user.masterPasswordVerifier = verifier;
+            }
 
-        try {
-            await validateMasterPassword(mp);
-            persistUserContext(mp);
-            await loadData(mp);
             sessionStorage.setItem('isDataLoaded', 'true');
             window.location.href = '/index.html';
         } catch (error: any) {
@@ -140,7 +147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sessionStorage.removeItem('accounts');
             sessionStorage.removeItem('notes');
 
-            if (error.response?.status === 400 || error.response?.status === 401 || error.response?.status === 403) {
+            if (error.message === 'INVALID_MASTER_PASSWORD') {
                 modalTitle.textContent = 'Введите мастер-пароль';
                 modalErrorMessage.textContent = 'Неверный мастер-пароль. Попробуйте еще раз.';
                 modal.style.display = 'flex';
@@ -151,21 +158,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    if (masterPassword) {
+    let masterPassword = sessionStorage.getItem('masterPassword');
+    if (!masterPassword) {
+        modal.style.display = 'flex';
+        modalTitle.textContent = 'Введите мастер-пароль';
+        modalErrorMessage.textContent = 'Пожалуйста, введите мастер-пароль.';
+    } else {
+        persistUserContext(masterPassword);
         await tryLoadData(masterPassword);
     }
 
     retryBtn.addEventListener('click', async () => {
-        await (window as any).retryMasterPassword();
-    });
-
-    logoutBtn.addEventListener('click', () => {
-        (window as any).logout();
-    });
-
-    (window as any).retryMasterPassword = async () => {
-        const newMasterPassword = masterPasswordInput.value.trim();
-        if (!newMasterPassword) {
+        const value = masterPasswordInput.value.trim();
+        if (!value) {
             modalTitle.textContent = 'Введите мастер-пароль';
             modalErrorMessage.textContent = 'Мастер-пароль не введен. Пожалуйста, заполните поле.';
             return;
@@ -173,10 +178,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         modal.style.display = 'none';
         masterPasswordInput.value = '';
-        await tryLoadData(newMasterPassword);
-    };
+        await tryLoadData(value);
+    });
 
-    (window as any).logout = () => {
+    logoutBtn.addEventListener('click', () => {
         localStorage.removeItem('token');
         sessionStorage.removeItem('masterPassword');
         sessionStorage.removeItem('username');
@@ -187,5 +192,5 @@ document.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.removeItem('notesLoadError');
         sessionStorage.removeItem('isDataLoaded');
         window.location.href = '/pages/login-page.html';
-    };
+    });
 });
