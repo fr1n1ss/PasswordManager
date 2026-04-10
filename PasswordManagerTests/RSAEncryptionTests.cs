@@ -1,5 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using RSAEncryptions;
+using Security;
 using System;
 
 namespace PasswordManagerTests
@@ -7,12 +7,12 @@ namespace PasswordManagerTests
     [TestClass]
     public class RSAEncryptionTests
     {
-        private RSAEncryption _rsa;
+        private Security.RSA.RSAEncryption _rsa;
 
         [TestInitialize]
         public void Setup()
         {
-            _rsa = new RSAEncryption(); // Создаём один экземпляр для всех тестов
+            _rsa = new Security.RSA.RSAEncryption(); // Создаём один экземпляр для всех тестов
         }
 
         [TestMethod]
@@ -44,7 +44,7 @@ namespace PasswordManagerTests
         {
             // Arrange
             string originalText = "Another test";
-            var rsa2 = new RSAEncryption();
+            var rsa2 = new Security.RSA.RSAEncryption();
             rsa2.OverrideKeys(_rsa.PublicKey, _rsa.PrivateKey, _rsa.Modulus);
 
             // Act
@@ -61,7 +61,7 @@ namespace PasswordManagerTests
         {
             // Arrange
             string originalText = "Test message";
-            var rsa2 = new RSAEncryption(); // Ключи будут разные
+            var rsa2 = new Security.RSA.RSAEncryption(); // Ключи будут разные
 
             string encryptedText = _rsa.EncryptText(originalText);
 

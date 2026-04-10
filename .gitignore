@@ -361,3 +361,15 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local development secrets and generated certs
+.env
+.env.*
+!.env.example
+PasswordManagerAPI/appsettings.Development.json
+PasswordManagerAPI/cert.conf
+PasswordManagerAPI/cert.crt
+PasswordManagerAPI/cert.key
+PasswordManagerAPI/localhost.crt
+PasswordManagerAPI/localhost.key
+PasswordManagerAPI/Migrations

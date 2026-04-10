@@ -1,4 +1,4 @@
-using RSAEncryptions;
+using Security;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,12 +11,12 @@ namespace PasswordManagerTests
     [TestClass]
     public class PerformanceTests
     {
-        private RSAEncryption _rsa;
+        private Security.RSA.RSAEncryption _rsa;
 
         [TestInitialize]
         public void Setup()
         {
-            _rsa = new RSAEncryption();
+            _rsa = new Security.RSA.RSAEncryption();
         }
 
         [TestMethod]
