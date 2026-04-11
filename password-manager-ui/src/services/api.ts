@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://192.168.0.101:7163/api',
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -105,6 +105,38 @@ export const getUserInfo = async  () => {
   return response.data;
 }
 
+export const sendEmailConfirmation = async () => {
+  const response = await api.post('/User/SendEmailConfirmation');
+  return response.data as { delivered: boolean; previewCode?: string };
+}
+
+export const verifyEmailConfirmation = async (code: string) => {
+  const response = await api.post('/User/VerifyEmailConfirmation', { code });
+  return response.data as { confirmed: boolean };
+}
+
+export const requestEmailChange = async (newEmail: string, currentPassword: string) => {
+  const response = await api.post('/User/RequestEmailChange', { newEmail, currentPassword });
+  return response.data as { delivered: boolean; previewCode?: string };
+}
+
+export const confirmEmailChange = async (code: string) => {
+  const response = await api.post('/User/ConfirmEmailChange', { code });
+  return response.data as { changed: boolean; email: string; emailConfirmed: boolean };
+}
+
+export const getAuditLogs = async (take = 50) => {
+  const response = await api.get(`/User/GetAuditLogs?take=${take}`);
+  return response.data as Array<{
+    id: number;
+    action: string;
+    details?: string;
+    createdAt: string;
+    ipAddress?: string;
+    userAgent?: string;
+  }>;
+}
+
 export const validateMasterPassword = async (masterPassword: string) => {
   const response = await api.post('/auth/validate-master-password', { masterPassword });
   return response.data;
@@ -130,8 +162,40 @@ export const disable2FA = async () => {
   return response.data;
 }
 
+export const changePassword = async (currentPassword: string, newPassword: string) => {
+  const response = await api.post('/auth/change-password', { currentPassword, newPassword });
+  return response.data as { changed: boolean };
+}
+
+export const getActiveSessions = async () => {
+  const response = await api.get('/auth/sessions');
+  return response.data as Array<{
+    id: string;
+    userAgent?: string;
+    ipAddress?: string;
+    createdAt: string;
+    lastSeenAt: string;
+    expiresAt: string;
+    isCurrent: boolean;
+  }>;
+}
+
+export const revokeSession = async (sessionId: string) => {
+  const response = await api.delete(`/auth/sessions/${sessionId}`);
+  return response.data as { revoked: boolean };
+}
+
+export const revokeOtherSessions = async () => {
+  const response = await api.post('/auth/sessions/revoke-others');
+  return response.data as { revokedCount: number };
+}
+
+export const logout = async () => {
+  const response = await api.post('/auth/logout');
+  return response.data as { loggedOut: boolean };
+}
+
 export const ping = async () => {
-  console.log("Request to:", 'https://192.168.0.101:7163' + "/api/auth/ping");
   const response = await  api.get(`/auth/ping`);
   return response.data;
 }

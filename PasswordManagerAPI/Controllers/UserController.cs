@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
+using System.Net.Mail;
 
 namespace PasswordManagerAPI.Controllers
 {
@@ -18,102 +13,187 @@ namespace PasswordManagerAPI.Controllers
     public class UserController : Controller
     {
         private readonly AppDbContext _context;
+        private readonly IEmailVerificationService _emailVerificationService;
+        private readonly IAuditService _auditService;
 
-        public UserController(AppDbContext context)
+        public UserController(AppDbContext context, IEmailVerificationService emailVerificationService, IAuditService auditService)
         {
             _context = context;
+            _emailVerificationService = emailVerificationService;
+            _auditService = auditService;
         }
 
-        [HttpPost("CreateUser")]
-        public async Task<ActionResult<User>> CreateUser(User user)
-        {
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetUserFromID), new { id = user.Id }, user);
-        }
         [HttpGet("GetUserInfo")]
         public async Task<ActionResult<UserModel>> GetUserInfo()
         {
-            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-
+            var userId = GetCurrentUserId();
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
-            if(user == null)
+            if (user == null)
                 throw new ArgumentException("User with this userId not found");
 
             return new UserModel
             {
                 Username = user.Username,
                 Email = user.Email,
+                EmailConfirmed = user.EmailConfirmed,
                 Salt = user.Salt,
                 MasterPasswordVerifier = user.MasterPasswordVerifier,
                 Is2FaEnabled = user.Is2FaEnabled
             };
         }
 
-        [HttpGet("GetAllUsers")]
-        public async Task<ActionResult<IEnumerable<User>>> GetAllUsers()
+        [HttpPost("SendEmailConfirmation")]
+        public async Task<IActionResult> SendEmailConfirmation()
         {
-            return await _context.Users.ToListAsync();
-        }
-
-        [HttpGet("GetUserFromID/{id}")]
-        public async Task<ActionResult<User>> GetUserFromID(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
+            var userId = GetCurrentUserId();
+            var sessionId = GetCurrentSessionId();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
-            {
-                return NotFound();
-            }
+                return Unauthorized();
 
-            return user;
+            var result = await _emailVerificationService.SendCodeAsync(userId, user.Email, "confirm-email");
+            await _auditService.LogAsync("email_confirmation_requested", userId, sessionId, $"email={user.Email}");
+            return Ok(result);
         }
 
-        [HttpPut("UpdateUser/{id}")]
-        public async Task<IActionResult> UpdateUser(int id, User user)
+        [HttpPost("VerifyEmailConfirmation")]
+        public async Task<IActionResult> VerifyEmailConfirmation([FromBody] ConfirmEmailCodeModel model)
         {
-            if (id != user.Id)
+            var userId = GetCurrentUserId();
+            var sessionId = GetCurrentSessionId();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(model.Code))
+                return BadRequest(new { message = "Код подтверждения обязателен" });
+
+            var verifiedEmail = await _emailVerificationService.VerifyCodeAsync(userId, "confirm-email", model.Code);
+            if (verifiedEmail == null || !string.Equals(verifiedEmail, user.Email, StringComparison.OrdinalIgnoreCase))
             {
-                return BadRequest();
+                await _auditService.LogAsync("email_confirmation_failed", userId, sessionId);
+                return BadRequest(new { message = "Код подтверждения недействителен или истек" });
             }
 
-            _context.Entry(user).State = EntityState.Modified;
+            user.EmailConfirmed = true;
+            await _context.SaveChangesAsync();
+            await _auditService.LogAsync("email_confirmed", userId, sessionId, $"email={user.Email}");
+            return Ok(new { confirmed = true });
+        }
 
+        [HttpPost("RequestEmailChange")]
+        public async Task<IActionResult> RequestEmailChange([FromBody] RequestEmailChangeModel model)
+        {
+            var userId = GetCurrentUserId();
+            var sessionId = GetCurrentSessionId();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(model.NewEmail) || string.IsNullOrWhiteSpace(model.CurrentPassword))
+                return BadRequest(new { message = "Новый email и текущий пароль обязательны" });
+
+            if (!IsValidEmail(model.NewEmail))
+                return BadRequest(new { message = "Некорректный email" });
+
+            if (string.Equals(user.Email, model.NewEmail, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { message = "Новый email совпадает с текущим" });
+
+            var securityHelper = new SecurityHelper(HttpContext.RequestServices.GetRequiredService<IConfiguration>());
+            if (!securityHelper.VerifyPassword(model.CurrentPassword, user.PasswordHash, user.Salt))
+            {
+                await _auditService.LogAsync("email_change_request_failed", userId, sessionId, "Неверный текущий пароль");
+                return BadRequest(new { message = "Текущий пароль указан неверно" });
+            }
+
+            if (await _context.Users.AnyAsync(u => u.Email == model.NewEmail && u.Id != userId))
+                return BadRequest(new { message = "Этот email уже используется" });
+
+            var result = await _emailVerificationService.SendCodeAsync(userId, model.NewEmail, "change-email");
+            await _auditService.LogAsync("email_change_requested", userId, sessionId, $"newEmail={model.NewEmail}");
+            return Ok(result);
+        }
+
+        [HttpPost("ConfirmEmailChange")]
+        public async Task<IActionResult> ConfirmEmailChange([FromBody] ConfirmEmailCodeModel model)
+        {
+            var userId = GetCurrentUserId();
+            var sessionId = GetCurrentSessionId();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+                return Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(model.Code))
+                return BadRequest(new { message = "Код подтверждения обязателен" });
+
+            var verifiedEmail = await _emailVerificationService.VerifyCodeAsync(userId, "change-email", model.Code);
+            if (verifiedEmail == null)
+            {
+                await _auditService.LogAsync("email_change_failed", userId, sessionId);
+                return BadRequest(new { message = "Код подтверждения недействителен или истек" });
+            }
+
+            if (await _context.Users.AnyAsync(u => u.Email == verifiedEmail && u.Id != userId))
+                return BadRequest(new { message = "Этот email уже используется" });
+
+            user.Email = verifiedEmail;
+            user.EmailConfirmed = true;
+            await _context.SaveChangesAsync();
+            await _auditService.LogAsync("email_changed", userId, sessionId, $"email={verifiedEmail}");
+
+            return Ok(new { changed = true, email = verifiedEmail, emailConfirmed = true });
+        }
+
+        [HttpGet("GetAuditLogs")]
+        public async Task<ActionResult<IEnumerable<AuditLogModel>>> GetAuditLogs([FromQuery] int take = 50)
+        {
+            var userId = GetCurrentUserId();
+            take = Math.Clamp(take, 1, 100);
+
+            var logs = await _context.AuditLogs
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(take)
+                .Select(x => new AuditLogModel
+                {
+                    Id = x.Id,
+                    Action = x.Action,
+                    Details = x.Details,
+                    CreatedAt = x.CreatedAt,
+                    IpAddress = x.IpAddress,
+                    UserAgent = x.UserAgent
+                })
+                .ToListAsync();
+
+            return Ok(logs);
+        }
+
+        private int GetCurrentUserId()
+        {
+            return int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+        }
+
+        private Guid? GetCurrentSessionId()
+        {
+            return Guid.TryParse(User.FindFirst("sid")?.Value, out var sessionId) ? sessionId : null;
+        }
+
+        private static bool IsValidEmail(string email)
+        {
             try
             {
-                await _context.SaveChangesAsync();
+                _ = new MailAddress(email);
+                return true;
             }
-            catch (DbUpdateConcurrencyException)
+            catch
             {
-                if (!_context.Users.Any(e => e.Id == id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return false;
             }
-
-            return NoContent();
         }
-
-        [HttpDelete("DeleteUser/{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
     }
 }

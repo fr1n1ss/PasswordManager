@@ -13,11 +13,11 @@
   <button class="hide-btn" id="hideBtn">≪</button>
   <aside class="sidebar" id="sidebar">
     <ul>
-      <li><a href="../index.html">Все элементы</a></li>
-      <li><a href="favorite-page.html">Избранное</a></li>
-      <li><a href="accounts-page.html">Аккаунты</a></li>
-      <li><a href="notes-page.html">Заметки</a></li>
-      <li><a href="totp-page.html">TOTP</a></li>
+      <li><a href="/">Все элементы</a></li>
+      <li><a href="/favorites">Избранное</a></li>
+      <li><a href="/accounts">Аккаунты</a></li>
+      <li><a href="/notes">Заметки</a></li>
+      <li><a href="/totp">TOTP</a></li>
     </ul>
   </aside>
   <div class="content-area">
@@ -39,47 +39,181 @@
       </div>
     </header>
     <main class="main-content">
-      <section class="settings-panel">
+      <section class="settings-panel settings-stack">
         <div class="settings-header">
-          <h2 class="section-title settings-title">Настройки безопасности</h2>
-          <p class="settings-subtitle">Здесь можно включить двухфакторную аутентификацию для входа и управлять ее текущим состоянием.</p>
+          <h2 class="section-title settings-title">Настройки аккаунта</h2>
+          <p class="settings-subtitle">Управляй подтверждением email, безопасностью входа, активными сессиями и журналом действий без перегруженного экрана.</p>
         </div>
-        <article class="settings-card">
-          <div class="settings-card-header">
-            <div>
-              <h3>Защита входа</h3>
-              <p id="twofaStatusText" class="settings-muted">Проверяем текущий статус 2FA...</p>
+
+        <div class="settings-tabs" role="tablist" aria-label="Разделы настроек">
+          <button type="button" class="settings-tab is-active" data-tab-trigger="profile">Профиль</button>
+          <button type="button" class="settings-tab" data-tab-trigger="security">Безопасность</button>
+          <button type="button" class="settings-tab" data-tab-trigger="activity">Сессии и журнал</button>
+        </div>
+
+        <div id="settingsNotice" class="settings-notice" style="display: none;"></div>
+
+        <div class="settings-tab-panel is-active" data-tab-panel="profile">
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Email и подтверждение</h3>
+                <p id="emailStatusText" class="settings-muted">Загружаем состояние email...</p>
+              </div>
+              <span id="emailStatusBadge" class="settings-badge">Загрузка</span>
             </div>
-            <span id="twofaStatusBadge" class="settings-badge">Загрузка</span>
-          </div>
 
-          <div class="settings-actions">
-            <button id="start2faSetupBtn" class="modal-update-btn">Включить 2FA</button>
-            <button id="disable2faBtn" class="modal-delete-btn">Отключить 2FA</button>
-          </div>
+            <div class="settings-detail-block">
+              <span class="modal-label">Текущий email</span>
+              <p id="currentEmailValue" class="settings-current-value">-</p>
+            </div>
 
-          <div id="twofaSetupPanel" class="settings-setup" style="display: none;">
-            <div class="settings-setup-grid">
-              <div class="settings-qr-card">
-                <div class="settings-qr-frame">
-                  <img id="twofaQrImage" alt="QR code for 2FA setup">
+            <div id="emailVerificationActions" class="settings-actions">
+              <button id="sendEmailCodeBtn" class="modal-update-btn">Отправить код подтверждения</button>
+            </div>
+
+            <div id="emailVerificationPanel" class="settings-step-panel" style="display: none;">
+              <div class="settings-form-grid settings-form-grid-inline">
+                <div class="settings-field">
+                  <label class="modal-label" for="emailCodeInput">Код подтверждения</label>
+                  <input type="text" id="emailCodeInput" class="settings-code-input settings-code-input-compact" placeholder="123456" inputmode="numeric">
                 </div>
-                <p class="settings-qr-caption">Отсканируйте QR-код в приложении-аутентификаторе.</p>
-              </div>
-
-              <div class="settings-setup-form">
-                <label class="modal-label" for="twofaUri">OTPAuth URI</label>
-                <textarea id="twofaUri" readonly></textarea>
-                <p class="settings-muted">Если QR-код не считывается, скопируйте URI и добавьте его вручную.</p>
-                <label class="modal-label" for="twofaCode">Код подтверждения</label>
-                <input type="text" id="twofaCode" class="settings-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
-                <button id="verify2faBtn" class="favorite-btn settings-confirm-btn">Подтвердить и включить</button>
+                <div class="settings-field settings-field-end">
+                  <button id="verifyEmailBtn" class="favorite-btn settings-confirm-btn">Подтвердить email</button>
+                </div>
               </div>
             </div>
-          </div>
+          </article>
 
-          <div id="settingsError" class="modal-error"></div>
-        </article>
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Смена email</h3>
+                <p class="settings-muted">Сначала отправь код на новый email, потом подтверди его здесь.</p>
+              </div>
+            </div>
+
+            <div class="settings-form-grid">
+              <div class="settings-field">
+                <label class="modal-label" for="newEmail">Новый email</label>
+                <input type="email" id="newEmail" placeholder="new@email.com">
+              </div>
+              <div class="settings-field">
+                <label class="modal-label" for="emailCurrentPassword">Текущий пароль</label>
+                <input type="password" id="emailCurrentPassword" placeholder="Текущий пароль">
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button id="requestEmailChangeBtn" class="modal-update-btn">Отправить код на новый email</button>
+            </div>
+
+            <div id="emailChangePanel" class="settings-step-panel" style="display: none;">
+              <div class="settings-form-grid settings-form-grid-inline">
+                <div class="settings-field">
+                  <label class="modal-label" for="emailChangeCode">Код из письма</label>
+                  <input type="text" id="emailChangeCode" class="settings-code-input settings-code-input-compact" placeholder="123456" inputmode="numeric">
+                </div>
+                <div class="settings-field settings-field-end">
+                  <button id="confirmEmailChangeBtn" class="favorite-btn settings-confirm-btn">Подтвердить смену email</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="settings-tab-panel" data-tab-panel="security">
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Смена пароля для входа</h3>
+                <p class="settings-muted">Это пароль авторизации в аккаунт. Мастер-пароль для локальной расшифровки здесь не меняется.</p>
+              </div>
+            </div>
+
+            <div class="settings-form-grid settings-form-grid-three">
+              <div class="settings-field">
+                <label class="modal-label" for="currentPassword">Текущий пароль</label>
+                <input type="password" id="currentPassword" placeholder="Текущий пароль">
+              </div>
+              <div class="settings-field">
+                <label class="modal-label" for="newPassword">Новый пароль</label>
+                <input type="password" id="newPassword" placeholder="Новый пароль">
+              </div>
+              <div class="settings-field">
+                <label class="modal-label" for="confirmNewPassword">Подтверждение</label>
+                <input type="password" id="confirmNewPassword" placeholder="Повтори новый пароль">
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button id="changePasswordBtn" class="modal-update-btn">Сменить пароль</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Защита входа</h3>
+                <p id="twofaStatusText" class="settings-muted">Проверяем текущий статус 2FA...</p>
+              </div>
+              <span id="twofaStatusBadge" class="settings-badge">Загрузка</span>
+            </div>
+
+            <div class="settings-actions">
+              <button id="start2faSetupBtn" class="modal-update-btn">Включить 2FA</button>
+              <button id="disable2faBtn" class="modal-delete-btn">Отключить 2FA</button>
+            </div>
+
+            <div id="twofaSetupPanel" class="settings-setup" style="display: none;">
+              <div class="settings-setup-grid">
+                <div class="settings-qr-card">
+                  <div class="settings-qr-frame">
+                    <img id="twofaQrImage" alt="QR code for 2FA setup">
+                  </div>
+                  <p class="settings-qr-caption">Отсканируй QR-код в приложении-аутентификаторе.</p>
+                </div>
+
+                <div class="settings-setup-form">
+                  <label class="modal-label" for="twofaUri">OTPAuth URI</label>
+                  <textarea id="twofaUri" readonly></textarea>
+                  <p class="settings-muted">Если QR-код не считывается, скопируй URI и добавь его вручную.</p>
+                  <label class="modal-label" for="twofaCode">Код подтверждения</label>
+                  <input type="text" id="twofaCode" class="settings-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
+                  <button id="verify2faBtn" class="favorite-btn settings-confirm-btn">Подтвердить и включить</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="settings-tab-panel" data-tab-panel="activity">
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Активные сессии</h3>
+                <p class="settings-muted">Просматривай устройства с активным входом и завершай лишние сессии.</p>
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button id="revokeOtherSessionsBtn" class="modal-delete-btn">Выйти на остальных устройствах</button>
+            </div>
+
+            <div id="sessionsList" class="settings-list"></div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Журнал действий</h3>
+                <p class="settings-muted">Последние действия по безопасности аккаунта и сессиям.</p>
+              </div>
+            </div>
+
+            <div id="auditLogList" class="settings-list settings-list-scroll"></div>
+          </article>
+        </div>
       </section>
     </main>
   </div>

@@ -1,3 +1,6 @@
+import { logout } from '../services/api.ts';
+import { navigateTo } from './routes.ts';
+
 export function initializeSharedPageShell(): void {
     const container = document.querySelector('.container') as HTMLElement | null;
     const username = sessionStorage.getItem('username');
@@ -22,27 +25,33 @@ export function initializeSharedPageShell(): void {
             event.stopPropagation();
             const isMenuOpen = menu.style.display === 'block';
             menu.style.display = isMenuOpen ? 'none' : 'block';
-            dropdown.textContent = isMenuOpen ? '▼' : '▲';
+            dropdown.textContent = isMenuOpen ? '\u25BC' : '\u25B2';
         });
 
         document.addEventListener('click', (event) => {
             if (!profile.contains(event.target as Node) && !menu.contains(event.target as Node)) {
                 menu.style.display = 'none';
-                dropdown.textContent = '▼';
+                dropdown.textContent = '\u25BC';
             }
         });
     }
 
     const logoutBtn = document.getElementById('logoutBtn');
-    logoutBtn?.addEventListener('click', () => {
-        localStorage.removeItem('token');
-        sessionStorage.clear();
-        window.location.href = '/pages/login-page.html';
+    logoutBtn?.addEventListener('click', async () => {
+        try {
+            await logout();
+        } catch {
+            // Ignore logout request errors and still clear local auth state.
+        } finally {
+            localStorage.removeItem('token');
+            sessionStorage.clear();
+            navigateTo('login');
+        }
     });
 
     const settingsBtn = document.getElementById('settingsBtn');
     settingsBtn?.addEventListener('click', () => {
-        window.location.href = '/pages/settings-page.html';
+        navigateTo('settings');
     });
 
     const sidebar = document.getElementById('sidebar');
@@ -50,7 +59,7 @@ export function initializeSharedPageShell(): void {
     if (container && sidebar && hideBtn) {
         const renderSidebarToggle = () => {
             const isHidden = container.classList.contains('sidebar-collapsed');
-            hideBtn.textContent = isHidden ? '≡' : '‹';
+            hideBtn.textContent = '';
             hideBtn.setAttribute('aria-label', isHidden ? 'Показать боковое меню' : 'Скрыть боковое меню');
         };
 

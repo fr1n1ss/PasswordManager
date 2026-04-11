@@ -1,5 +1,6 @@
 import { login, loginWith2FA } from '../services/api.ts';
 import { enhancePasswordField } from './password-visibility.ts';
+import { navigateTo } from './routes.ts';
 
 interface LoginResponse {
     token?: string;
@@ -64,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sessionStorage.removeItem('email');
             sessionStorage.removeItem('accounts');
             sessionStorage.removeItem('notes');
-            window.location.href = '/pages/loading-page.html';
+            navigateTo('loading');
         };
 
         (window as any).cancelMasterPassword = () => {
@@ -158,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error: any) {
             if (!error.response && (error.message.includes('Network') || error.message.includes('Failed to fetch'))) {
                 showError('Network error. Redirecting to loading page...');
-                setTimeout(() => window.location.href = '/pages/loading-page.html', 2000);
+                setTimeout(() => navigateTo('loading'), 2000);
             } else {
                 showError(`Authorization error: ${error.response?.data?.message || error.message}`);
             }

@@ -1,28 +1,74 @@
-import { disable2FA, getUserInfo, setup2FA, verify2FA } from '../services/api.ts';
+import {
+    changePassword,
+    confirmEmailChange,
+    disable2FA,
+    getActiveSessions,
+    getAuditLogs,
+    getUserInfo,
+    requestEmailChange,
+    revokeOtherSessions,
+    revokeSession,
+    sendEmailConfirmation,
+    setup2FA,
+    verify2FA,
+    verifyEmailConfirmation
+} from '../services/api.ts';
+import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 
 interface UserInfo {
     username: string;
     email: string;
+    emailConfirmed: boolean;
     salt: string;
     is2FaEnabled?: boolean;
 }
 
-const RU = {
-    enabledStatus: 'Двухфакторная аутентификация включена. После ввода пароля потребуется TOTP-код.',
-    disabledStatus: 'Двухфакторная аутентификация выключена. Сейчас вход выполняется только по паролю и мастер-паролю.',
-    enabledBadge: 'Включена',
-    disabledBadge: 'Выключена',
-    setupStartError: 'Не удалось начать настройку 2FA',
-    setupCodeRequired: 'Введите текущий TOTP-код, чтобы завершить настройку.',
-    enableError: 'Не удалось включить 2FA',
-    disableError: 'Не удалось отключить 2FA',
-    loadError: 'Не удалось загрузить настройки'
-};
+interface SessionItem {
+    id: string;
+    userAgent?: string;
+    ipAddress?: string;
+    createdAt: string;
+    lastSeenAt: string;
+    expiresAt: string;
+    isCurrent: boolean;
+}
+
+interface AuditLogItem {
+    id: number;
+    action: string;
+    details?: string;
+    createdAt: string;
+    ipAddress?: string;
+    userAgent?: string;
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     initializeSharedPageShell();
 
+    const tabTriggers = Array.from(document.querySelectorAll<HTMLElement>('[data-tab-trigger]'));
+    const tabPanels = Array.from(document.querySelectorAll<HTMLElement>('[data-tab-panel]'));
+    const currentEmailValue = document.getElementById('currentEmailValue') as HTMLParagraphElement | null;
+    const emailStatusBadge = document.getElementById('emailStatusBadge') as HTMLSpanElement | null;
+    const emailStatusText = document.getElementById('emailStatusText') as HTMLParagraphElement | null;
+    const emailVerificationActions = document.getElementById('emailVerificationActions') as HTMLDivElement | null;
+    const emailVerificationPanel = document.getElementById('emailVerificationPanel') as HTMLDivElement | null;
+    const sendEmailCodeBtn = document.getElementById('sendEmailCodeBtn') as HTMLButtonElement | null;
+    const verifyEmailBtn = document.getElementById('verifyEmailBtn') as HTMLButtonElement | null;
+    const emailCodeInput = document.getElementById('emailCodeInput') as HTMLInputElement | null;
+    const requestEmailChangeBtn = document.getElementById('requestEmailChangeBtn') as HTMLButtonElement | null;
+    const confirmEmailChangeBtn = document.getElementById('confirmEmailChangeBtn') as HTMLButtonElement | null;
+    const emailChangePanel = document.getElementById('emailChangePanel') as HTMLDivElement | null;
+    const newEmailInput = document.getElementById('newEmail') as HTMLInputElement | null;
+    const emailCurrentPasswordInput = document.getElementById('emailCurrentPassword') as HTMLInputElement | null;
+    const emailChangeCodeInput = document.getElementById('emailChangeCode') as HTMLInputElement | null;
+    const changePasswordBtn = document.getElementById('changePasswordBtn') as HTMLButtonElement | null;
+    const currentPasswordInput = document.getElementById('currentPassword') as HTMLInputElement | null;
+    const newPasswordInput = document.getElementById('newPassword') as HTMLInputElement | null;
+    const confirmNewPasswordInput = document.getElementById('confirmNewPassword') as HTMLInputElement | null;
+    const sessionsList = document.getElementById('sessionsList') as HTMLDivElement | null;
+    const revokeOtherSessionsBtn = document.getElementById('revokeOtherSessionsBtn') as HTMLButtonElement | null;
+    const auditLogList = document.getElementById('auditLogList') as HTMLDivElement | null;
     const start2faSetupBtn = document.getElementById('start2faSetupBtn') as HTMLButtonElement | null;
     const disable2faBtn = document.getElementById('disable2faBtn') as HTMLButtonElement | null;
     const verify2faBtn = document.getElementById('verify2faBtn') as HTMLButtonElement | null;
@@ -32,92 +78,382 @@ document.addEventListener('DOMContentLoaded', async () => {
     const twofaUri = document.getElementById('twofaUri') as HTMLTextAreaElement | null;
     const twofaCode = document.getElementById('twofaCode') as HTMLInputElement | null;
     const twofaQrImage = document.getElementById('twofaQrImage') as HTMLImageElement | null;
-    const settingsError = document.getElementById('settingsError') as HTMLDivElement | null;
+    const settingsNotice = document.getElementById('settingsNotice') as HTMLDivElement | null;
 
-    if (!start2faSetupBtn || !disable2faBtn || !verify2faBtn || !twofaStatusText || !twofaStatusBadge || !twofaSetupPanel || !twofaUri || !twofaCode || !twofaQrImage || !settingsError) {
+    if (
+        !currentEmailValue || !emailStatusBadge || !emailStatusText || !emailVerificationActions || !emailVerificationPanel ||
+        !sendEmailCodeBtn || !verifyEmailBtn || !emailCodeInput || !requestEmailChangeBtn || !confirmEmailChangeBtn ||
+        !emailChangePanel || !newEmailInput || !emailCurrentPasswordInput || !emailChangeCodeInput || !changePasswordBtn ||
+        !currentPasswordInput || !newPasswordInput || !confirmNewPasswordInput || !sessionsList || !revokeOtherSessionsBtn ||
+        !auditLogList || !start2faSetupBtn || !disable2faBtn || !verify2faBtn || !twofaStatusText || !twofaStatusBadge ||
+        !twofaSetupPanel || !twofaUri || !twofaCode || !twofaQrImage || !settingsNotice
+    ) {
         return;
     }
 
-    const showError = (message: string) => {
-        settingsError.style.display = 'block';
-        settingsError.textContent = message;
+    const showNotice = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+        settingsNotice.className = `settings-notice settings-notice-${type}`;
+        settingsNotice.textContent = message;
+        settingsNotice.style.display = 'block';
     };
 
-    const hideError = () => {
-        settingsError.style.display = 'none';
-        settingsError.textContent = '';
+    const hideNotice = () => {
+        settingsNotice.style.display = 'none';
+        settingsNotice.textContent = '';
+        settingsNotice.className = 'settings-notice';
     };
 
-    const renderStatus = (enabled: boolean) => {
-        twofaStatusText.textContent = enabled ? RU.enabledStatus : RU.disabledStatus;
-        twofaStatusBadge.textContent = enabled ? RU.enabledBadge : RU.disabledBadge;
+    const escapeHtml = (value: string) => value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const formatDate = (value: string) => new Date(value).toLocaleString('ru-RU');
+
+    const switchTab = (tabName: string) => {
+        tabTriggers.forEach((trigger) => {
+            trigger.classList.toggle('is-active', trigger.dataset.tabTrigger === tabName);
+        });
+        tabPanels.forEach((panel) => {
+            panel.classList.toggle('is-active', panel.dataset.tabPanel === tabName);
+        });
+    };
+
+    tabTriggers.forEach((trigger) => {
+        trigger.addEventListener('click', () => {
+            if (trigger.dataset.tabTrigger) {
+                switchTab(trigger.dataset.tabTrigger);
+            }
+        });
+    });
+
+    const renderEmailState = (user: UserInfo) => {
+        currentEmailValue.textContent = user.email;
+        emailStatusBadge.textContent = user.emailConfirmed ? 'Подтвержден' : 'Не подтвержден';
+        emailStatusBadge.classList.toggle('settings-badge-active', user.emailConfirmed);
+        emailStatusText.textContent = user.emailConfirmed
+            ? 'Email подтвержден. Дополнительное подтверждение для текущего адреса больше не требуется.'
+            : 'Подтверди текущий email, чтобы защитить аккаунт и проще восстанавливать доступ.';
+
+        emailVerificationActions.style.display = user.emailConfirmed ? 'none' : 'flex';
+        emailVerificationPanel.style.display = user.emailConfirmed ? 'none' : 'none';
+        emailCodeInput.value = '';
+    };
+
+    const render2faStatus = (enabled: boolean) => {
+        twofaStatusText.textContent = enabled
+            ? 'Двухфакторная аутентификация включена. После пароля потребуется код из приложения-аутентификатора.'
+            : 'Двухфакторная аутентификация выключена. Вход выполняется только по паролю и мастер-паролю.';
+        twofaStatusBadge.textContent = enabled ? 'Включена' : 'Выключена';
         twofaStatusBadge.classList.toggle('settings-badge-active', enabled);
         start2faSetupBtn.style.display = enabled ? 'none' : 'block';
         disable2faBtn.style.display = enabled ? 'block' : 'none';
         if (enabled) {
             twofaSetupPanel.style.display = 'none';
+            twofaCode.value = '';
         }
-        twofaCode.value = '';
     };
 
     const renderQr = (uri: string) => {
         twofaQrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(uri)}`;
     };
 
+    const renderSessions = (sessions: SessionItem[]) => {
+        if (sessions.length === 0) {
+            sessionsList.innerHTML = '<div class="settings-empty">Активных сессий не найдено.</div>';
+            return;
+        }
+
+        sessionsList.innerHTML = sessions.map((session) => `
+            <article class="settings-list-item">
+                <div class="settings-list-item-main">
+                    <div class="settings-list-title-row">
+                        <strong>${session.isCurrent ? 'Текущее устройство' : 'Активная сессия'}</strong>
+                        ${session.isCurrent ? '<span class="settings-inline-badge">Сейчас</span>' : ''}
+                    </div>
+                    <p>${escapeHtml(session.userAgent || 'Браузер или приложение не определены')}</p>
+                    <p>IP: ${escapeHtml(session.ipAddress || 'неизвестно')}</p>
+                    <p>Создана: ${formatDate(session.createdAt)}</p>
+                    <p>Последняя активность: ${formatDate(session.lastSeenAt)}</p>
+                </div>
+                <button class="settings-inline-action" data-session-id="${session.id}">
+                    ${session.isCurrent ? 'Выйти' : 'Завершить'}
+                </button>
+            </article>
+        `).join('');
+
+        sessionsList.querySelectorAll<HTMLButtonElement>('[data-session-id]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const sessionId = button.dataset.sessionId;
+                if (!sessionId) {
+                    return;
+                }
+
+                try {
+                    button.disabled = true;
+                    await revokeSession(sessionId);
+                    if (button.textContent === 'Выйти') {
+                        localStorage.removeItem('token');
+                        sessionStorage.clear();
+                        navigateTo('login');
+                        return;
+                    }
+
+                    await loadSessions();
+                    await loadAuditLogs();
+                    showNotice('Сессия завершена.', 'success');
+                } catch (error: any) {
+                    showNotice(`Не удалось завершить сессию: ${error.response?.data?.message || error.message}`, 'error');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    };
+
+    const actionLabel = (action: string) => {
+        const labels: Record<string, string> = {
+            login_failed: 'Неудачная попытка входа',
+            login_password_verified: 'Пароль подтвержден, ожидание 2FA',
+            login_2fa_failed: 'Ошибка проверки 2FA при входе',
+            login_success: 'Успешный вход',
+            logout: 'Выход из аккаунта',
+            register_success: 'Регистрация аккаунта',
+            change_password_failed: 'Ошибка смены пароля',
+            change_password_success: 'Пароль изменен',
+            email_confirmation_requested: 'Запрошено подтверждение email',
+            email_confirmation_failed: 'Ошибка подтверждения email',
+            email_confirmed: 'Email подтвержден',
+            email_change_request_failed: 'Ошибка запроса смены email',
+            email_change_requested: 'Запрошена смена email',
+            email_change_failed: 'Ошибка подтверждения нового email',
+            email_changed: 'Email изменен',
+            session_revoked: 'Сессия завершена',
+            other_sessions_revoked: 'Остальные сессии завершены',
+            master_password_verifier_updated: 'Обновлен verifier мастер-пароля',
+            '2fa_setup_started': 'Начата настройка 2FA',
+            '2fa_enable_failed': 'Ошибка включения 2FA',
+            '2fa_enabled': '2FA включена',
+            '2fa_disabled': '2FA выключена'
+        };
+
+        return labels[action] || action;
+    };
+
+    const renderAuditLogs = (logs: AuditLogItem[]) => {
+        if (logs.length === 0) {
+            auditLogList.innerHTML = '<div class="settings-empty">Журнал действий пока пуст.</div>';
+            return;
+        }
+
+        auditLogList.innerHTML = logs.map((log) => `
+            <article class="settings-list-item">
+                <div class="settings-list-item-main">
+                    <div class="settings-list-title-row">
+                        <strong>${escapeHtml(actionLabel(log.action))}</strong>
+                        <span class="settings-log-time">${formatDate(log.createdAt)}</span>
+                    </div>
+                    ${log.details ? `<p>${escapeHtml(log.details)}</p>` : ''}
+                    <p>IP: ${escapeHtml(log.ipAddress || 'неизвестно')}</p>
+                    <p>${escapeHtml(log.userAgent || 'Источник не определен')}</p>
+                </div>
+            </article>
+        `).join('');
+    };
+
     const loadUserState = async () => {
-        hideError();
         const user = await getUserInfo() as UserInfo;
         sessionStorage.setItem('username', user.username || '');
         sessionStorage.setItem('email', user.email || '');
         sessionStorage.setItem('cryptoSalt', user.salt || '');
-        renderStatus(Boolean(user.is2FaEnabled));
+
+        const usernameNode = document.querySelector('.username');
+        const emailNode = document.querySelector('.user-email');
+        if (usernameNode) {
+            usernameNode.textContent = user.username;
+        }
+        if (emailNode) {
+            emailNode.textContent = user.email;
+        }
+
+        renderEmailState(user);
+        render2faStatus(Boolean(user.is2FaEnabled));
     };
+
+    const loadSessions = async () => {
+        renderSessions(await getActiveSessions());
+    };
+
+    const loadAuditLogs = async () => {
+        renderAuditLogs(await getAuditLogs(30));
+    };
+
+    sendEmailCodeBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            const result = await sendEmailConfirmation();
+            emailVerificationPanel.style.display = 'block';
+            const preview = result.previewCode ? ` Тестовый код: ${result.previewCode}` : '';
+            showNotice(`Код подтверждения отправлен на текущий email.${preview}`, 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось отправить код подтверждения: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
+
+    verifyEmailBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            const code = emailCodeInput.value.trim();
+            if (!code) {
+                showNotice('Введи код подтверждения email.', 'error');
+                return;
+            }
+
+            await verifyEmailConfirmation(code);
+            await loadUserState();
+            await loadAuditLogs();
+            showNotice('Email успешно подтвержден.', 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось подтвердить email: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
+
+    requestEmailChangeBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            const newEmail = newEmailInput.value.trim();
+            const currentPassword = emailCurrentPasswordInput.value.trim();
+
+            if (!newEmail || !currentPassword) {
+                showNotice('Укажи новый email и текущий пароль.', 'error');
+                return;
+            }
+
+            const result = await requestEmailChange(newEmail, currentPassword);
+            emailChangePanel.style.display = 'block';
+            const preview = result.previewCode ? ` Тестовый код: ${result.previewCode}` : '';
+            showNotice(`Код подтверждения отправлен на новый email.${preview}`, 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось запросить смену email: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
+
+    confirmEmailChangeBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            const code = emailChangeCodeInput.value.trim();
+            if (!code) {
+                showNotice('Введи код подтверждения для нового email.', 'error');
+                return;
+            }
+
+            const result = await confirmEmailChange(code);
+            sessionStorage.setItem('email', result.email);
+            emailChangeCodeInput.value = '';
+            newEmailInput.value = '';
+            emailCurrentPasswordInput.value = '';
+            emailChangePanel.style.display = 'none';
+            await loadUserState();
+            await loadAuditLogs();
+            showNotice('Email успешно изменен и подтвержден.', 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось подтвердить новый email: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
+
+    changePasswordBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            const currentPassword = currentPasswordInput.value.trim();
+            const newPassword = newPasswordInput.value.trim();
+            const confirmPassword = confirmNewPasswordInput.value.trim();
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showNotice('Заполни все поля для смены пароля.', 'error');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showNotice('Подтверждение нового пароля не совпадает.', 'error');
+                return;
+            }
+
+            await changePassword(currentPassword, newPassword);
+            currentPasswordInput.value = '';
+            newPasswordInput.value = '';
+            confirmNewPasswordInput.value = '';
+            await loadAuditLogs();
+            showNotice('Пароль для входа успешно изменен.', 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось сменить пароль: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
+
+    revokeOtherSessionsBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            const result = await revokeOtherSessions();
+            await loadSessions();
+            await loadAuditLogs();
+            showNotice(`Завершено сессий: ${result.revokedCount}.`, 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось завершить остальные сессии: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
 
     start2faSetupBtn.addEventListener('click', async () => {
         try {
-            hideError();
+            hideNotice();
             const result = await setup2FA();
             twofaUri.value = result.uri;
             renderQr(result.uri);
             twofaSetupPanel.style.display = 'block';
             twofaCode.focus();
         } catch (error: any) {
-            showError(`${RU.setupStartError}: ${error.response?.data?.message || error.message}`);
+            showNotice(`Не удалось начать настройку 2FA: ${error.response?.data?.message || error.message}`, 'error');
         }
     });
 
     verify2faBtn.addEventListener('click', async () => {
-        const code = twofaCode.value.trim();
-        if (!code) {
-            showError(RU.setupCodeRequired);
-            return;
-        }
-
         try {
-            hideError();
+            hideNotice();
+            const code = twofaCode.value.trim();
+            if (!code) {
+                showNotice('Введи код из приложения-аутентификатора.', 'error');
+                return;
+            }
+
             await verify2FA(code);
-            renderStatus(true);
+            await loadUserState();
+            await loadAuditLogs();
+            showNotice('2FA успешно включена.', 'success');
         } catch (error: any) {
-            showError(`${RU.enableError}: ${error.response?.data?.message || error.message}`);
+            showNotice(`Не удалось включить 2FA: ${error.response?.data?.message || error.message}`, 'error');
         }
     });
 
     disable2faBtn.addEventListener('click', async () => {
         try {
-            hideError();
+            hideNotice();
             await disable2FA();
             twofaSetupPanel.style.display = 'none';
             twofaUri.value = '';
+            twofaCode.value = '';
             twofaQrImage.removeAttribute('src');
-            renderStatus(false);
+            await loadUserState();
+            await loadAuditLogs();
+            showNotice('2FA отключена.', 'success');
         } catch (error: any) {
-            showError(`${RU.disableError}: ${error.response?.data?.message || error.message}`);
+            showNotice(`Не удалось отключить 2FA: ${error.response?.data?.message || error.message}`, 'error');
         }
     });
 
     try {
-        await loadUserState();
+        hideNotice();
+        await Promise.all([loadUserState(), loadSessions(), loadAuditLogs()]);
     } catch (error: any) {
-        showError(`${RU.loadError}: ${error.response?.data?.message || error.message}`);
+        showNotice(`Не удалось загрузить настройки: ${error.response?.data?.message || error.message}`, 'error');
     }
 });

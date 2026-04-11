@@ -19,7 +19,7 @@ namespace PasswordManagerAPI.Services
             _config = config ?? throw new ArgumentNullException(nameof(config));
         }
 
-        public string GenerateJwtToken(User user)
+        public string GenerateJwtToken(User user, Guid sessionId, string jwtId)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -27,8 +27,9 @@ namespace PasswordManagerAPI.Services
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Username),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim("userId", user.Id.ToString())
+                new Claim(JwtRegisteredClaimNames.Jti, jwtId),
+                new Claim("userId", user.Id.ToString()),
+                new Claim("sid", sessionId.ToString())
             };
 
             var token = new JwtSecurityToken(
@@ -90,14 +91,37 @@ namespace PasswordManagerAPI.Services
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: "PasswordManager",
-                audience: "PasswordManager",
+                issuer: _config["Jwt:Issuer"],
+                audience: _config["Jwt:Audience"],
                 claims: claims,
                 expires: DateTime.UtcNow.AddMinutes(5),
                 signingCredentials: creds
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        public ClaimsPrincipal ValidateToken(string token, bool requireTempToken = false)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var parameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"])),
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidIssuer = _config["Jwt:Issuer"],
+                ValidAudience = _config["Jwt:Audience"],
+                ClockSkew = TimeSpan.Zero
+            };
+
+            var principal = tokenHandler.ValidateToken(token, parameters, out _);
+            if (requireTempToken && principal.FindFirst("type")?.Value != "temp")
+            {
+                throw new SecurityTokenException("Invalid token type");
+            }
+
+            return principal;
         }
     }
 }

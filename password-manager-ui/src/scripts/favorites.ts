@@ -7,6 +7,7 @@ import {
     removeFromFavorites
 } from '../services/api.ts';
 import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 
 interface Account {
@@ -37,7 +38,7 @@ interface FavoritesResponse {
 }
 
 function debounce(func: Function, delay: number) {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     return (...args: any[]) => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => func(...args), delay);
@@ -61,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const masterPassword = sessionStorage.getItem('masterPassword');
     const cryptoSalt = sessionStorage.getItem('cryptoSalt');
     if (!masterPassword || !cryptoSalt) {
-        window.location.href = '/pages/login-page.html';
+        navigateTo('login');
         return;
     }
 

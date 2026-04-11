@@ -5,6 +5,7 @@ namespace PasswordManagerAPI.Entities
 {
     [PrimaryKey(nameof(Id))]
     [Index(nameof(Username), IsUnique = true)]
+    [Index(nameof(Email), IsUnique = true)]
     public class User
     {
         public User() { }
@@ -25,7 +26,9 @@ namespace PasswordManagerAPI.Entities
         [MaxLength(25)]
         public string Username { get; set; }
         [Required]
+        [MaxLength(450)]
         public string Email { get; set; }
+        public bool EmailConfirmed { get; set; }
         [Required]
         public string PasswordHash { get; set; }
         [Required]

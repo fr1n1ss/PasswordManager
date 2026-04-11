@@ -1,4 +1,5 @@
 import { getAccounts, getUserInfo, getUserNotes, ping, updateMasterPasswordVerifier } from '../services/api.ts';
+import { navigateTo } from './routes.ts';
 import {
     canDecryptAnyPayload,
     createMasterPasswordVerifier,
@@ -36,6 +37,10 @@ interface UserInfo {
     is2FaEnabled?: boolean;
 }
 
+function hasRequiredWebCrypto(): boolean {
+    return Boolean(window.isSecureContext && globalThis.crypto?.subtle && globalThis.crypto?.getRandomValues);
+}
+
 async function checkServerAvailability(): Promise<boolean> {
     try {
         const data = await ping();
@@ -57,13 +62,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     modal.style.display = 'none';
     errorContainer.style.display = 'none';
+
     enhancePasswordField(masterPasswordInput, {
         groupClass: 'password-input-group auth-password-input-group',
         toggleClass: 'password-toggle auth-password-toggle'
     });
 
+    if (!hasRequiredWebCrypto()) {
+        errorContainer.style.display = 'block';
+        errorMessage.innerHTML = `
+            <p>Для расшифровки данных нужен Web Crypto API, а по обычному HTTP на другом устройстве браузер его блокирует.</p>
+            <p>Откройте приложение на этом компьютере через localhost или поднимите фронт по HTTPS, если хотите входить с Mac по сети.</p>
+            <button class="retry-button" onclick="window.location.reload()">Повторить</button>
+        `;
+        return;
+    }
+
     if (sessionStorage.getItem('isDataLoaded') === 'true') {
-        window.location.href = '/index.html';
+        navigateTo('home');
         return;
     }
 
@@ -72,17 +88,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isServerAvailable = await checkServerAvailability();
         errorContainer.style.display = 'block';
         if (isServerAvailable) {
-            errorMessage.textContent = 'Токен отсутствует. Перенаправляем на страницу логина...';
-            setTimeout(() => window.location.href = '/pages/login-page.html', 2000);
+            errorMessage.textContent = 'Токен отсутствует. Перенаправляем на страницу входа...';
+            setTimeout(() => navigateTo('login'), 2000);
         } else {
-            errorMessage.innerHTML = '<p>Сервер недоступен. Пожалуйста, попробуйте снова.</p><button class="retry-button" onclick="window.location.reload()">Повторить</button>';
+            errorMessage.innerHTML = `
+                <p>Сервер недоступен. Пожалуйста, попробуйте снова.</p>
+                <button class="retry-button" onclick="window.location.reload()">Повторить</button>
+            `;
         }
         return;
     }
 
     if (!await checkServerAvailability()) {
         errorContainer.style.display = 'block';
-        errorMessage.innerHTML = 'Сервер недоступен. Пожалуйста, попробуйте позже.<button class="retry-button" onclick="window.location.reload()">Повторить</button>';
+        errorMessage.innerHTML = `
+            <p>Сервер недоступен. Пожалуйста, попробуйте позже.</p>
+            <button class="retry-button" onclick="window.location.reload()">Повторить</button>
+        `;
         return;
     }
 
@@ -97,9 +119,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (error.response?.status === 401) {
             errorMessage.textContent = 'Сессия истекла или авторизация не удалась. Пожалуйста, войдите заново.';
             localStorage.removeItem('token');
-            setTimeout(() => window.location.href = '/pages/login-page.html', 2000);
+            setTimeout(() => navigateTo('login'), 2000);
         } else {
-            errorMessage.innerHTML = `Ошибка загрузки пользователя: ${error.message} <button onclick="window.location.reload()">Повторить</button>`;
+            errorMessage.innerHTML = `
+                <p>Ошибка загрузки пользователя: ${error.message}</p>
+                <button class="retry-button" onclick="window.location.reload()">Повторить</button>
+            `;
         }
         return;
     }
@@ -141,7 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             sessionStorage.setItem('isDataLoaded', 'true');
-            window.location.href = '/index.html';
+            navigateTo('home');
         } catch (error: any) {
             sessionStorage.removeItem('masterPassword');
             sessionStorage.removeItem('accounts');
@@ -153,12 +178,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 modal.style.display = 'flex';
             } else {
                 errorContainer.style.display = 'block';
-                errorMessage.innerHTML = `Ошибка загрузки данных: ${error.message} <button onclick="window.location.reload()">Повторить</button>`;
+                errorMessage.innerHTML = `
+                    <p>Ошибка загрузки данных: ${error.message}</p>
+                    <button class="retry-button" onclick="window.location.reload()">Повторить</button>
+                `;
             }
         }
     };
 
-    let masterPassword = sessionStorage.getItem('masterPassword');
+    const masterPassword = sessionStorage.getItem('masterPassword');
     if (!masterPassword) {
         modal.style.display = 'flex';
         modalTitle.textContent = 'Введите мастер-пароль';
@@ -191,6 +219,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.removeItem('notes');
         sessionStorage.removeItem('notesLoadError');
         sessionStorage.removeItem('isDataLoaded');
-        window.location.href = '/pages/login-page.html';
+        navigateTo('login');
     });
 });

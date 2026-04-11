@@ -1,6 +1,7 @@
 import { register } from '../services/api.ts';
 import { createMasterPasswordVerifier, generateClientSalt } from '../services/zero-knowledge.ts';
 import { enhancePasswordField } from './password-visibility.ts';
+import { navigateTo } from './routes.ts';
 
 document.addEventListener('DOMContentLoaded', () => {
     const registerForm = document.getElementById('registerForm') as HTMLFormElement | null;
@@ -52,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const verifier = await createMasterPasswordVerifier(masterPassword, salt);
             await register(username, email, password, salt, verifier);
             alert('Регистрация прошла успешно');
-            window.location.href = './login-page.html';
+            navigateTo('login');
         } catch (error: any) {
             errorContainer.style.display = 'block';
             errorMessage.textContent = `Ошибка регистрации: ${error.message}`;

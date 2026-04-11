@@ -1,5 +1,6 @@
 import { addNote, addToFavorites, deleteNote, getUserNotes, removeFromFavorites, updateNote } from '../services/api.ts';
 import { decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
@@ -14,7 +15,7 @@ interface Note {
 }
 
 function debounce(func: Function, delay: number) {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     return (...args: any[]) => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => func(...args), delay);
@@ -23,7 +24,7 @@ function debounce(func: Function, delay: number) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!sessionStorage.getItem('isDataLoaded')) {
-        window.location.href = '/pages/loading-page.html';
+        navigateTo('loading');
         return;
     }
 
@@ -47,7 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const masterPassword = sessionStorage.getItem('masterPassword');
     const cryptoSalt = sessionStorage.getItem('cryptoSalt');
     if (!masterPassword || !cryptoSalt) {
-        window.location.href = '/pages/login-page.html';
+        navigateTo('login');
         return;
     }
 
