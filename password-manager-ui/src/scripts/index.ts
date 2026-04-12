@@ -5,6 +5,7 @@ import {
     deleteAccount,
     deleteNote,
     getAccounts,
+    getUserFavorites,
     getUserNotes,
     hashAll,
     removeFromFavorites,
@@ -36,6 +37,11 @@ interface Note {
     createdAt: string;
     updatedAt: string;
     isFavorite?: boolean;
+}
+
+interface FavoritesResponse {
+    accounts?: Array<{ id: number }>;
+    notes?: Array<{ id: number }>;
 }
 
 function debounce(func: Function, delay: number) {
@@ -104,6 +110,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const getStoredNotes = () => JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
     const setStoredAccounts = (accounts: Account[]) => sessionStorage.setItem('accounts', JSON.stringify(accounts));
     const setStoredNotes = (notes: Note[]) => sessionStorage.setItem('notes', JSON.stringify(notes));
+    const syncStoredFavoriteStates = async (accounts: Account[], notes: Note[]) => {
+        const favorites = await getUserFavorites() as FavoritesResponse;
+        const favoriteAccountIds = new Set((favorites.accounts || []).map((account) => account.id));
+        const favoriteNoteIds = new Set((favorites.notes || []).map((note) => note.id));
+
+        const syncedAccounts = accounts.map((account) => ({
+            ...account,
+            isFavorite: favoriteAccountIds.has(account.id)
+        }));
+        const syncedNotes = notes.map((note) => ({
+            ...note,
+            isFavorite: favoriteNoteIds.has(note.id)
+        }));
+
+        setStoredAccounts(syncedAccounts);
+        setStoredNotes(syncedNotes);
+
+        return { accounts: syncedAccounts, notes: syncedNotes };
+    };
 
     const closeAllModals = () => {
         [addChoiceModal, addAccountModal, addNoteModal, accountModal, noteModal].forEach((modal) => {
@@ -213,8 +238,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         let accounts = getStoredAccounts();
         if (!sessionStorage.getItem('accounts')) {
             accounts = await decryptAccounts(await getAccounts() as Account[], masterPassword, cryptoSalt);
-            setStoredAccounts(accounts);
         }
+        const synced = await syncStoredFavoriteStates(accounts, getStoredNotes());
+        accounts = synced.accounts;
 
         const filtered = sortAccounts(filterCards(accounts, 'account'));
         passwordCards.innerHTML = filtered.map((account) => `
@@ -243,8 +269,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         let notes = getStoredNotes();
         if (!sessionStorage.getItem('notes')) {
             notes = await decryptNotes(await getUserNotes() as Note[], masterPassword, cryptoSalt);
-            setStoredNotes(notes);
         }
+        const synced = await syncStoredFavoriteStates(getStoredAccounts(), notes);
+        notes = synced.notes;
 
         const filtered = sortNotes(filterCards(notes, 'note'));
         notesCards.innerHTML = filtered.map((note) => `
@@ -375,8 +402,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
 
         if (enable) {
-            title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
-            content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
+            title.innerHTML = `<input type="text" id="edit-note-title" class="modal-inline-input" value="${title.textContent || ''}" />`;
+            content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }

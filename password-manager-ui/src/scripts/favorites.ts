@@ -400,8 +400,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const updatedDate = document.getElementById('modal-note-updated-date') as HTMLElement;
 
         if (enable) {
-            title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
-            content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
+            title.innerHTML = `<input type="text" id="edit-note-title" class="modal-inline-input" value="${title.textContent || ''}" />`;
+            content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = 'Сохранить';
             return;
         }

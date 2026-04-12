@@ -1,6 +1,9 @@
-import { getAccounts, getUserInfo, getUserNotes, ping, updateMasterPasswordVerifier } from '../services/api.ts';
+import { getAccounts, getTotpAccounts, getUserInfo, getUserNotes, ping, rotateMasterPassword, updateMasterPasswordVerifier } from '../services/api.ts';
 import { navigateTo } from './routes.ts';
 import {
+    buildRotatedAccountPayloads,
+    buildRotatedNotePayloads,
+    buildRotatedTotpPayloads,
     canDecryptAnyPayload,
     createMasterPasswordVerifier,
     decryptAccounts,
@@ -35,6 +38,16 @@ interface UserInfo {
     salt: string;
     masterPasswordVerifier?: string | null;
     is2FaEnabled?: boolean;
+}
+
+interface TotpAccount {
+    id: number;
+    userId: number;
+    serviceName: string;
+    issuer: string;
+    secret: string;
+    digits: number;
+    period: number;
 }
 
 function hasRequiredWebCrypto(): boolean {
@@ -138,15 +151,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const tryLoadData = async (masterPassword: string) => {
         try {
-            const [accountPayloads, notePayloads] = await Promise.all([
+            const [accountPayloads, notePayloads, totpPayloads] = await Promise.all([
                 getAccounts() as Promise<Account[]>,
-                getUserNotes() as Promise<Note[]>
+                getUserNotes() as Promise<Note[]>,
+                getTotpAccounts() as Promise<TotpAccount[]>
             ]);
 
-            const verifierValid = await verifyMasterPasswordLocally(masterPassword, user.salt, user.masterPasswordVerifier);
-            const payloadValid = verifierValid || await canDecryptAnyPayload(accountPayloads, notePayloads, masterPassword, user.salt);
+            const verifierStatus = await verifyMasterPasswordLocally(masterPassword, user.salt, user.masterPasswordVerifier);
+            const payloadValid = await canDecryptAnyPayload(accountPayloads, notePayloads, totpPayloads, masterPassword, user.salt);
+            const hasEncryptedPayloads = accountPayloads.some((item) => item.encryptedPassword.startsWith('zk1:'))
+                || notePayloads.some((item) => item.encryptedContent.startsWith('zk1:'))
+                || totpPayloads.some((item) => item.secret.startsWith('zk1:'));
 
-            if (!payloadValid && (user.masterPasswordVerifier || accountPayloads.length > 0 || notePayloads.length > 0)) {
+            if (verifierStatus === false) {
+                throw new Error('INVALID_MASTER_PASSWORD');
+            }
+
+            if (verifierStatus === null && hasEncryptedPayloads && !payloadValid) {
                 throw new Error('INVALID_MASTER_PASSWORD');
             }
 
@@ -155,15 +176,33 @@ document.addEventListener('DOMContentLoaded', async () => {
                 decryptNotes(notePayloads, masterPassword, user.salt)
             ]);
 
+            if (verifierStatus === null) {
+                const verifier = await createMasterPasswordVerifier(masterPassword, user.salt);
+
+                if (hasEncryptedPayloads) {
+                    await updateMasterPasswordVerifier(verifier);
+                } else {
+                    const [rotatedAccounts, rotatedNotes, rotatedTotpAccounts] = await Promise.all([
+                        buildRotatedAccountPayloads(accountPayloads, masterPassword, masterPassword, user.salt),
+                        buildRotatedNotePayloads(notePayloads, masterPassword, masterPassword, user.salt),
+                        buildRotatedTotpPayloads(totpPayloads, masterPassword, masterPassword, user.salt)
+                    ]);
+
+                    await rotateMasterPassword({
+                        accounts: rotatedAccounts,
+                        notes: rotatedNotes,
+                        totpAccounts: rotatedTotpAccounts,
+                        masterPasswordVerifier: verifier,
+                        clearServerVerifier: false
+                    });
+                }
+
+                user.masterPasswordVerifier = verifier;
+            }
+
             persistUserContext(masterPassword);
             sessionStorage.setItem('accounts', JSON.stringify(accounts));
             sessionStorage.setItem('notes', JSON.stringify(notes));
-
-            if (!user.masterPasswordVerifier) {
-                const verifier = await createMasterPasswordVerifier(masterPassword, user.salt);
-                await updateMasterPasswordVerifier(verifier);
-                user.masterPasswordVerifier = verifier;
-            }
 
             sessionStorage.setItem('isDataLoaded', 'true');
             navigateTo('home');

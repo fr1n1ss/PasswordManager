@@ -2,19 +2,33 @@ import {
     changePassword,
     confirmEmailChange,
     disable2FA,
+    getAccounts,
     getActiveSessions,
     getAuditLogs,
+    getTotpAccounts,
     getUserInfo,
+    getUserNotes,
     requestEmailChange,
     revokeOtherSessions,
     revokeSession,
+    rotateMasterPassword,
     sendEmailConfirmation,
     setup2FA,
     verify2FA,
     verifyEmailConfirmation
 } from '../services/api.ts';
 import { navigateTo } from './routes.ts';
+import { enhancePasswordField } from './password-visibility.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
+import {
+    buildRotatedAccountPayloads,
+    buildRotatedNotePayloads,
+    buildRotatedTotpPayloads,
+    canDecryptAnyPayload,
+    createMasterPasswordVerifier,
+    decryptAccounts,
+    decryptNotes
+} from '../services/zero-knowledge.ts';
 
 interface UserInfo {
     username: string;
@@ -43,6 +57,36 @@ interface AuditLogItem {
     userAgent?: string;
 }
 
+interface AccountItem {
+    id: number;
+    userID: number;
+    serviceName: string;
+    login: string;
+    encryptedPassword: string;
+    description: string;
+    url: string;
+    creationDate: string;
+}
+
+interface NoteItem {
+    id: number;
+    userID: number;
+    title: string;
+    encryptedContent: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+interface TotpItem {
+    id: number;
+    userId: number;
+    serviceName: string;
+    issuer: string;
+    secret: string;
+    digits: number;
+    period: number;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initializeSharedPageShell();
 
@@ -66,6 +110,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const currentPasswordInput = document.getElementById('currentPassword') as HTMLInputElement | null;
     const newPasswordInput = document.getElementById('newPassword') as HTMLInputElement | null;
     const confirmNewPasswordInput = document.getElementById('confirmNewPassword') as HTMLInputElement | null;
+    const changeMasterPasswordBtn = document.getElementById('changeMasterPasswordBtn') as HTMLButtonElement | null;
+    const currentAccountPasswordForMasterInput = document.getElementById('currentAccountPasswordForMaster') as HTMLInputElement | null;
+    const currentMasterPasswordInput = document.getElementById('currentMasterPassword') as HTMLInputElement | null;
+    const newMasterPasswordInput = document.getElementById('newMasterPassword') as HTMLInputElement | null;
+    const confirmNewMasterPasswordInput = document.getElementById('confirmNewMasterPassword') as HTMLInputElement | null;
     const sessionsList = document.getElementById('sessionsList') as HTMLDivElement | null;
     const revokeOtherSessionsBtn = document.getElementById('revokeOtherSessionsBtn') as HTMLButtonElement | null;
     const auditLogList = document.getElementById('auditLogList') as HTMLDivElement | null;
@@ -84,12 +133,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         !currentEmailValue || !emailStatusBadge || !emailStatusText || !emailVerificationActions || !emailVerificationPanel ||
         !sendEmailCodeBtn || !verifyEmailBtn || !emailCodeInput || !requestEmailChangeBtn || !confirmEmailChangeBtn ||
         !emailChangePanel || !newEmailInput || !emailCurrentPasswordInput || !emailChangeCodeInput || !changePasswordBtn ||
-        !currentPasswordInput || !newPasswordInput || !confirmNewPasswordInput || !sessionsList || !revokeOtherSessionsBtn ||
+        !currentPasswordInput || !newPasswordInput || !confirmNewPasswordInput || !changeMasterPasswordBtn ||
+        !currentAccountPasswordForMasterInput || !currentMasterPasswordInput || !newMasterPasswordInput || !confirmNewMasterPasswordInput || !sessionsList || !revokeOtherSessionsBtn ||
         !auditLogList || !start2faSetupBtn || !disable2faBtn || !verify2faBtn || !twofaStatusText || !twofaStatusBadge ||
         !twofaSetupPanel || !twofaUri || !twofaCode || !twofaQrImage || !settingsNotice
     ) {
         return;
     }
+
+    let currentSalt = sessionStorage.getItem('cryptoSalt') || '';
+
+    [
+        emailCurrentPasswordInput,
+        currentPasswordInput,
+        newPasswordInput,
+        confirmNewPasswordInput,
+        currentAccountPasswordForMasterInput,
+        currentMasterPasswordInput,
+        newMasterPasswordInput,
+        confirmNewMasterPasswordInput
+    ].forEach((input) => {
+        enhancePasswordField(input);
+    });
 
     const showNotice = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
         settingsNotice.className = `settings-notice settings-notice-${type}`;
@@ -233,6 +298,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             session_revoked: 'Сессия завершена',
             other_sessions_revoked: 'Остальные сессии завершены',
             master_password_verifier_updated: 'Обновлен verifier мастер-пароля',
+            master_password_verifier_cleared: 'Server verifier мастер-пароля очищен',
+            master_password_rotated: 'Мастер-пароль и зашифрованные данные обновлены',
             '2fa_setup_started': 'Начата настройка 2FA',
             '2fa_enable_failed': 'Ошибка включения 2FA',
             '2fa_enabled': '2FA включена',
@@ -268,6 +335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.setItem('username', user.username || '');
         sessionStorage.setItem('email', user.email || '');
         sessionStorage.setItem('cryptoSalt', user.salt || '');
+        currentSalt = user.salt || '';
 
         const usernameNode = document.querySelector('.username');
         const emailNode = document.querySelector('.user-email');
@@ -369,6 +437,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentPassword = currentPasswordInput.value.trim();
             const newPassword = newPasswordInput.value.trim();
             const confirmPassword = confirmNewPasswordInput.value.trim();
+            const currentMasterPassword = sessionStorage.getItem('masterPassword') || '';
 
             if (!currentPassword || !newPassword || !confirmPassword) {
                 showNotice('Заполни все поля для смены пароля.', 'error');
@@ -380,6 +449,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
+            if (currentMasterPassword && newPassword === currentMasterPassword) {
+                showNotice('Пароль входа и мастер-пароль должны оставаться разными.', 'error');
+                return;
+            }
+
             await changePassword(currentPassword, newPassword);
             currentPasswordInput.value = '';
             newPasswordInput.value = '';
@@ -388,6 +462,95 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotice('Пароль для входа успешно изменен.', 'success');
         } catch (error: any) {
             showNotice(`Не удалось сменить пароль: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
+
+    changeMasterPasswordBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+
+            const currentAccountPassword = currentAccountPasswordForMasterInput.value.trim();
+            const currentMasterPassword = currentMasterPasswordInput.value.trim();
+            const nextMasterPassword = newMasterPasswordInput.value.trim();
+            const confirmMasterPassword = confirmNewMasterPasswordInput.value.trim();
+            const sessionMasterPassword = sessionStorage.getItem('masterPassword') || '';
+            const cryptoSalt = currentSalt || sessionStorage.getItem('cryptoSalt') || '';
+
+            if (!currentAccountPassword || !currentMasterPassword || !nextMasterPassword || !confirmMasterPassword) {
+                showNotice('Заполни все поля для смены мастер-пароля.', 'error');
+                return;
+            }
+
+            if (!cryptoSalt) {
+                showNotice('Не удалось определить соль шифрования. Перезайди в аккаунт и попробуй снова.', 'error');
+                return;
+            }
+
+            if (nextMasterPassword !== confirmMasterPassword) {
+                showNotice('Подтверждение нового мастер-пароля не совпадает.', 'error');
+                return;
+            }
+
+            if (currentMasterPassword === nextMasterPassword) {
+                showNotice('Новый мастер-пароль должен отличаться от текущего.', 'error');
+                return;
+            }
+
+            if (currentAccountPassword === nextMasterPassword) {
+                showNotice('Мастер-пароль и пароль входа должны оставаться разными.', 'error');
+                return;
+            }
+
+            changeMasterPasswordBtn.disabled = true;
+
+            const [accountPayloads, notePayloads, totpPayloads] = await Promise.all([
+                getAccounts() as Promise<AccountItem[]>,
+                getUserNotes() as Promise<NoteItem[]>,
+                getTotpAccounts() as Promise<TotpItem[]>
+            ]);
+
+            const canDecryptWithCurrentPassword =
+                currentMasterPassword === sessionMasterPassword ||
+                await canDecryptAnyPayload(accountPayloads, notePayloads, totpPayloads, currentMasterPassword, cryptoSalt);
+
+            if (!canDecryptWithCurrentPassword) {
+                showNotice('Текущий мастер-пароль указан неверно.', 'error');
+                return;
+            }
+
+            const [rotatedAccounts, rotatedNotes, rotatedTotpAccounts, decryptedAccounts, decryptedNotes] = await Promise.all([
+                buildRotatedAccountPayloads(accountPayloads, currentMasterPassword, nextMasterPassword, cryptoSalt),
+                buildRotatedNotePayloads(notePayloads, currentMasterPassword, nextMasterPassword, cryptoSalt),
+                buildRotatedTotpPayloads(totpPayloads, currentMasterPassword, nextMasterPassword, cryptoSalt),
+                decryptAccounts(accountPayloads, currentMasterPassword, cryptoSalt),
+                decryptNotes(notePayloads, currentMasterPassword, cryptoSalt)
+            ]);
+
+            const nextVerifier = await createMasterPasswordVerifier(nextMasterPassword, cryptoSalt);
+
+            await rotateMasterPassword({
+                accounts: rotatedAccounts,
+                notes: rotatedNotes,
+                totpAccounts: rotatedTotpAccounts,
+                masterPasswordVerifier: nextVerifier,
+                clearServerVerifier: false
+            });
+
+            sessionStorage.setItem('masterPassword', nextMasterPassword);
+            sessionStorage.setItem('accounts', JSON.stringify(decryptedAccounts));
+            sessionStorage.setItem('notes', JSON.stringify(decryptedNotes));
+
+            currentAccountPasswordForMasterInput.value = '';
+            currentMasterPasswordInput.value = '';
+            newMasterPasswordInput.value = '';
+            confirmNewMasterPasswordInput.value = '';
+
+            await loadAuditLogs();
+            showNotice('Мастер-пароль изменён, а данные успешно перешифрованы новым ключом.', 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось сменить мастер-пароль: ${error.response?.data?.message || error.message}`, 'error');
+        } finally {
+            changeMasterPasswordBtn.disabled = false;
         }
     });
 

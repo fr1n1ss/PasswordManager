@@ -1,4 +1,4 @@
-import { addNote, addToFavorites, deleteNote, getUserNotes, removeFromFavorites, updateNote } from '../services/api.ts';
+import { addNote, addToFavorites, deleteNote, getUserFavorites, getUserNotes, removeFromFavorites, updateNote } from '../services/api.ts';
 import { decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
@@ -12,6 +12,10 @@ interface Note {
     createdAt: string;
     updatedAt: string;
     isFavorite?: boolean;
+}
+
+interface FavoritesResponse {
+    notes?: Array<{ id: number }>;
 }
 
 function debounce(func: Function, delay: number) {
@@ -57,6 +61,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const getStoredNotes = () => JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
     const setStoredNotes = (notes: Note[]) => sessionStorage.setItem('notes', JSON.stringify(notes));
+    const syncStoredFavoriteState = async (notes: Note[]) => {
+        const favorites = await getUserFavorites() as FavoritesResponse;
+        const favoriteIds = new Set((favorites.notes || []).map((note) => note.id));
+        const syncedNotes = notes.map((note) => ({
+            ...note,
+            isFavorite: favoriteIds.has(note.id)
+        }));
+        setStoredNotes(syncedNotes);
+        return syncedNotes;
+    };
 
     const closeAllModals = () => {
         addNoteModal.style.display = 'none';
@@ -115,8 +129,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
 
         if (enable) {
-            title.innerHTML = `<input type="text" id="edit-note-title" value="${title.textContent || ''}" />`;
-            content.innerHTML = `<textarea id="edit-note-content">${content.textContent || ''}</textarea>`;
+            title.innerHTML = `<input type="text" id="edit-note-title" class="modal-inline-input" value="${title.textContent || ''}" />`;
+            content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${content.textContent || ''}</textarea>`;
             noteUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
@@ -192,8 +206,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!sessionStorage.getItem('notes')) {
             const encryptedNotes = await getUserNotes() as Note[];
             notes = await decryptNotes(encryptedNotes, masterPassword, cryptoSalt);
-            setStoredNotes(notes);
         }
+
+        notes = await syncStoredFavoriteState(notes);
 
         const visibleNotes = sortNotes(filterNotes(notes));
         notesCards.innerHTML = visibleNotes.map((note) => `

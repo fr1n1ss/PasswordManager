@@ -43,6 +43,102 @@ namespace PasswordManagerAPI.Controllers
             };
         }
 
+        [HttpPost("RotateMasterPassword")]
+        public async Task<IActionResult> RotateMasterPassword([FromBody] RotateMasterPasswordModel model)
+        {
+            var userId = GetCurrentUserId();
+            var sessionId = GetCurrentSessionId();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+                return Unauthorized();
+
+            model ??= new RotateMasterPasswordModel();
+
+            var totalAccounts = await _context.Accounts.CountAsync(x => x.UserID == userId);
+            var totalNotes = await _context.Notes.CountAsync(x => x.UserID == userId);
+            var totalTotpAccounts = await _context.TotpAccounts.CountAsync(x => x.UserId == userId);
+
+            if (model.Accounts.Count != totalAccounts || model.Notes.Count != totalNotes || model.TotpAccounts.Count != totalTotpAccounts)
+            {
+                return Conflict(new
+                {
+                    message = "Данные успели измениться. Обновите страницу и попробуйте снова."
+                });
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            var accountMap = model.Accounts.ToDictionary(x => x.Id);
+            var noteMap = model.Notes.ToDictionary(x => x.Id);
+            var totpMap = model.TotpAccounts.ToDictionary(x => x.Id);
+
+            var accounts = await _context.Accounts.Where(x => x.UserID == userId).ToListAsync();
+            foreach (var account in accounts)
+            {
+                if (!accountMap.TryGetValue(account.ID, out var updatedAccount) || string.IsNullOrWhiteSpace(updatedAccount.EncryptedPassword))
+                {
+                    return BadRequest(new { message = "Не удалось обновить зашифрованные аккаунты." });
+                }
+
+                account.EncryptedPassword = updatedAccount.EncryptedPassword;
+            }
+
+            var notes = await _context.Notes.Where(x => x.UserID == userId).ToListAsync();
+            foreach (var note in notes)
+            {
+                if (!noteMap.TryGetValue(note.ID, out var updatedNote) || string.IsNullOrWhiteSpace(updatedNote.EncryptedContent))
+                {
+                    return BadRequest(new { message = "Не удалось обновить зашифрованные заметки." });
+                }
+
+                note.EncryptedContent = updatedNote.EncryptedContent;
+                note.UpdatedAt = DateTime.UtcNow;
+            }
+
+            var totpAccounts = await _context.TotpAccounts.Where(x => x.UserId == userId).ToListAsync();
+            foreach (var totpAccount in totpAccounts)
+            {
+                if (!totpMap.TryGetValue(totpAccount.Id, out var updatedTotp) ||
+                    string.IsNullOrWhiteSpace(updatedTotp.EncryptedPayload) ||
+                    string.IsNullOrWhiteSpace(updatedTotp.Nonce))
+                {
+                    return BadRequest(new { message = "Не удалось обновить зашифрованные TOTP записи." });
+                }
+
+                var version = Math.Max(1, updatedTotp.Version);
+                totpAccount.ServiceName = $"encrypted-totp-v{version}";
+                totpAccount.Issuer = updatedTotp.Nonce;
+                totpAccount.Secret = $"zk1:{updatedTotp.EncryptedPayload}";
+                totpAccount.Digits = 0;
+                totpAccount.Period = 0;
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.MasterPasswordVerifier))
+            {
+                user.MasterPasswordVerifier = model.MasterPasswordVerifier;
+            }
+            else if (model.ClearServerVerifier)
+            {
+                user.MasterPasswordVerifier = null;
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await _auditService.LogAsync(
+                "master_password_rotated",
+                userId,
+                sessionId,
+                $"accounts={accounts.Count};notes={notes.Count};totp={totpAccounts.Count};verifierUpdated={!string.IsNullOrWhiteSpace(model.MasterPasswordVerifier)};clearedVerifier={model.ClearServerVerifier}");
+
+            return Ok(new
+            {
+                rotated = true,
+                clearedServerVerifier = model.ClearServerVerifier
+            });
+        }
+
         [HttpPost("SendEmailConfirmation")]
         public async Task<IActionResult> SendEmailConfirmation()
         {

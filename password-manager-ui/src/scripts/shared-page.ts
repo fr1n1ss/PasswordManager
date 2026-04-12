@@ -3,6 +3,7 @@ import { navigateTo } from './routes.ts';
 
 export function initializeSharedPageShell(): void {
     const container = document.querySelector('.container') as HTMLElement | null;
+    const titleElement = document.querySelector('.title') as HTMLElement | null;
     const username = sessionStorage.getItem('username');
     const email = sessionStorage.getItem('email');
     const usernameElement = document.querySelector('.username');
@@ -14,6 +15,13 @@ export function initializeSharedPageShell(): void {
 
     if (emailElement && email) {
         emailElement.textContent = email;
+    }
+
+    if (titleElement) {
+        titleElement.style.cursor = 'pointer';
+        titleElement.addEventListener('click', () => {
+            navigateTo('home');
+        });
     }
 
     const profile = document.querySelector('.profile') as HTMLElement | null;

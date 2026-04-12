@@ -1,4 +1,4 @@
-import { addAccount, addToFavorites, deleteAccount, getAccounts, removeFromFavorites, updateAccount } from '../services/api.ts';
+import { addAccount, addToFavorites, deleteAccount, getAccounts, getUserFavorites, removeFromFavorites, updateAccount } from '../services/api.ts';
 import { decryptAccounts, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
@@ -14,6 +14,10 @@ interface Account {
     url: string;
     creationDate: string;
     isFavorite?: boolean;
+}
+
+interface FavoritesResponse {
+    accounts?: Array<{ id: number }>;
 }
 
 function debounce(func: Function, delay: number) {
@@ -59,6 +63,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const getStoredAccounts = () => JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
     const setStoredAccounts = (accounts: Account[]) => sessionStorage.setItem('accounts', JSON.stringify(accounts));
+    const syncStoredFavoriteState = async (accounts: Account[]) => {
+        const favorites = await getUserFavorites() as FavoritesResponse;
+        const favoriteIds = new Set((favorites.accounts || []).map((account) => account.id));
+        const syncedAccounts = accounts.map((account) => ({
+            ...account,
+            isFavorite: favoriteIds.has(account.id)
+        }));
+        setStoredAccounts(syncedAccounts);
+        return syncedAccounts;
+    };
 
     const closeAllModals = () => {
         addAccountModal.style.display = 'none';
@@ -206,8 +220,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!sessionStorage.getItem('accounts')) {
             const encryptedAccounts = await getAccounts() as Account[];
             accounts = await decryptAccounts(encryptedAccounts, masterPassword, cryptoSalt);
-            setStoredAccounts(accounts);
         }
+
+        accounts = await syncStoredFavoriteState(accounts);
 
         const visibleAccounts = sortAccounts(filterAccounts(accounts));
         passwordCards.innerHTML = visibleAccounts.map((account) => {

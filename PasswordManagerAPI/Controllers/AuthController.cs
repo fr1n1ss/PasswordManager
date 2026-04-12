@@ -107,9 +107,6 @@ namespace PasswordManagerAPI.Controllers
             if (string.IsNullOrWhiteSpace(model.Salt))
                 return BadRequest("No salt was provided");
 
-            if (string.IsNullOrWhiteSpace(model.MasterPasswordVerifier))
-                return BadRequest("No master password verifier was provided");
-
             var user = new User
             {
                 Username = model.Username,
@@ -120,7 +117,7 @@ namespace PasswordManagerAPI.Controllers
                 EncryptedPrivateKey = string.Empty,
                 PublicKey = string.Empty,
                 Modulus = string.Empty,
-                MasterPasswordVerifier = model.MasterPasswordVerifier
+                MasterPasswordVerifier = string.IsNullOrWhiteSpace(model.MasterPasswordVerifier) ? null : model.MasterPasswordVerifier
             };
 
             _context.Users.Add(user);
@@ -268,12 +265,14 @@ namespace PasswordManagerAPI.Controllers
             if (user == null)
                 return Unauthorized();
 
-            if (string.IsNullOrWhiteSpace(model.MasterPasswordVerifier))
-                return BadRequest("Master password verifier is required");
-
-            user.MasterPasswordVerifier = model.MasterPasswordVerifier;
+            user.MasterPasswordVerifier = string.IsNullOrWhiteSpace(model.MasterPasswordVerifier)
+                ? null
+                : model.MasterPasswordVerifier;
             await _context.SaveChangesAsync();
-            await _auditService.LogAsync("master_password_verifier_updated", userId, sessionId);
+            await _auditService.LogAsync(
+                string.IsNullOrWhiteSpace(model.MasterPasswordVerifier) ? "master_password_verifier_cleared" : "master_password_verifier_updated",
+                userId,
+                sessionId);
 
             return Ok(new { updated = true });
         }

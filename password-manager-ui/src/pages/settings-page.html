@@ -10,7 +10,7 @@
 </head>
 <body>
 <div class="container">
-  <button class="hide-btn" id="hideBtn">≪</button>
+  <button class="hide-btn" id="hideBtn"></button>
   <aside class="sidebar" id="sidebar">
     <ul>
       <li><a href="/">Все элементы</a></li>
@@ -30,7 +30,7 @@
           <span class="user-email"></span>
         </div>
         <div class="profile">
-          <span class="profile-dropdown">▼</span>
+          <span class="profile-dropdown">&#9660;</span>
           <div class="dropdown-menu" id="profileMenu">
             <button id="settingsBtn">Настройки</button>
             <button id="logoutBtn">Выход</button>
@@ -148,6 +148,41 @@
 
             <div class="settings-actions">
               <button id="changePasswordBtn" class="modal-update-btn">Сменить пароль</button>
+            </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Смена мастер-пароля</h3>
+                <p class="settings-muted">Мастер-пароль нужен для локальной расшифровки. При смене мы перешифруем аккаунты, заметки и TOTP новым ключом прямо на клиенте.</p>
+              </div>
+            </div>
+
+            <div class="settings-form-grid">
+              <div class="settings-field">
+                <label class="modal-label" for="currentAccountPasswordForMaster">Текущий пароль входа</label>
+                <input type="password" id="currentAccountPasswordForMaster" placeholder="Текущий пароль входа">
+              </div>
+            </div>
+
+            <div class="settings-form-grid settings-form-grid-three">
+              <div class="settings-field">
+                <label class="modal-label" for="currentMasterPassword">Текущий мастер-пароль</label>
+                <input type="password" id="currentMasterPassword" placeholder="Текущий мастер-пароль">
+              </div>
+              <div class="settings-field">
+                <label class="modal-label" for="newMasterPassword">Новый мастер-пароль</label>
+                <input type="password" id="newMasterPassword" placeholder="Новый мастер-пароль">
+              </div>
+              <div class="settings-field">
+                <label class="modal-label" for="confirmNewMasterPassword">Подтверждение</label>
+                <input type="password" id="confirmNewMasterPassword" placeholder="Повтори новый мастер-пароль">
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button id="changeMasterPasswordBtn" class="modal-update-btn">Перешифровать данные</button>
             </div>
           </article>
 

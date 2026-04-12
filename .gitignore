@@ -373,3 +373,4 @@ PasswordManagerAPI/cert.key
 PasswordManagerAPI/localhost.crt
 PasswordManagerAPI/localhost.key
 PasswordManagerAPI/Migrations
+password-manager-ui/certs

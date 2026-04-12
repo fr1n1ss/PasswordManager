@@ -27,7 +27,7 @@ export const loginWith2FA = async (tempToken: string, code: string) => {
   return response.data as { token: string };
 };
 
-export const register = async (username: string, email: string, password: string, salt: string, masterPasswordVerifier: string) => {
+export const register = async (username: string, email: string, password: string, salt: string, masterPasswordVerifier?: string | null) => {
   const response = await api.post('/auth/register', { username, email, password, salt, masterPasswordVerifier });
   return response.data;
 };
@@ -135,6 +135,17 @@ export const getAuditLogs = async (take = 50) => {
     ipAddress?: string;
     userAgent?: string;
   }>;
+}
+
+export const rotateMasterPassword = async (payload: {
+  accounts: Array<{ id: number; encryptedPassword: string }>;
+  notes: Array<{ id: number; encryptedContent: string }>;
+  totpAccounts: Array<{ id: number; encryptedPayload: string; nonce: string; version: number }>;
+  masterPasswordVerifier?: string | null;
+  clearServerVerifier?: boolean;
+}) => {
+  const response = await api.post('/User/RotateMasterPassword', payload);
+  return response.data as { rotated: boolean; clearedServerVerifier: boolean };
 }
 
 export const validateMasterPassword = async (masterPassword: string) => {

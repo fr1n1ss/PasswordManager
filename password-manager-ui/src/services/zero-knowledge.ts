@@ -25,6 +25,41 @@ export interface NoteRecord {
   isFavorite?: boolean;
 }
 
+export interface TotpRecord {
+  id: number;
+  userId: number;
+  serviceName: string;
+  issuer: string;
+  secret: string;
+  digits: number;
+  period: number;
+}
+
+export interface TotpPayload {
+  serviceName: string;
+  issuer: string;
+  secret: string;
+  digits: number;
+  period: number;
+}
+
+export interface RotatedAccountPayload {
+  id: number;
+  encryptedPassword: string;
+}
+
+export interface RotatedNotePayload {
+  id: number;
+  encryptedContent: string;
+}
+
+export interface RotatedTotpPayload {
+  id: number;
+  encryptedPayload: string;
+  nonce: string;
+  version: number;
+}
+
 export async function createMasterPasswordVerifier(masterPassword: string, salt: string): Promise<string> {
   return encryptOpaquePayload(VERIFIER_PLAINTEXT, masterPassword, salt);
 }
@@ -40,9 +75,13 @@ export function generateClientSalt(): string {
   return btoa(binary);
 }
 
-export async function verifyMasterPasswordLocally(masterPassword: string, salt: string, verifier?: string | null): Promise<boolean> {
+export async function verifyMasterPasswordLocally(masterPassword: string, salt: string, verifier?: string | null): Promise<boolean | null> {
   if (!verifier) {
-    return true;
+    return null;
+  }
+
+  if (!verifier.startsWith(`${ZK_PREFIX}:`)) {
+    return false;
   }
 
   try {
@@ -85,9 +124,25 @@ export async function decryptNotes(records: NoteRecord[], masterPassword: string
   })));
 }
 
+export async function decryptTotpPayload(record: TotpRecord, masterPassword: string, salt: string): Promise<TotpPayload> {
+  if (record.secret.startsWith(`${ZK_PREFIX}:`)) {
+    const decrypted = await decryptStringWithKuznyechik(record.secret.slice(`${ZK_PREFIX}:`.length), record.issuer, masterPassword, salt);
+    return JSON.parse(decrypted) as TotpPayload;
+  }
+
+  return {
+    serviceName: record.serviceName,
+    issuer: record.issuer,
+    secret: record.secret,
+    digits: record.digits || 6,
+    period: record.period || 30,
+  };
+}
+
 export async function canDecryptAnyPayload(
   accounts: AccountRecord[],
   notes: NoteRecord[],
+  totpAccounts: TotpRecord[],
   masterPassword: string,
   salt: string
 ): Promise<boolean> {
@@ -103,5 +158,62 @@ export async function canDecryptAnyPayload(
     return true;
   }
 
+  const firstEncryptedTotp = totpAccounts.find((record) => record.secret.startsWith(`${ZK_PREFIX}:`));
+  if (firstEncryptedTotp) {
+    await decryptTotpPayload(firstEncryptedTotp, masterPassword, salt);
+    return true;
+  }
+
   return false;
+}
+
+export async function buildRotatedAccountPayloads(
+  records: AccountRecord[],
+  currentMasterPassword: string,
+  nextMasterPassword: string,
+  salt: string
+): Promise<RotatedAccountPayload[]> {
+  return Promise.all(records.map(async (record) => ({
+    id: record.id,
+    encryptedPassword: await encryptOpaquePayload(
+      await decryptOpaquePayload(record.encryptedPassword, currentMasterPassword, salt),
+      nextMasterPassword,
+      salt
+    ),
+  })));
+}
+
+export async function buildRotatedNotePayloads(
+  records: NoteRecord[],
+  currentMasterPassword: string,
+  nextMasterPassword: string,
+  salt: string
+): Promise<RotatedNotePayload[]> {
+  return Promise.all(records.map(async (record) => ({
+    id: record.id,
+    encryptedContent: await encryptOpaquePayload(
+      await decryptOpaquePayload(record.encryptedContent, currentMasterPassword, salt),
+      nextMasterPassword,
+      salt
+    ),
+  })));
+}
+
+export async function buildRotatedTotpPayloads(
+  records: TotpRecord[],
+  currentMasterPassword: string,
+  nextMasterPassword: string,
+  salt: string
+): Promise<RotatedTotpPayload[]> {
+  return Promise.all(records.map(async (record) => {
+    const payload = await decryptTotpPayload(record, currentMasterPassword, salt);
+    const encrypted = await encryptStringWithKuznyechik(JSON.stringify(payload), nextMasterPassword, salt);
+
+    return {
+      id: record.id,
+      encryptedPayload: encrypted.ciphertext,
+      nonce: encrypted.nonce,
+      version: 1,
+    };
+  }));
 }
