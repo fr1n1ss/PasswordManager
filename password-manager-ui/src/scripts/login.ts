@@ -1,4 +1,5 @@
 import { login, loginWith2FA } from '../services/api.ts';
+import { clearAuthToken, clearSensitiveSession, setAuthToken, setMasterPassword } from '../services/security-session.ts';
 import { enhancePasswordField } from './password-visibility.ts';
 import { navigateTo } from './routes.ts';
 
@@ -57,14 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            sessionStorage.setItem('masterPassword', masterPassword);
+            setMasterPassword(masterPassword);
             masterPasswordModal.style.display = 'none';
             masterPasswordInput.value = '';
-            sessionStorage.removeItem('isDataLoaded');
-            sessionStorage.removeItem('username');
-            sessionStorage.removeItem('email');
-            sessionStorage.removeItem('accounts');
-            sessionStorage.removeItem('notes');
+            clearSensitiveSession();
+            setMasterPassword(masterPassword);
             navigateTo('loading');
         };
 
@@ -72,7 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
             masterPasswordModal.style.display = 'none';
             const masterPasswordInput = document.getElementById('master-password-input') as HTMLInputElement;
             masterPasswordInput.value = '';
-            localStorage.removeItem('token');
+            clearAuthToken();
+            clearSensitiveSession();
             showError('Master password entry was cancelled. Please sign in again.');
         };
     };
@@ -84,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const finishLogin = (token: string) => {
-        localStorage.setItem('token', token);
+        setAuthToken(token);
         closeTotpModal();
         requestAnimationFrame(() => {
             openMasterPasswordModal();
@@ -112,7 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     cancelTotpButton.addEventListener('click', () => {
         closeTotpModal();
-        localStorage.removeItem('token');
+        clearAuthToken();
+        clearSensitiveSession();
     });
 
     totpModal.addEventListener('click', (event) => {

@@ -12,6 +12,7 @@ import {
     updateAccount,
     updateNote
 } from '../services/api.ts';
+import { getAuthToken, getMasterPassword } from '../services/security-session.ts';
 import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
@@ -93,11 +94,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const token = localStorage.getItem('token');
-    const masterPassword = sessionStorage.getItem('masterPassword');
+    const token = getAuthToken();
+    const masterPassword = getMasterPassword();
     const cryptoSalt = sessionStorage.getItem('cryptoSalt');
-    if (!token || !masterPassword || !cryptoSalt) {
+    if (!token) {
         navigateTo('login');
+        return;
+    }
+
+    if (!masterPassword || !cryptoSalt) {
+        navigateTo('loading');
         return;
     }
 

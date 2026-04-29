@@ -1,4 +1,5 @@
 import { addEncryptedTotpAccount, getTotpAccounts, importTotpQrText } from '../services/api.ts';
+import { getAuthToken, getMasterPassword } from '../services/security-session.ts';
 import { decryptStringWithKuznyechik, encryptStringWithKuznyechik } from '../services/kuznyechik.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
@@ -123,11 +124,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     initializeSharedPageShell();
 
-    const token = localStorage.getItem('token');
-    const masterPassword = sessionStorage.getItem('masterPassword');
+    const token = getAuthToken();
+    const masterPassword = getMasterPassword();
     const cryptoSalt = sessionStorage.getItem('cryptoSalt');
-    if (!token || !masterPassword || !cryptoSalt) {
+    if (!token) {
         navigateTo('login');
+        return;
+    }
+
+    if (!cryptoSalt) {
+        navigateTo('login');
+        return;
+    }
+
+    if (!masterPassword) {
+        navigateTo('loading');
         return;
     }
 

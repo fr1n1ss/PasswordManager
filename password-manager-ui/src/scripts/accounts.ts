@@ -1,4 +1,5 @@
 import { addAccount, addToFavorites, deleteAccount, getAccounts, getUserFavorites, removeFromFavorites, updateAccount } from '../services/api.ts';
+import { getMasterPassword } from '../services/security-session.ts';
 import { decryptAccounts, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
@@ -51,10 +52,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const masterPassword = sessionStorage.getItem('masterPassword');
+    const masterPassword = getMasterPassword();
     const cryptoSalt = sessionStorage.getItem('cryptoSalt');
-    if (!masterPassword || !cryptoSalt) {
+    if (!cryptoSalt) {
         navigateTo('login');
+        return;
+    }
+
+    if (!masterPassword) {
+        navigateTo('loading');
         return;
     }
 

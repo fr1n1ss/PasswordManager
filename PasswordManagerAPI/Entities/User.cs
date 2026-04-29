@@ -22,8 +22,7 @@ namespace PasswordManagerAPI.Entities
         }
 
         public int Id { get; set; }
-        [Required] 
-        [MaxLength(25)]
+        [Required]
         public string Username { get; set; }
         [Required]
         [MaxLength(450)]

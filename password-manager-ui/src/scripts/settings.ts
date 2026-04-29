@@ -1,4 +1,4 @@
-import {
+﻿import {
     changePassword,
     confirmEmailChange,
     disable2FA,
@@ -18,6 +18,12 @@ import {
     verifyEmailConfirmation
 } from '../services/api.ts';
 import { navigateTo } from './routes.ts';
+import {
+    analyzePassword,
+    findVulnerablePasswords,
+    generatePassword
+} from '../services/password-security.ts';
+import { clearAuthToken, clearSensitiveSession, getMasterPassword, setMasterPassword } from '../services/security-session.ts';
 import { enhancePasswordField } from './password-visibility.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 import {
@@ -110,11 +116,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const currentPasswordInput = document.getElementById('currentPassword') as HTMLInputElement | null;
     const newPasswordInput = document.getElementById('newPassword') as HTMLInputElement | null;
     const confirmNewPasswordInput = document.getElementById('confirmNewPassword') as HTMLInputElement | null;
+    const loginPasswordFeedback = document.getElementById('loginPasswordFeedback') as HTMLDivElement | null;
     const changeMasterPasswordBtn = document.getElementById('changeMasterPasswordBtn') as HTMLButtonElement | null;
     const currentAccountPasswordForMasterInput = document.getElementById('currentAccountPasswordForMaster') as HTMLInputElement | null;
     const currentMasterPasswordInput = document.getElementById('currentMasterPassword') as HTMLInputElement | null;
     const newMasterPasswordInput = document.getElementById('newMasterPassword') as HTMLInputElement | null;
     const confirmNewMasterPasswordInput = document.getElementById('confirmNewMasterPassword') as HTMLInputElement | null;
+    const masterPasswordFeedback = document.getElementById('masterPasswordFeedback') as HTMLDivElement | null;
+    const generatorLengthInput = document.getElementById('generatorLength') as HTMLInputElement | null;
+    const generatorIncludeLowercaseInput = document.getElementById('generatorIncludeLowercase') as HTMLInputElement | null;
+    const generatorIncludeUppercaseInput = document.getElementById('generatorIncludeUppercase') as HTMLInputElement | null;
+    const generatorIncludeDigitsInput = document.getElementById('generatorIncludeDigits') as HTMLInputElement | null;
+    const generatorIncludeSymbolsInput = document.getElementById('generatorIncludeSymbols') as HTMLInputElement | null;
+    const generatorCustomSymbolsInput = document.getElementById('generatorCustomSymbols') as HTMLInputElement | null;
+    const generatePasswordBtn = document.getElementById('generatePasswordBtn') as HTMLButtonElement | null;
+    const copyGeneratedPasswordBtn = document.getElementById('copyGeneratedPasswordBtn') as HTMLButtonElement | null;
+    const applyGeneratedToLoginPasswordBtn = document.getElementById('applyGeneratedToLoginPasswordBtn') as HTMLButtonElement | null;
+    const applyGeneratedToMasterPasswordBtn = document.getElementById('applyGeneratedToMasterPasswordBtn') as HTMLButtonElement | null;
+    const generatedPasswordOutput = document.getElementById('generatedPasswordOutput') as HTMLTextAreaElement | null;
+    const passwordAnalyzerInput = document.getElementById('passwordAnalyzerInput') as HTMLInputElement | null;
+    const analyzePasswordBtn = document.getElementById('analyzePasswordBtn') as HTMLButtonElement | null;
+    const passwordAnalyzerResult = document.getElementById('passwordAnalyzerResult') as HTMLDivElement | null;
+    const scanStoredPasswordsBtn = document.getElementById('scanStoredPasswordsBtn') as HTMLButtonElement | null;
+    const storedPasswordScanResults = document.getElementById('storedPasswordScanResults') as HTMLDivElement | null;
     const sessionsList = document.getElementById('sessionsList') as HTMLDivElement | null;
     const revokeOtherSessionsBtn = document.getElementById('revokeOtherSessionsBtn') as HTMLButtonElement | null;
     const auditLogList = document.getElementById('auditLogList') as HTMLDivElement | null;
@@ -133,8 +157,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         !currentEmailValue || !emailStatusBadge || !emailStatusText || !emailVerificationActions || !emailVerificationPanel ||
         !sendEmailCodeBtn || !verifyEmailBtn || !emailCodeInput || !requestEmailChangeBtn || !confirmEmailChangeBtn ||
         !emailChangePanel || !newEmailInput || !emailCurrentPasswordInput || !emailChangeCodeInput || !changePasswordBtn ||
-        !currentPasswordInput || !newPasswordInput || !confirmNewPasswordInput || !changeMasterPasswordBtn ||
-        !currentAccountPasswordForMasterInput || !currentMasterPasswordInput || !newMasterPasswordInput || !confirmNewMasterPasswordInput || !sessionsList || !revokeOtherSessionsBtn ||
+        !currentPasswordInput || !newPasswordInput || !confirmNewPasswordInput || !loginPasswordFeedback || !changeMasterPasswordBtn ||
+        !currentAccountPasswordForMasterInput || !currentMasterPasswordInput || !newMasterPasswordInput || !confirmNewMasterPasswordInput || !masterPasswordFeedback ||
+        !passwordAnalyzerInput || !analyzePasswordBtn || !passwordAnalyzerResult || !scanStoredPasswordsBtn || !storedPasswordScanResults || !sessionsList || !revokeOtherSessionsBtn ||
         !auditLogList || !start2faSetupBtn || !disable2faBtn || !verify2faBtn || !twofaStatusText || !twofaStatusBadge ||
         !twofaSetupPanel || !twofaUri || !twofaCode || !twofaQrImage || !settingsNotice
     ) {
@@ -151,7 +176,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentAccountPasswordForMasterInput,
         currentMasterPasswordInput,
         newMasterPasswordInput,
-        confirmNewMasterPasswordInput
+        confirmNewMasterPasswordInput,
+        passwordAnalyzerInput
     ].forEach((input) => {
         enhancePasswordField(input);
     });
@@ -168,6 +194,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsNotice.className = 'settings-notice';
     };
 
+    const renderPasswordFeedback = (
+        container: HTMLDivElement,
+        password: string,
+        personalValues: string[],
+        emptyMessage: string
+    ) => {
+        if (!password) {
+            container.innerHTML = `<p class="settings-password-empty">${escapeHtml(emptyMessage)}</p>`;
+            return;
+        }
+
+        const analysis = analyzePassword(password, { personalValues });
+        const issues = analysis.vulnerabilities.length > 0
+            ? analysis.vulnerabilities.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('')
+            : '<li>Явных локальных признаков уязвимости не найдено.</li>';
+
+        container.innerHTML = `
+            <div class="settings-password-summary">
+                <strong>${escapeHtml(analysis.strengthLabel)}</strong>
+                <span class="settings-password-score">Оценка: ${analysis.score}/100</span>
+            </div>
+            <div class="settings-password-grid">
+                ${analysis.checks.map((check) => `
+                    <div class="settings-password-check ${check.passed ? 'is-passed' : 'is-failed'}">
+                        <span class="settings-password-check-icon">${check.passed ? '✓' : '•'}</span>
+                        <span>${escapeHtml(check.label)}</span>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="settings-password-vulnerabilities">
+                <div class="settings-password-vulnerabilities-title">Потенциальные риски</div>
+                <ul>${issues}</ul>
+            </div>
+        `;
+    };
+
     const escapeHtml = (value: string) => value
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -176,6 +238,73 @@ document.addEventListener('DOMContentLoaded', async () => {
         .replace(/'/g, '&#39;');
 
     const formatDate = (value: string) => new Date(value).toLocaleString('ru-RU');
+
+    const refreshLoginPasswordFeedback = () => {
+        renderPasswordFeedback(
+            loginPasswordFeedback,
+            newPasswordInput.value,
+            [sessionStorage.getItem('username') || '', sessionStorage.getItem('email') || ''],
+            'Введите новый пароль для проверки сложности.'
+        );
+    };
+
+    const refreshMasterPasswordFeedback = () => {
+        renderPasswordFeedback(
+            masterPasswordFeedback,
+            newMasterPasswordInput.value,
+            [sessionStorage.getItem('username') || '', sessionStorage.getItem('email') || ''],
+            'Введите новый мастер-пароль. Его анализ выполняется локально в zero-knowledge режиме.'
+        );
+    };
+
+    const renderAnalyzerFeedback = () => {
+        renderPasswordFeedback(
+            passwordAnalyzerResult,
+            passwordAnalyzerInput.value,
+            [sessionStorage.getItem('username') || '', sessionStorage.getItem('email') || ''],
+            'Введите пароль, чтобы проверить его на локальные признаки уязвимости.'
+        );
+    };
+
+    newPasswordInput.addEventListener('input', refreshLoginPasswordFeedback);
+    newMasterPasswordInput.addEventListener('input', refreshMasterPasswordFeedback);
+    passwordAnalyzerInput.addEventListener('input', renderAnalyzerFeedback);
+    refreshLoginPasswordFeedback();
+    refreshMasterPasswordFeedback();
+    renderAnalyzerFeedback();
+    const renderStoredPasswordScan = async () => {
+        const sessionMasterPassword = getMasterPassword() || '';
+        const cryptoSalt = currentSalt || sessionStorage.getItem('cryptoSalt') || '';
+
+        if (!sessionMasterPassword || !cryptoSalt) {
+            storedPasswordScanResults.innerHTML = '<div class="settings-empty">Для локальной проверки нужен активный сеанс и мастер-пароль в памяти клиента.</div>';
+            return;
+        }
+
+        let accounts = JSON.parse(sessionStorage.getItem('accounts') || 'null') as AccountItem[] | null;
+        if (!accounts) {
+            const encryptedAccounts = await getAccounts() as AccountItem[];
+            accounts = await decryptAccounts(encryptedAccounts, sessionMasterPassword, cryptoSalt);
+        }
+
+        const vulnerablePasswords = findVulnerablePasswords(accounts);
+        if (vulnerablePasswords.length === 0) {
+            storedPasswordScanResults.innerHTML = '<div class="settings-empty">Слабых или повторно используемых паролей среди сохранённых аккаунтов не найдено.</div>';
+            return;
+        }
+
+        storedPasswordScanResults.innerHTML = vulnerablePasswords.map((entry) => `
+            <article class="settings-list-item">
+                <div class="settings-list-item-main">
+                    <div class="settings-list-title-row">
+                        <strong>${escapeHtml(entry.serviceName || 'Без названия')}</strong>
+                        <span class="settings-inline-badge">${escapeHtml(entry.login || 'Без логина')}</span>
+                    </div>
+                    <p>${escapeHtml(entry.issues.join(' '))}</p>
+                </div>
+            </article>
+        `).join('');
+    };
 
     const switchTab = (tabName: string) => {
         tabTriggers.forEach((trigger) => {
@@ -200,7 +329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         emailStatusBadge.classList.toggle('settings-badge-active', user.emailConfirmed);
         emailStatusText.textContent = user.emailConfirmed
             ? 'Email подтвержден. Дополнительное подтверждение для текущего адреса больше не требуется.'
-            : 'Подтверди текущий email, чтобы защитить аккаунт и проще восстанавливать доступ.';
+            : 'Подтвердите текущий email, чтобы защитить аккаунт и упростить восстановление доступа.';
 
         emailVerificationActions.style.display = user.emailConfirmed ? 'none' : 'flex';
         emailVerificationPanel.style.display = user.emailConfirmed ? 'none' : 'none';
@@ -260,8 +389,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     button.disabled = true;
                     await revokeSession(sessionId);
                     if (button.textContent === 'Выйти') {
-                        localStorage.removeItem('token');
-                        sessionStorage.clear();
+                        clearAuthToken();
+                        clearSensitiveSession();
                         navigateTo('login');
                         return;
                     }
@@ -348,6 +477,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         renderEmailState(user);
         render2faStatus(Boolean(user.is2FaEnabled));
+        refreshLoginPasswordFeedback();
+        refreshMasterPasswordFeedback();
+        renderAnalyzerFeedback();
     };
 
     const loadSessions = async () => {
@@ -375,7 +507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideNotice();
             const code = emailCodeInput.value.trim();
             if (!code) {
-                showNotice('Введи код подтверждения email.', 'error');
+                showNotice('Введите код подтверждения email.', 'error');
                 return;
             }
 
@@ -395,7 +527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentPassword = emailCurrentPasswordInput.value.trim();
 
             if (!newEmail || !currentPassword) {
-                showNotice('Укажи новый email и текущий пароль.', 'error');
+                showNotice('Укажите новый email и текущий пароль.', 'error');
                 return;
             }
 
@@ -413,7 +545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideNotice();
             const code = emailChangeCodeInput.value.trim();
             if (!code) {
-                showNotice('Введи код подтверждения для нового email.', 'error');
+                showNotice('Введите код подтверждения для нового email.', 'error');
                 return;
             }
 
@@ -437,15 +569,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentPassword = currentPasswordInput.value.trim();
             const newPassword = newPasswordInput.value.trim();
             const confirmPassword = confirmNewPasswordInput.value.trim();
-            const currentMasterPassword = sessionStorage.getItem('masterPassword') || '';
+            const currentMasterPassword = getMasterPassword() || '';
+            const passwordAnalysis = analyzePassword(newPassword, {
+                personalValues: [sessionStorage.getItem('username') || '', sessionStorage.getItem('email') || '']
+            });
 
             if (!currentPassword || !newPassword || !confirmPassword) {
-                showNotice('Заполни все поля для смены пароля.', 'error');
+                showNotice('Заполните все поля для смены пароля.', 'error');
                 return;
             }
 
             if (newPassword !== confirmPassword) {
                 showNotice('Подтверждение нового пароля не совпадает.', 'error');
+                return;
+            }
+
+            if (!passwordAnalysis.isPolicyCompliant) {
+                showNotice(passwordAnalysis.vulnerabilities[0] || 'Новый пароль не соответствует требованиям сложности.', 'error');
                 return;
             }
 
@@ -458,6 +598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentPasswordInput.value = '';
             newPasswordInput.value = '';
             confirmNewPasswordInput.value = '';
+            refreshLoginPasswordFeedback();
             await loadAuditLogs();
             showNotice('Пароль для входа успешно изменен.', 'success');
         } catch (error: any) {
@@ -473,21 +614,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentMasterPassword = currentMasterPasswordInput.value.trim();
             const nextMasterPassword = newMasterPasswordInput.value.trim();
             const confirmMasterPassword = confirmNewMasterPasswordInput.value.trim();
-            const sessionMasterPassword = sessionStorage.getItem('masterPassword') || '';
+            const sessionMasterPassword = getMasterPassword() || '';
             const cryptoSalt = currentSalt || sessionStorage.getItem('cryptoSalt') || '';
+            const masterPasswordAnalysis = analyzePassword(nextMasterPassword, {
+                personalValues: [sessionStorage.getItem('username') || '', sessionStorage.getItem('email') || '']
+            });
 
             if (!currentAccountPassword || !currentMasterPassword || !nextMasterPassword || !confirmMasterPassword) {
-                showNotice('Заполни все поля для смены мастер-пароля.', 'error');
+                showNotice('Заполните все поля для смены мастер-пароля.', 'error');
                 return;
             }
 
             if (!cryptoSalt) {
-                showNotice('Не удалось определить соль шифрования. Перезайди в аккаунт и попробуй снова.', 'error');
+                showNotice('Не удалось определить соль шифрования. Перезайдите в аккаунт и попробуйте снова.', 'error');
                 return;
             }
 
             if (nextMasterPassword !== confirmMasterPassword) {
                 showNotice('Подтверждение нового мастер-пароля не совпадает.', 'error');
+                return;
+            }
+
+            if (!masterPasswordAnalysis.isPolicyCompliant) {
+                showNotice(masterPasswordAnalysis.vulnerabilities[0] || 'Новый мастер-пароль не соответствует требованиям сложности.', 'error');
                 return;
             }
 
@@ -536,7 +685,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 clearServerVerifier: false
             });
 
-            sessionStorage.setItem('masterPassword', nextMasterPassword);
+            setMasterPassword(nextMasterPassword);
             sessionStorage.setItem('accounts', JSON.stringify(decryptedAccounts));
             sessionStorage.setItem('notes', JSON.stringify(decryptedNotes));
 
@@ -544,6 +693,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentMasterPasswordInput.value = '';
             newMasterPasswordInput.value = '';
             confirmNewMasterPasswordInput.value = '';
+            refreshMasterPasswordFeedback();
 
             await loadAuditLogs();
             showNotice('Мастер-пароль изменён, а данные успешно перешифрованы новым ключом.', 'success');
@@ -551,6 +701,98 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotice(`Не удалось сменить мастер-пароль: ${error.response?.data?.message || error.message}`, 'error');
         } finally {
             changeMasterPasswordBtn.disabled = false;
+        }
+    });
+
+    if (
+        generatorLengthInput &&
+        generatorIncludeLowercaseInput &&
+        generatorIncludeUppercaseInput &&
+        generatorIncludeDigitsInput &&
+        generatorIncludeSymbolsInput &&
+        generatorCustomSymbolsInput &&
+        generatePasswordBtn &&
+        copyGeneratedPasswordBtn &&
+        applyGeneratedToLoginPasswordBtn &&
+        applyGeneratedToMasterPasswordBtn &&
+        generatedPasswordOutput
+    ) {
+        generatePasswordBtn.addEventListener('click', () => {
+            try {
+                hideNotice();
+                const generatedPassword = generatePassword({
+                    length: Math.max(4, Number(generatorLengthInput.value || '20')),
+                    includeLowercase: generatorIncludeLowercaseInput.checked,
+                    includeUppercase: generatorIncludeUppercaseInput.checked,
+                    includeDigits: generatorIncludeDigitsInput.checked,
+                    includeSymbols: generatorIncludeSymbolsInput.checked,
+                    customSymbols: generatorCustomSymbolsInput.value
+                });
+
+                generatedPasswordOutput.value = generatedPassword;
+                passwordAnalyzerInput.value = generatedPassword;
+                renderAnalyzerFeedback();
+                showNotice('Пароль сгенерирован локально.', 'success');
+            } catch (error: any) {
+                showNotice(error.message || 'Не удалось сгенерировать пароль.', 'error');
+            }
+        });
+
+        copyGeneratedPasswordBtn.addEventListener('click', async () => {
+            try {
+                hideNotice();
+                if (!generatedPasswordOutput.value) {
+                    showNotice('Сначала сгенерируйте пароль.', 'error');
+                    return;
+                }
+
+                await navigator.clipboard.writeText(generatedPasswordOutput.value);
+                showNotice('Сгенерированный пароль скопирован.', 'success');
+            } catch (error: any) {
+                showNotice(`Не удалось скопировать пароль: ${error.message}`, 'error');
+            }
+        });
+
+        applyGeneratedToLoginPasswordBtn.addEventListener('click', () => {
+            if (!generatedPasswordOutput.value) {
+                showNotice('Сначала сгенерируйте пароль.', 'error');
+                return;
+            }
+
+            newPasswordInput.value = generatedPasswordOutput.value;
+            confirmNewPasswordInput.value = generatedPasswordOutput.value;
+            refreshLoginPasswordFeedback();
+            showNotice('Сгенерированный пароль подставлен в поля смены пароля входа.', 'info');
+        });
+
+        applyGeneratedToMasterPasswordBtn.addEventListener('click', () => {
+            if (!generatedPasswordOutput.value) {
+                showNotice('Сначала сгенерируйте пароль.', 'error');
+                return;
+            }
+
+            newMasterPasswordInput.value = generatedPasswordOutput.value;
+            confirmNewMasterPasswordInput.value = generatedPasswordOutput.value;
+            refreshMasterPasswordFeedback();
+            showNotice('Сгенерированный пароль подставлен в поля смены мастер-пароля.', 'info');
+        });
+    }
+
+    analyzePasswordBtn.addEventListener('click', () => {
+        hideNotice();
+        renderAnalyzerFeedback();
+        showNotice('Локальный анализ пароля выполнен.', 'info');
+    });
+
+    scanStoredPasswordsBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            storedPasswordScanResults.innerHTML = '<div class="settings-empty">Проверяем сохранённые аккаунты локально...</div>';
+            await renderStoredPasswordScan();
+            showNotice('Локальный аудит сохранённых паролей завершен.', 'info');
+        } catch (error: any) {
+            storedPasswordScanResults.innerHTML = '<div class="settings-empty">Не удалось выполнить локальный аудит.</div>';
+            showNotice(`Не удалось проверить сохранённые пароли: ${error.message}`, 'error');
         }
     });
 
@@ -584,7 +826,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideNotice();
             const code = twofaCode.value.trim();
             if (!code) {
-                showNotice('Введи код из приложения-аутентификатора.', 'error');
+                showNotice('Введите код из приложения-аутентификатора.', 'error');
                 return;
             }
 

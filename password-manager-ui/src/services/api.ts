@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getAuthToken } from './security-session.ts';
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,7 +9,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

@@ -19,13 +19,16 @@ namespace PasswordManagerAPI.Controllers
         private readonly SecurityHelper _securityHelper;
         private readonly ITotpService _totpService;
         private readonly IAuditService _auditService;
+        private readonly PasswordPolicyService _passwordPolicyService;
+        private const int UsernameMaxLength = 25;
 
-        public AuthController(AppDbContext context, IConfiguration config, ITotpService totpService, IAuditService auditService)
+        public AuthController(AppDbContext context, IConfiguration config, ITotpService totpService, IAuditService auditService, PasswordPolicyService passwordPolicyService)
         {
             _context = context;
             _securityHelper = new SecurityHelper(config);
             _totpService = totpService;
             _auditService = auditService;
+            _passwordPolicyService = passwordPolicyService;
         }
 
         [HttpPost("login")]
@@ -85,32 +88,61 @@ namespace PasswordManagerAPI.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterModel model)
         {
-            if (await _context.Users.AnyAsync(u => u.Username == model.Username))
+            var username = model.Username?.Trim();
+            var email = model.Email?.Trim();
+
+            if (string.IsNullOrWhiteSpace(username))
+                return BadRequest(new { message = "Р’РІРµРґРёС‚Рµ РёРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ." });
+
+            if (username.Length > UsernameMaxLength)
             {
-                return BadRequest("User already exists.");
+                return BadRequest(new
+                {
+                    message = $"Имя пользователя должно быть не длиннее {UsernameMaxLength} символов."
+                });
             }
 
-            if (await _context.Users.AnyAsync(u => u.Email == model.Email))
+            if (await _context.Users.AnyAsync(u => u.Username == username))
             {
-                return BadRequest("Email already exists.");
+                return BadRequest(new { message = "Пользователь с таким именем уже существует." });
+            }
+
+            if (string.IsNullOrWhiteSpace(model.Password))
+                return BadRequest(new { message = "Р’РІРµРґРёС‚Рµ РїР°СЂРѕР»СЊ." });
+
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { message = "Р’РІРµРґРёС‚Рµ email." });
+
+            if (await _context.Users.AnyAsync(u => u.Email == email))
+            {
+                return BadRequest(new { message = "Пользователь с таким email уже существует." });
             }
 
             if (string.IsNullOrEmpty(model.Username))
-                return BadRequest("Enter username");
+                return BadRequest(new { message = "Введите имя пользователя." });
 
             if (string.IsNullOrEmpty(model.Password))
-                return BadRequest("No password was entered");
+                return BadRequest(new { message = "Введите пароль." });
 
             if (string.IsNullOrEmpty(model.Email))
-                return BadRequest("No email was entered");
+                return BadRequest(new { message = "Введите email." });
 
             if (string.IsNullOrWhiteSpace(model.Salt))
-                return BadRequest("No salt was provided");
+                return BadRequest(new { message = "Не передана криптографическая соль." });
+
+            var passwordValidation = _passwordPolicyService.Validate(model.Password);
+            if (!passwordValidation.IsValid)
+            {
+                return BadRequest(new
+                {
+                    message = string.Join(" ", passwordValidation.Errors)
+                });
+            }
 
             var user = new User
             {
-                Username = model.Username,
-                Email = model.Email,
+                Username = username,
+                Email = email,
                 EmailConfirmed = false,
                 Salt = model.Salt,
                 PasswordHash = _securityHelper.HashPassword(model.Password, model.Salt),
@@ -124,7 +156,7 @@ namespace PasswordManagerAPI.Controllers
             await _context.SaveChangesAsync();
             await _auditService.LogAsync("register_success", user.Id, details: $"username={user.Username}");
 
-            return Ok("Registration successful! You can log in now.");
+            return Ok("Регистрация прошла успешно. Теперь можно войти.");
         }
 
         [Authorize]
@@ -149,6 +181,15 @@ namespace PasswordManagerAPI.Controllers
 
             if (model.CurrentPassword == model.NewPassword)
                 return BadRequest(new { message = "Новый пароль должен отличаться от текущего" });
+
+            var passwordValidation = _passwordPolicyService.Validate(model.NewPassword);
+            if (!passwordValidation.IsValid)
+            {
+                return BadRequest(new
+                {
+                    message = string.Join(" ", passwordValidation.Errors)
+                });
+            }
 
             user.PasswordHash = _securityHelper.HashPassword(model.NewPassword, user.Salt);
             await _context.SaveChangesAsync();

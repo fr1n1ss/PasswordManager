@@ -1,4 +1,5 @@
 import { getAccounts, getTotpAccounts, getUserInfo, getUserNotes, ping, rotateMasterPassword, updateMasterPasswordVerifier } from '../services/api.ts';
+import { clearAuthToken, clearSensitiveSession, getAuthToken, getMasterPassword, setMasterPassword } from '../services/security-session.ts';
 import { navigateTo } from './routes.ts';
 import {
     buildRotatedAccountPayloads,
@@ -75,6 +76,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     modal.style.display = 'none';
     errorContainer.style.display = 'none';
+    masterPasswordInput.setAttribute('autocomplete', 'new-password');
+    masterPasswordInput.setAttribute('autocorrect', 'off');
+    masterPasswordInput.setAttribute('autocapitalize', 'off');
+    masterPasswordInput.spellcheck = false;
 
     enhancePasswordField(masterPasswordInput, {
         groupClass: 'password-input-group auth-password-input-group',
@@ -96,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (!token) {
         const isServerAvailable = await checkServerAvailability();
         errorContainer.style.display = 'block';
@@ -131,7 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         errorContainer.style.display = 'block';
         if (error.response?.status === 401) {
             errorMessage.textContent = 'Сессия истекла или авторизация не удалась. Пожалуйста, войдите заново.';
-            localStorage.removeItem('token');
+            clearAuthToken();
             setTimeout(() => navigateTo('login'), 2000);
         } else {
             errorMessage.innerHTML = `
@@ -143,7 +148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const persistUserContext = (masterPassword: string) => {
-        sessionStorage.setItem('masterPassword', masterPassword);
+        setMasterPassword(masterPassword);
         sessionStorage.setItem('username', user.username || '');
         sessionStorage.setItem('email', user.email || '');
         sessionStorage.setItem('cryptoSalt', user.salt || '');
@@ -207,9 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sessionStorage.setItem('isDataLoaded', 'true');
             navigateTo('home');
         } catch (error: any) {
-            sessionStorage.removeItem('masterPassword');
-            sessionStorage.removeItem('accounts');
-            sessionStorage.removeItem('notes');
+            clearSensitiveSession(true);
 
             if (error.message === 'INVALID_MASTER_PASSWORD') {
                 modalTitle.textContent = 'Введите мастер-пароль';
@@ -225,7 +228,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    const masterPassword = sessionStorage.getItem('masterPassword');
+    const masterPassword = getMasterPassword();
     if (!masterPassword) {
         modal.style.display = 'flex';
         modalTitle.textContent = 'Введите мастер-пароль';
@@ -249,15 +252,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('token');
-        sessionStorage.removeItem('masterPassword');
-        sessionStorage.removeItem('username');
-        sessionStorage.removeItem('email');
-        sessionStorage.removeItem('cryptoSalt');
-        sessionStorage.removeItem('accounts');
-        sessionStorage.removeItem('notes');
-        sessionStorage.removeItem('notesLoadError');
-        sessionStorage.removeItem('isDataLoaded');
+        clearAuthToken();
+        clearSensitiveSession();
         navigateTo('login');
     });
 });

@@ -8,15 +8,16 @@
 </head>
 <body>
 <div class="register-container auth-panel">
-  <form id="registerForm">
+  <form id="registerForm" autocomplete="off">
     <div class="auth-panel-badge">PM</div>
     <h2>Регистрация</h2>
     <p class="auth-panel-subtitle">Создайте аккаунт и задайте мастер-пароль для локальной защиты ваших данных.</p>
-    <input type="text" id="username" placeholder="Имя пользователя" required />
-    <input type="email" id="email" placeholder="E-mail" required />
-    <input type="password" id="password" placeholder="Пароль" required />
-    <input type="password" id="confirmPassword" placeholder="Повторите пароль" required />
-    <input type="password" id="masterPassword" placeholder="Мастер-пароль" required />
+    <input type="text" id="username" placeholder="Имя пользователя" autocomplete="off" required />
+    <input type="email" id="email" placeholder="E-mail" autocomplete="off" required />
+    <input type="password" id="password" placeholder="Пароль" autocomplete="new-password" required />
+    <div id="registerPasswordFeedback" class="auth-password-feedback"></div>
+    <input type="password" id="confirmPassword" placeholder="Повторите пароль" autocomplete="new-password" required />
+    <input type="password" id="masterPassword" placeholder="Мастер-пароль" autocomplete="new-password" required />
     <button type="submit">Зарегистрироваться</button>
     <p>Уже есть аккаунт? <a class="login-link" href="/login">Войти</a></p>
   </form>

@@ -86,6 +86,7 @@ namespace PasswordManagerAPI
             builder.Services.AddScoped<IAuditService, AuditService>();
             builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
             builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
+            builder.Services.AddScoped<PasswordPolicyService>();
 
             builder.Services.AddEndpointsApiExplorer();
 

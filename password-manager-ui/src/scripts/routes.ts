@@ -4,6 +4,7 @@ export const ROUTES = {
     accounts: '/accounts',
     notes: '/notes',
     totp: '/totp',
+    passwordGenerator: '/password-generator',
     settings: '/settings',
     login: '/login',
     register: '/register',

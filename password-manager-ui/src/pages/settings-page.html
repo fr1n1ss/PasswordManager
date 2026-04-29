@@ -42,7 +42,7 @@
       <section class="settings-panel settings-stack">
         <div class="settings-header">
           <h2 class="section-title settings-title">Настройки аккаунта</h2>
-          <p class="settings-subtitle">Управляй подтверждением email, безопасностью входа, активными сессиями и журналом действий без перегруженного экрана.</p>
+          <p class="settings-subtitle">Управляйте email, защитой входа и локальной проверкой паролей без нарушения zero-knowledge подхода.</p>
         </div>
 
         <div class="settings-tabs" role="tablist" aria-label="Разделы настроек">
@@ -76,7 +76,7 @@
               <div class="settings-form-grid settings-form-grid-inline">
                 <div class="settings-field">
                   <label class="modal-label" for="emailCodeInput">Код подтверждения</label>
-                  <input type="text" id="emailCodeInput" class="settings-code-input settings-code-input-compact" placeholder="123456" inputmode="numeric">
+                  <input type="text" id="emailCodeInput" class="settings-code-input settings-code-input-compact" placeholder="123456" inputmode="numeric" autocomplete="off">
                 </div>
                 <div class="settings-field settings-field-end">
                   <button id="verifyEmailBtn" class="favorite-btn settings-confirm-btn">Подтвердить email</button>
@@ -89,18 +89,18 @@
             <div class="settings-card-header">
               <div>
                 <h3>Смена email</h3>
-                <p class="settings-muted">Сначала отправь код на новый email, потом подтверди его здесь.</p>
+                <p class="settings-muted">Сначала отправьте код на новый адрес, затем подтвердите его здесь.</p>
               </div>
             </div>
 
             <div class="settings-form-grid">
               <div class="settings-field">
                 <label class="modal-label" for="newEmail">Новый email</label>
-                <input type="email" id="newEmail" placeholder="new@email.com">
+                <input type="email" id="newEmail" placeholder="new@email.com" autocomplete="off">
               </div>
               <div class="settings-field">
                 <label class="modal-label" for="emailCurrentPassword">Текущий пароль</label>
-                <input type="password" id="emailCurrentPassword" placeholder="Текущий пароль">
+                <input type="password" id="emailCurrentPassword" placeholder="Текущий пароль" autocomplete="new-password">
               </div>
             </div>
 
@@ -112,7 +112,7 @@
               <div class="settings-form-grid settings-form-grid-inline">
                 <div class="settings-field">
                   <label class="modal-label" for="emailChangeCode">Код из письма</label>
-                  <input type="text" id="emailChangeCode" class="settings-code-input settings-code-input-compact" placeholder="123456" inputmode="numeric">
+                  <input type="text" id="emailChangeCode" class="settings-code-input settings-code-input-compact" placeholder="123456" inputmode="numeric" autocomplete="off">
                 </div>
                 <div class="settings-field settings-field-end">
                   <button id="confirmEmailChangeBtn" class="favorite-btn settings-confirm-btn">Подтвердить смену email</button>
@@ -127,24 +127,26 @@
             <div class="settings-card-header">
               <div>
                 <h3>Смена пароля для входа</h3>
-                <p class="settings-muted">Это пароль авторизации в аккаунт. Мастер-пароль для локальной расшифровки здесь не меняется.</p>
+                <p class="settings-muted">Сервер знает только этот пароль, поэтому проверка сложности дублируется и на клиенте, и на API.</p>
               </div>
             </div>
 
             <div class="settings-form-grid settings-form-grid-three">
               <div class="settings-field">
                 <label class="modal-label" for="currentPassword">Текущий пароль</label>
-                <input type="password" id="currentPassword" placeholder="Текущий пароль">
+                <input type="password" id="currentPassword" placeholder="Текущий пароль" autocomplete="new-password">
               </div>
               <div class="settings-field">
                 <label class="modal-label" for="newPassword">Новый пароль</label>
-                <input type="password" id="newPassword" placeholder="Новый пароль">
+                <input type="password" id="newPassword" placeholder="Новый пароль" autocomplete="new-password">
               </div>
               <div class="settings-field">
                 <label class="modal-label" for="confirmNewPassword">Подтверждение</label>
-                <input type="password" id="confirmNewPassword" placeholder="Повтори новый пароль">
+                <input type="password" id="confirmNewPassword" placeholder="Повторите новый пароль" autocomplete="new-password">
               </div>
             </div>
+
+            <div id="loginPasswordFeedback" class="settings-password-feedback"></div>
 
             <div class="settings-actions">
               <button id="changePasswordBtn" class="modal-update-btn">Сменить пароль</button>
@@ -155,35 +157,59 @@
             <div class="settings-card-header">
               <div>
                 <h3>Смена мастер-пароля</h3>
-                <p class="settings-muted">Мастер-пароль нужен для локальной расшифровки. При смене мы перешифруем аккаунты, заметки и TOTP новым ключом прямо на клиенте.</p>
+                <p class="settings-muted">Мастер-пароль нужен для локальной расшифровки. Его проверка выполняется только на клиенте, а данные перешифровываются локально перед отправкой уже в зашифрованном виде.</p>
               </div>
             </div>
 
             <div class="settings-form-grid">
               <div class="settings-field">
                 <label class="modal-label" for="currentAccountPasswordForMaster">Текущий пароль входа</label>
-                <input type="password" id="currentAccountPasswordForMaster" placeholder="Текущий пароль входа">
+                <input type="password" id="currentAccountPasswordForMaster" placeholder="Текущий пароль входа" autocomplete="new-password">
               </div>
             </div>
 
             <div class="settings-form-grid settings-form-grid-three">
               <div class="settings-field">
                 <label class="modal-label" for="currentMasterPassword">Текущий мастер-пароль</label>
-                <input type="password" id="currentMasterPassword" placeholder="Текущий мастер-пароль">
+                <input type="password" id="currentMasterPassword" placeholder="Текущий мастер-пароль" autocomplete="new-password">
               </div>
               <div class="settings-field">
                 <label class="modal-label" for="newMasterPassword">Новый мастер-пароль</label>
-                <input type="password" id="newMasterPassword" placeholder="Новый мастер-пароль">
+                <input type="password" id="newMasterPassword" placeholder="Новый мастер-пароль" autocomplete="new-password">
               </div>
               <div class="settings-field">
                 <label class="modal-label" for="confirmNewMasterPassword">Подтверждение</label>
-                <input type="password" id="confirmNewMasterPassword" placeholder="Повтори новый мастер-пароль">
+                <input type="password" id="confirmNewMasterPassword" placeholder="Повторите новый мастер-пароль" autocomplete="new-password">
               </div>
             </div>
+
+            <div id="masterPasswordFeedback" class="settings-password-feedback"></div>
 
             <div class="settings-actions">
               <button id="changeMasterPasswordBtn" class="modal-update-btn">Перешифровать данные</button>
             </div>
+          </article>
+
+          <article class="settings-card">
+            <div class="settings-card-header">
+              <div>
+                <h3>Проверка паролей на уязвимость</h3>
+                <p class="settings-muted">Анализ введенного пароля и локальный аудит сохраненных аккаунтов выполняются только на клиенте. В zero-knowledge режиме сервер по-прежнему не получает открытые пароли хранилища.</p>
+              </div>
+            </div>
+
+            <div class="settings-field">
+              <label class="modal-label" for="passwordAnalyzerInput">Проверить произвольный пароль</label>
+              <input type="password" id="passwordAnalyzerInput" placeholder="Введите пароль для анализа" autocomplete="new-password">
+            </div>
+
+            <div class="settings-actions">
+              <button id="analyzePasswordBtn" class="modal-update-btn">Проверить пароль</button>
+              <button id="scanStoredPasswordsBtn" class="favorite-btn settings-confirm-btn" type="button">Проверить сохраненные аккаунты</button>
+            </div>
+
+            <div id="passwordAnalyzerResult" class="settings-password-feedback"></div>
+            <div id="storedPasswordScanResults" class="settings-list"></div>
           </article>
 
           <article class="settings-card">
@@ -206,13 +232,13 @@
                   <div class="settings-qr-frame">
                     <img id="twofaQrImage" alt="QR code for 2FA setup">
                   </div>
-                  <p class="settings-qr-caption">Отсканируй QR-код в приложении-аутентификаторе.</p>
+                  <p class="settings-qr-caption">Отсканируйте QR-код в приложении-аутентификаторе.</p>
                 </div>
 
                 <div class="settings-setup-form">
                   <label class="modal-label" for="twofaUri">OTPAuth URI</label>
-                  <textarea id="twofaUri" readonly></textarea>
-                  <p class="settings-muted">Если QR-код не считывается, скопируй URI и добавь его вручную.</p>
+                  <textarea id="twofaUri" readonly autocomplete="off"></textarea>
+                  <p class="settings-muted">Если QR-код не считывается, скопируйте URI и добавьте его вручную.</p>
                   <label class="modal-label" for="twofaCode">Код подтверждения</label>
                   <input type="text" id="twofaCode" class="settings-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
                   <button id="verify2faBtn" class="favorite-btn settings-confirm-btn">Подтвердить и включить</button>
@@ -227,7 +253,7 @@
             <div class="settings-card-header">
               <div>
                 <h3>Активные сессии</h3>
-                <p class="settings-muted">Просматривай устройства с активным входом и завершай лишние сессии.</p>
+                <p class="settings-muted">Просматривайте устройства с активным входом и завершайте лишние сессии.</p>
               </div>
             </div>
 

@@ -69,7 +69,14 @@
 .settings-form-grid + .settings-actions,
 .settings-detail-block + .settings-actions,
 .settings-step-panel + .settings-actions,
-.settings-card-header + .settings-actions {
+.settings-card-header + .settings-actions,
+.settings-field + .settings-actions {
+    margin-top: 18px;
+}
+
+.settings-password-feedback + .settings-actions,
+.settings-password-feedback + .settings-list,
+.settings-actions + .settings-password-feedback {
     margin-top: 18px;
 }
 
@@ -176,6 +183,7 @@
 }
 
 .settings-field input,
+.settings-field textarea,
 .settings-setup textarea,
 .settings-setup input {
     width: 100%;
@@ -186,6 +194,14 @@
     color: var(--text-primary);
     font-size: 15px;
     font-family: inherit;
+}
+
+.settings-field .password-input-group input {
+    margin-bottom: 0;
+}
+
+.settings-field textarea {
+    resize: vertical;
 }
 
 .settings-step-panel {
@@ -368,6 +384,118 @@
     color: var(--text-secondary);
     text-align: center;
     line-height: 1.6;
+}
+
+.settings-password-feedback {
+    margin: 18px 0 0;
+    padding: 16px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.settings-password-empty {
+    color: var(--text-secondary);
+}
+
+.settings-password-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.settings-password-score {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.settings-password-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.settings-password-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.settings-password-check.is-passed {
+    border-color: rgba(34, 197, 94, 0.28);
+    background: rgba(34, 197, 94, 0.12);
+    color: #bbf7d0;
+}
+
+.settings-password-check.is-failed {
+    border-color: rgba(239, 68, 68, 0.22);
+    background: rgba(239, 68, 68, 0.08);
+    color: #fecaca;
+}
+
+.settings-password-check-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.settings-password-vulnerabilities {
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-password-vulnerabilities-title {
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.settings-password-vulnerabilities ul {
+    display: grid;
+    gap: 8px;
+    padding-left: 20px;
+    color: var(--text-secondary);
+}
+
+.settings-generated-output {
+    min-height: 110px;
+    resize: vertical;
+}
+
+.settings-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 58px;
+    padding: 0 16px;
+    border: 1px solid var(--surface-border);
+    border-radius: 14px;
+    background-color: rgba(13, 18, 22, 0.78);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.settings-checkbox input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
 }
 
 .settings-list,

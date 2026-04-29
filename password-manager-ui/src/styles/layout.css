@@ -160,6 +160,12 @@ body {
     font-size: 34px;
     font-weight: 800;
     letter-spacing: 0.02em;
+    transition: margin-left 0.3s ease;
+}
+
+.container:has(.sidebar.hidden) .title,
+.sidebar.hidden + .content-area .title {
+    margin-left: 48px;
 }
 
 .user-info {
