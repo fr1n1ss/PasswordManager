@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Identity.Client;
-using Microsoft.IdentityModel.Tokens;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
 
@@ -81,32 +79,6 @@ namespace PasswordManagerAPI.Controllers
                 return BadRequest(e.Message);
             }
 
-        }
-        [HttpGet("GetAccountById")]
-        public async Task<IActionResult> GetAccountByIdAsync(int accountId)
-        {
-            try
-            {
-                var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-
-                var account = await _accountService.GetAccountByIdAsync(userId, accountId);
-
-                return Ok(account);
-            }
-            catch (Exception e)
-            {
-                return BadRequest(e.Message);
-            }
-
-        }
-        [HttpGet("hashAccounts")]
-        public async Task<IActionResult> GetDataHashes()
-        {
-            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-
-            var hash = await _accountService.GetHashAsync(userId);
-
-            return Ok(hash);
         }
         #endregion
 

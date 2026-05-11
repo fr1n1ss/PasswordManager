@@ -1,10 +1,5 @@
-using Microsoft.AspNetCore.Mvc;
 using PasswordManagerAPI.Entities;
 using Microsoft.EntityFrameworkCore;
-using PasswordManagerAPI.Models;
-using System.Security.Cryptography;
-using Newtonsoft.Json;
-using System.Text;
 namespace PasswordManagerAPI.Services
 {
     public class AccountService : IAccountService
@@ -60,16 +55,6 @@ namespace PasswordManagerAPI.Services
             _context.Accounts.Remove(account);
 
             await _context.SaveChangesAsync();
-        }
-
-        public async Task<Account> GetAccountByIdAsync(int userId, int accountId)
-        {
-            var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
-
-            if (account == null)
-                throw new ArgumentNullException("Account with this ID not found");
-
-            return account;
         }
 
         public async Task<List<Account>> GetUserAccountsAsync(int userId)
@@ -129,18 +114,6 @@ namespace PasswordManagerAPI.Services
             await _context.SaveChangesAsync();
 
         }
-        public async Task<string> GetHashAsync(int userId)
-        {
-            var notes = await _context.Accounts.Where(n => n.UserID == userId).ToListAsync();
-
-            string accountsJson = JsonConvert.SerializeObject(notes);
-
-            using var sha256 = SHA256.Create();
-            var accountsHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(accountsJson)));
-
-            return accountsHash = accountsHash.ToLower();
-        }
-
         private bool ValidURL(string url)
         {
             return Uri.TryCreate(url, UriKind.Absolute, out Uri? uriResult)

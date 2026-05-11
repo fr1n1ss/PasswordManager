@@ -1,8 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace PasswordManagerAPI.Services
 {
@@ -48,15 +45,6 @@ namespace PasswordManagerAPI.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<Note> GetNoteByIdAsync(int userId, int noteId)
-        {
-            var note = await _context.Notes.FirstOrDefaultAsync(n => n.ID == noteId && n.UserID == userId);
-            if (note == null)
-                throw new ArgumentException("Note with this noteId not found");
-
-            return note;
-        }
-
         public async Task<List<Note>> GetUserNotesAsync(int userId)
         {
             var notes = await _context.Notes.Where(n => n.UserID == userId).ToListAsync();
@@ -95,17 +83,5 @@ namespace PasswordManagerAPI.Services
 
         }
 
-        public async Task<string> GetHashAsync(int userId)
-        {
-            var notes = await _context.Notes.Where(n => n.UserID == userId).ToListAsync();
-
-            string notesJson = JsonConvert.SerializeObject(notes);
-
-            using var sha256 = SHA256.Create();
-            var notesHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(notesJson)));
-
-            return notesHash = notesHash.ToLower();
-
-        }
     }
 }

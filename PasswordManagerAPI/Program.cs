@@ -5,7 +5,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Services;
-using Security.RSA;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 
@@ -77,11 +76,9 @@ namespace PasswordManagerAPI
             builder.Services.AddHttpContextAccessor();
 
             builder.Services.AddScoped<IAccountService, AccountService>();
-            builder.Services.AddScoped<RSAEncryption>();
             builder.Services.AddScoped<INoteService, NoteService>();
             builder.Services.AddScoped<IFavoriteService, FavoriteService>();
             builder.Services.AddScoped<ITotpService,TotpService>();
-            builder.Services.AddScoped<ITotpAccountService, TotpAccountService>();
             builder.Services.AddScoped<IQrReaderService, QrReaderService>();
             builder.Services.AddScoped<IAuditService, AuditService>();
             builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();

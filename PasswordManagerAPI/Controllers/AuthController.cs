@@ -1,13 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace PasswordManagerAPI.Controllers
 {
@@ -289,13 +286,6 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [Authorize]
-        [HttpPost("validate-master-password")]
-        public IActionResult ValidateMasterPassword([FromBody] ValidateMasterPasswordModel model)
-        {
-            return BadRequest(new { message = "Server-side master password validation is disabled in zero-knowledge mode." });
-        }
-
-        [Authorize]
         [HttpPost("master-password-verifier")]
         public async Task<IActionResult> UpdateMasterPasswordVerifier([FromBody] UpdateMasterPasswordVerifierModel model)
         {
@@ -387,29 +377,6 @@ namespace PasswordManagerAPI.Controllers
         public IActionResult Ping()
         {
             return Ok(new { status = "ok" });
-        }
-
-        [HttpGet("hashes")]
-        [Authorize]
-        public async Task<IActionResult> GetDataHashes()
-        {
-            var userId = GetCurrentUserId();
-
-            var accounts = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
-            var notes = await _context.Notes.Where(n => n.UserID == userId).ToListAsync();
-
-            var accountsJson = JsonConvert.SerializeObject(accounts);
-            var notesJson = JsonConvert.SerializeObject(notes);
-
-            using var sha256 = SHA256.Create();
-            var accountsHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(accountsJson)));
-            var notesHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(notesJson)));
-
-            return Ok(new
-            {
-                accountsHash = accountsHash.ToLower(),
-                notesHash = notesHash.ToLower()
-            });
         }
 
         private async Task<(Guid SessionId, string Token)> CreateSessionAsync(User user)

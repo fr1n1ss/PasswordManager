@@ -1,11 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Newtonsoft.Json;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
-using System.Text;
 
 namespace PasswordManagerAPI.Controllers
 {
@@ -85,32 +81,6 @@ namespace PasswordManagerAPI.Controllers
                 return BadRequest(e.Message);
             }
 
-        }
-        [HttpGet("GetNoteByIdAsync")]
-        public async Task<IActionResult> GetNoteByIdAsync(int noteId)
-        {
-            try
-            {
-                var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-
-                var note = await _noteService.GetNoteByIdAsync(userId, noteId);
-
-                return Ok(note);
-            }
-            catch (Exception e)
-            {
-                return BadRequest(e.Message);
-            }
-
-        }
-        [HttpGet("hashNotes")]
-        public async Task<IActionResult> GetDataHashes()
-        {
-            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
-
-            var hash = await _noteService.GetHashAsync(userId);
-
-            return Ok(hash);
         }
         #endregion
 

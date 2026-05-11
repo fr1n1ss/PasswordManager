@@ -42,5 +42,31 @@ namespace Security.TOTP
 
             return result.ToString();
         }
+
+        public static byte[] Decode(string base32)
+        {
+            base32 = base32.TrimEnd('=').ToUpperInvariant();
+            var bytes = new List<byte>();
+
+            int bits = 0;
+            int value = 0;
+
+            foreach (char c in base32)
+            {
+                int index = Alphabet.IndexOf(c);
+                if (index < 0) throw new FormatException($"Недопустимый символ Base32: {c}");
+
+                value = (value << 5) | index;
+                bits += 5;
+
+                if (bits >= 8)
+                {
+                    bytes.Add((byte)((value >> (bits - 8)) & 0xFF));
+                    bits -= 8;
+                }
+            }
+
+            return bytes.ToArray();
+        }
     }
 }

@@ -1,4 +1,3 @@
-﻿using Security.RSA;
 using Security.TOTP;
 using System.Security.Cryptography;
 
@@ -6,13 +5,6 @@ namespace PasswordManagerAPI.Services
 {
     public class TotpService : ITotpService
     {
-        private RSAEncryption _rsaEncryption;
-        private AppDbContext _context;
-        public TotpService(RSAEncryption rsaEncryption, AppDbContext context)
-        {
-            _rsaEncryption = rsaEncryption;
-            _context = context;
-        }
         public (string base32, string uri) GenerateTotpSecret(string username)
         {
             byte[] secret = new byte[20];
