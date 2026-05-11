@@ -1,7 +1,9 @@
-# Tauri + Vanilla TS
+# Password Manager UI
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Typescript.
+Web frontend for the password manager, built with Vite, vanilla HTML/CSS, and TypeScript.
 
-## Recommended IDE Setup
+## Scripts
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- `npm run dev` starts the development server
+- `npm run build` creates a production build in `dist`
+- `npm run preview` previews the production build locally
