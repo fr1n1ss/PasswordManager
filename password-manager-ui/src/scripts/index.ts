@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <p>${account.login}</p>
                 </div>
             </div>
-        `).join('') + '<button type="button" class="add-new-card" data-add-type="account" aria-label="Р”РѕР±Р°РІРёС‚СЊ Р°РєРєР°СѓРЅС‚">+</button>';
+        `).join('') + '<button type="button" class="add-new-card" data-add-type="account" aria-label="Добавить аккаунт">+</button>';
     };
 
     const loadNotes = async () => {
@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <p>${UI_TEXT.common.created}: ${new Date(note.createdAt).toLocaleDateString('ru-RU')}</p>
                 </div>
             </div>
-        `).join('') + '<button type="button" class="add-new-card" data-add-type="note" aria-label="Р”РѕР±Р°РІРёС‚СЊ Р·Р°РјРµС‚РєСѓ">+</button>';
+        `).join('') + '<button type="button" class="add-new-card" data-add-type="note" aria-label="Добавить заметку">+</button>';
     };
 
     const bindCards = () => {
@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await reloadVisibleCards();
             }
         } catch (error) {
-            console.error('[syncData] РћС€РёР±РєР° СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё:', error);
+            console.error('[syncData] Ошибка синхронизации:', error);
         }
     };
 
@@ -461,7 +461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         errorContainer.style.display = 'block';
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
-            errorMessage.textContent = 'РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР·РєРµ РґР°РЅРЅС‹С…';
+            errorMessage.textContent = 'Ошибка при загрузке данных';
         }
         return;
     }
@@ -503,7 +503,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!serviceName || !login || !password) {
             accountError.style.display = 'block';
-            accountError.textContent = 'Р—Р°РїРѕР»РЅРёС‚Рµ РІСЃРµ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ';
+            accountError.textContent = 'Заполните все обязательные поля';
             return;
         }
 
@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!title || !content) {
             noteError.style.display = 'block';
-            noteError.textContent = 'Р—Р°РїРѕР»РЅРёС‚Рµ РІСЃРµ РїРѕР»СЏ';
+            noteError.textContent = 'Заполните все поля';
             return;
         }
 

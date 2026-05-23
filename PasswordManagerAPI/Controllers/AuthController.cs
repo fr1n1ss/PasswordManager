@@ -5,6 +5,8 @@ using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PasswordManagerAPI.Controllers
 {
@@ -89,7 +91,7 @@ namespace PasswordManagerAPI.Controllers
             var email = model.Email?.Trim();
 
             if (string.IsNullOrWhiteSpace(username))
-                return BadRequest(new { message = "Р’РІРµРґРёС‚Рµ РёРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ." });
+                return BadRequest(new { message = "Введите имя пользователя." });
 
             if (username.Length > UsernameMaxLength)
             {
@@ -105,10 +107,10 @@ namespace PasswordManagerAPI.Controllers
             }
 
             if (string.IsNullOrWhiteSpace(model.Password))
-                return BadRequest(new { message = "Р’РІРµРґРёС‚Рµ РїР°СЂРѕР»СЊ." });
+                return BadRequest(new { message = "Введите пароль." });
 
             if (string.IsNullOrWhiteSpace(email))
-                return BadRequest(new { message = "Р’РІРµРґРёС‚Рµ email." });
+                return BadRequest(new { message = "Введите email." });
 
             if (await _context.Users.AnyAsync(u => u.Email == email))
             {
@@ -377,6 +379,29 @@ namespace PasswordManagerAPI.Controllers
         public IActionResult Ping()
         {
             return Ok(new { status = "ok" });
+        }
+
+        [HttpGet("hashes")]
+        [Authorize]
+        public async Task<IActionResult> GetDataHashes()
+        {
+            var userId = GetCurrentUserId();
+
+            var accounts = await _context.Accounts.Where(u => u.UserID == userId).ToListAsync();
+            var notes = await _context.Notes.Where(n => n.UserID == userId).ToListAsync();
+
+            var accountsJson = System.Text.Json.JsonSerializer.Serialize(accounts);
+            var notesJson = System.Text.Json.JsonSerializer.Serialize(notes);
+
+            using var sha256 = SHA256.Create();
+            var accountsHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(accountsJson)));
+            var notesHash = Convert.ToHexString(sha256.ComputeHash(Encoding.UTF8.GetBytes(notesJson)));
+
+            return Ok(new
+            {
+                accountsHash = accountsHash.ToLower(),
+                notesHash = notesHash.ToLower()
+            });
         }
 
         private async Task<(Guid SessionId, string Token)> CreateSessionAsync(User user)

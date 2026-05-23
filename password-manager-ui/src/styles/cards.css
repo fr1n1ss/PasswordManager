@@ -168,6 +168,7 @@
 }
 
 .totp-card {
+    position: relative;
     min-width: 0;
     padding: 20px;
     border-radius: 16px;
@@ -178,15 +179,18 @@
 
 .totp-card-header {
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
-    gap: 12px;
-    flex-wrap: wrap;
+    min-height: 88px;
+    padding-right: 116px;
 }
 
 .totp-card-header > div {
     min-width: 0;
-    flex: 1 1 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    flex: 1 1 auto;
 }
 
 .totp-card-header h3 {
@@ -197,7 +201,6 @@
 }
 
 .totp-issuer {
-    margin-bottom: 6px;
     color: var(--text-secondary);
     font-size: 13px;
     text-transform: uppercase;
@@ -207,8 +210,9 @@
 
 .totp-badge {
     max-width: 100%;
-    align-self: flex-start;
-    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 6px 10px;
     border: 1px solid rgba(0, 163, 255, 0.35);
     border-radius: 999px;
@@ -216,6 +220,35 @@
     color: #7bd0ff;
     font-size: 12px;
     white-space: nowrap;
+}
+
+.totp-delete-button {
+    position: absolute;
+    top: 24px;
+    right: 20px;
+    min-width: 96px;
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid rgba(255, 100, 100, 0.28);
+    border-radius: 10px;
+    background: rgba(255, 100, 100, 0.1);
+    color: #ff9a9a;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.totp-delete-button:hover {
+    transform: scale(1.04);
+    border-color: rgba(255, 100, 100, 0.42);
+    background: rgba(255, 100, 100, 0.16);
+}
+
+.totp-delete-button:disabled {
+    cursor: progress;
+    opacity: 0.65;
 }
 
 .totp-code-button {

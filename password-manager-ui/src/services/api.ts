@@ -250,6 +250,10 @@ export const addEncryptedTotpAccount = async (payload: { encryptedPayload: strin
   return response.data;
 };
 
+export const deleteTotpAccount = async (accountId: number) => {
+  await api.delete('/totpAccount/deleteAccount', { params: { accountId } });
+};
+
 export const importTotpQr = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);

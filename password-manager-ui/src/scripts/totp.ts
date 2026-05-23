@@ -1,4 +1,4 @@
-import { addEncryptedTotpAccount, getTotpAccounts, importTotpQrText } from '../services/api.ts';
+import { addEncryptedTotpAccount, deleteTotpAccount, getTotpAccounts, importTotpQrText } from '../services/api.ts';
 import { getAuthToken, getMasterPassword } from '../services/security-session.ts';
 import { decryptStringWithKuznyechik, encryptStringWithKuznyechik } from '../services/kuznyechik.ts';
 import { navigateTo } from './routes.ts';
@@ -239,12 +239,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const progress = Math.max(0, Math.min(100, (item.secondsLeft / item.period) * 100));
             return `
                 <article class="totp-card" data-id="${item.id}">
+                    <button
+                        type="button"
+                        class="totp-delete-button"
+                        data-id="${item.id}"
+                    >${UI_TEXT.common.delete}</button>
                     <div class="totp-card-header">
                         <div>
                             <p class="totp-issuer">${item.issuer || UI_TEXT.totp.authenticator}</p>
                             <h3>${item.serviceName}</h3>
+                            <span class="totp-badge">${item.digits} ${UI_TEXT.totp.digitsSuffix}</span>
                         </div>
-                        <span class="totp-badge">${item.digits} ${UI_TEXT.totp.digitsSuffix}</span>
                     </div>
                     <button class="totp-code-button" data-code="${item.code}">
                         <span class="totp-code">${formatCode(item.code)}</span>
@@ -282,6 +287,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }, 1200);
                 } catch (error) {
                     console.error('Failed to copy TOTP code', error);
+                }
+            });
+        });
+
+        totpGrid.querySelectorAll<HTMLButtonElement>('.totp-delete-button').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const accountId = Number(button.dataset.id);
+                const item = items.find((totpItem) => totpItem.id === accountId);
+                if (!accountId || !item) {
+                    return;
+                }
+
+                if (!window.confirm(`${UI_TEXT.totp.deleteConfirm} "${item.serviceName}"?`)) {
+                    return;
+                }
+
+                try {
+                    button.disabled = true;
+                    await deleteTotpAccount(accountId);
+                    accounts = accounts.filter((account) => account.id !== accountId);
+                    await render();
+                } catch (error: any) {
+                    alert(`${UI_TEXT.totp.deleteError}: ${error.message}`);
+                    button.disabled = false;
                 }
             });
         });

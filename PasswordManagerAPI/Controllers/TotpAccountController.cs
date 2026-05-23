@@ -68,5 +68,22 @@ namespace PasswordManagerAPI.Controllers
 
             return Ok(accounts);
         }
+
+        [HttpDelete("deleteAccount")]
+        public IActionResult DeleteAccount(int accountId)
+        {
+            var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
+            var account = _context.TotpAccounts.FirstOrDefault(a => a.Id == accountId && a.UserId == userId);
+
+            if (account == null)
+            {
+                return NotFound(new { message = "TOTP account not found." });
+            }
+
+            _context.TotpAccounts.Remove(account);
+            _context.SaveChanges();
+
+            return Ok(new { deleted = true });
+        }
     }
 }
