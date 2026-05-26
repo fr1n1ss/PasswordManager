@@ -53,15 +53,6 @@ function debounce(func: Function, delay: number) {
     };
 }
 
-async function hashData(data: unknown): Promise<string> {
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(JSON.stringify(data));
-    const buffer = await crypto.subtle.digest('SHA-256', encoded);
-    return Array.from(new Uint8Array(buffer))
-        .map((byte) => byte.toString(16).padStart(2, '0'))
-        .join('');
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
     if (!sessionStorage.getItem('isDataLoaded')) {
         navigateTo('loading');
@@ -116,6 +107,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const getStoredNotes = () => JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
     const setStoredAccounts = (accounts: Account[]) => sessionStorage.setItem('accounts', JSON.stringify(accounts));
     const setStoredNotes = (notes: Note[]) => sessionStorage.setItem('notes', JSON.stringify(notes));
+    const getStoredAccountsServerHash = () => sessionStorage.getItem('accountsServerHash');
+    const getStoredNotesServerHash = () => sessionStorage.getItem('notesServerHash');
+    const setStoredServerHashes = (accountsHash: string, notesHash: string) => {
+        sessionStorage.setItem('accountsServerHash', accountsHash);
+        sessionStorage.setItem('notesServerHash', notesHash);
+    };
     const syncStoredFavoriteStates = async (accounts: Account[], notes: Note[]) => {
         const favorites = await getUserFavorites() as FavoritesResponse;
         const favoriteAccountIds = new Set((favorites.accounts || []).map((account) => account.id));
@@ -241,14 +238,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const loadAccounts = async () => {
+        // TEMP PERF MEASURE: remove this block after performance research.
+        const measureStarted = performance.now();
+        let storageReadFinished = measureStarted;
+        let serverLoadFinished = measureStarted;
+        let decryptFinished = measureStarted;
+        let favoritesSyncFinished = measureStarted;
+        let filterSortFinished = measureStarted;
+        let renderFinished = measureStarted;
+
         let accounts = getStoredAccounts();
+        storageReadFinished = performance.now();
+
         if (!sessionStorage.getItem('accounts')) {
-            accounts = await decryptAccounts(await getAccounts() as Account[], masterPassword, cryptoSalt);
+            const encryptedAccounts = await getAccounts() as Account[];
+            serverLoadFinished = performance.now();
+            accounts = await decryptAccounts(encryptedAccounts, masterPassword, cryptoSalt);
+            decryptFinished = performance.now();
+        } else {
+            serverLoadFinished = storageReadFinished;
+            decryptFinished = storageReadFinished;
         }
+
         const synced = await syncStoredFavoriteStates(accounts, getStoredNotes());
         accounts = synced.accounts;
+        favoritesSyncFinished = performance.now();
 
         const filtered = sortAccounts(filterCards(accounts, 'account'));
+        filterSortFinished = performance.now();
+
         passwordCards.innerHTML = filtered.map((account) => `
             <div class="card" data-account-id="${account.id}">
                 <button
@@ -261,7 +279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     title="${favoriteButtonLabel(Boolean(account.isFavorite))}"
                 >&starf;</button>
                 <div class="card-logo">
-                    <img src="${account.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}` : 'https://via.placeholder.com/32'}" alt="${account.serviceName} logo" />
+                    <img src="${account.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}&sz=64` : 'https://via.placeholder.com/32'}" alt="${account.serviceName} logo" loading="lazy" onload="if (this.naturalWidth <= 16 && this.naturalHeight <= 16) { const fallback=document.createElement('span'); fallback.className='card-logo-initial'; fallback.textContent=(this.alt || '?').trim()[0].toUpperCase(); this.replaceWith(fallback); }" onerror="const fallback=document.createElement('span'); fallback.className='card-logo-initial'; fallback.textContent=(this.alt || '?').trim()[0].toUpperCase(); this.replaceWith(fallback);" />
                 </div>
                 <div class="card-details">
                     <h3>${account.serviceName}</h3>
@@ -269,17 +287,51 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             </div>
         `).join('') + '<button type="button" class="add-new-card" data-add-type="account" aria-label="Добавить аккаунт">+</button>';
+        renderFinished = performance.now();
+        console.info(`[PERF index accounts] done: ${Number((renderFinished - measureStarted).toFixed(2))} ms, accounts: ${accounts.length}, visible: ${filtered.length}`);
+        console.table({
+            '1 sessionStorage read, ms': Number((storageReadFinished - measureStarted).toFixed(2)),
+            '2 server GetAccounts, ms': Number((serverLoadFinished - storageReadFinished).toFixed(2)),
+            '3 decrypt accounts, ms': Number((decryptFinished - serverLoadFinished).toFixed(2)),
+            '4 favorites sync, ms': Number((favoritesSyncFinished - decryptFinished).toFixed(2)),
+            '5 filter and sort, ms': Number((filterSortFinished - favoritesSyncFinished).toFixed(2)),
+            '6 render accounts html, ms': Number((renderFinished - filterSortFinished).toFixed(2)),
+            'total, ms': Number((renderFinished - measureStarted).toFixed(2)),
+            'all accounts': accounts.length,
+            'visible accounts': filtered.length,
+        });
     };
 
     const loadNotes = async () => {
+        // TEMP PERF MEASURE: remove this block after performance research.
+        const measureStarted = performance.now();
+        let storageReadFinished = measureStarted;
+        let serverLoadFinished = measureStarted;
+        let decryptFinished = measureStarted;
+        let favoritesSyncFinished = measureStarted;
+        let filterSortFinished = measureStarted;
+        let renderFinished = measureStarted;
+
         let notes = getStoredNotes();
+        storageReadFinished = performance.now();
+
         if (!sessionStorage.getItem('notes')) {
-            notes = await decryptNotes(await getUserNotes() as Note[], masterPassword, cryptoSalt);
+            const encryptedNotes = await getUserNotes() as Note[];
+            serverLoadFinished = performance.now();
+            notes = await decryptNotes(encryptedNotes, masterPassword, cryptoSalt);
+            decryptFinished = performance.now();
+        } else {
+            serverLoadFinished = storageReadFinished;
+            decryptFinished = storageReadFinished;
         }
+
         const synced = await syncStoredFavoriteStates(getStoredAccounts(), notes);
         notes = synced.notes;
+        favoritesSyncFinished = performance.now();
 
         const filtered = sortNotes(filterCards(notes, 'note'));
+        filterSortFinished = performance.now();
+
         notesCards.innerHTML = filtered.map((note) => `
             <div class="card" data-note-id="${note.id}">
                 <button
@@ -298,6 +350,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             </div>
         `).join('') + '<button type="button" class="add-new-card" data-add-type="note" aria-label="Добавить заметку">+</button>';
+        renderFinished = performance.now();
+        console.info(`[PERF index notes] done: ${Number((renderFinished - measureStarted).toFixed(2))} ms, notes: ${notes.length}, visible: ${filtered.length}`);
+        console.table({
+            '1 sessionStorage read, ms': Number((storageReadFinished - measureStarted).toFixed(2)),
+            '2 server GetNotes, ms': Number((serverLoadFinished - storageReadFinished).toFixed(2)),
+            '3 decrypt notes, ms': Number((decryptFinished - serverLoadFinished).toFixed(2)),
+            '4 favorites sync, ms': Number((favoritesSyncFinished - decryptFinished).toFixed(2)),
+            '5 filter and sort, ms': Number((filterSortFinished - favoritesSyncFinished).toFixed(2)),
+            '6 render notes html, ms': Number((renderFinished - filterSortFinished).toFixed(2)),
+            'total, ms': Number((renderFinished - measureStarted).toFixed(2)),
+            'all notes': notes.length,
+            'visible notes': filtered.length,
+        });
     };
 
     const bindCards = () => {
@@ -339,28 +404,73 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const reloadVisibleCards = async () => {
+        // TEMP PERF MEASURE: remove this block after performance research.
+        const measureStarted = performance.now();
         await Promise.all([loadAccounts(), loadNotes()]);
+        const loadFinished = performance.now();
         bindCards();
+        const bindFinished = performance.now();
         errorContainer.style.display = 'none';
+        console.info(`[PERF index reloadVisibleCards] done: ${Number((bindFinished - measureStarted).toFixed(2))} ms`);
+        console.table({
+            '1 load accounts and notes, ms': Number((loadFinished - measureStarted).toFixed(2)),
+            '2 bind all cards, ms': Number((bindFinished - loadFinished).toFixed(2)),
+            'total, ms': Number((bindFinished - measureStarted).toFixed(2)),
+            'accounts in storage': getStoredAccounts().length,
+            'notes in storage': getStoredNotes().length,
+        });
     };
 
     const syncData = async () => {
-        try {
-            const localAccountsHash = await hashData(getStoredAccounts());
-            const localNotesHash = await hashData(getStoredNotes());
-            const { accountsHash, notesHash } = await hashAll();
+        // TEMP PERF MEASURE: remove this block after performance research.
+        const measureStarted = performance.now();
+        let hashFinished = measureStarted;
+        let accountsRefreshFinished = measureStarted;
+        let notesRefreshFinished = measureStarted;
+        let reloadFinished = measureStarted;
+        let accountsChanged = false;
+        let notesChanged = false;
 
-            if (localAccountsHash !== accountsHash) {
+        try {
+            const { accountsHash, notesHash } = await hashAll();
+            hashFinished = performance.now();
+            const previousAccountsHash = getStoredAccountsServerHash();
+            const previousNotesHash = getStoredNotesServerHash();
+
+            if (!previousAccountsHash || !previousNotesHash) {
+                setStoredServerHashes(accountsHash, notesHash);
+                console.info(`[PERF index syncData] hashes initialized: ${Number((hashFinished - measureStarted).toFixed(2))} ms`);
+                return;
+            }
+
+            if (previousAccountsHash !== accountsHash) {
+                accountsChanged = true;
                 setStoredAccounts(await decryptAccounts(await getAccounts() as Account[], masterPassword, cryptoSalt));
             }
+            accountsRefreshFinished = performance.now();
 
-            if (localNotesHash !== notesHash) {
+            if (previousNotesHash !== notesHash) {
+                notesChanged = true;
                 setStoredNotes(await decryptNotes(await getUserNotes() as Note[], masterPassword, cryptoSalt));
             }
+            notesRefreshFinished = performance.now();
 
-            if (localAccountsHash !== accountsHash || localNotesHash !== notesHash) {
+            if (previousAccountsHash !== accountsHash || previousNotesHash !== notesHash) {
+                setStoredServerHashes(accountsHash, notesHash);
                 await reloadVisibleCards();
             }
+            reloadFinished = performance.now();
+
+            console.info(`[PERF index syncData] done: ${Number((reloadFinished - measureStarted).toFixed(2))} ms, accountsChanged: ${accountsChanged}, notesChanged: ${notesChanged}`);
+            console.table({
+                '1 server hashAll, ms': Number((hashFinished - measureStarted).toFixed(2)),
+                '2 accounts refresh if changed, ms': Number((accountsRefreshFinished - hashFinished).toFixed(2)),
+                '3 notes refresh if changed, ms': Number((notesRefreshFinished - accountsRefreshFinished).toFixed(2)),
+                '4 reload visible cards if changed, ms': Number((reloadFinished - notesRefreshFinished).toFixed(2)),
+                'total, ms': Number((reloadFinished - measureStarted).toFixed(2)),
+                accountsChanged,
+                notesChanged,
+            });
         } catch (error) {
             console.error('[syncData] Ошибка синхронизации:', error);
         }

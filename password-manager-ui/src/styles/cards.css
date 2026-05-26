@@ -52,6 +52,21 @@
     object-fit: contain;
 }
 
+.card-logo-initial {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(0, 163, 255, 0.22), rgba(57, 217, 138, 0.2));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #d7f3ff;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+}
+
 .card-details {
     display: flex;
     flex-direction: column;

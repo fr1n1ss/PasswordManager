@@ -29,8 +29,26 @@ function debounce(func: Function, delay: number) {
     };
 }
 
+function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    }[char] || char));
+}
+
+function getAccountInitial(serviceName: string): string {
+    const trimmedName = serviceName.trim();
+    return trimmedName ? trimmedName[0].toUpperCase() : '?';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    console.info('[PERF accounts] accounts.ts loaded, DOMContentLoaded started');
+
     if (!sessionStorage.getItem('isDataLoaded')) {
+        console.warn('[PERF accounts] isDataLoaded is missing, redirecting to loading page');
         navigateTo('loading');
         return;
     }
@@ -55,22 +73,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const masterPassword = getMasterPassword();
     const cryptoSalt = sessionStorage.getItem('cryptoSalt');
     if (!cryptoSalt) {
+        console.warn('[PERF accounts] cryptoSalt is missing, redirecting to login page');
         navigateTo('login');
         return;
     }
 
     if (!masterPassword) {
+        console.warn('[PERF accounts] masterPassword is missing or expired, redirecting to loading page');
         navigateTo('loading');
         return;
     }
 
     let currentAccountId: number | null = null;
     let isAccountEditMode = false;
+    let hasSyncedFavorites = false;
 
     const getStoredAccounts = () => JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
     const setStoredAccounts = (accounts: Account[]) => sessionStorage.setItem('accounts', JSON.stringify(accounts));
     const syncStoredFavoriteState = async (accounts: Account[]) => {
-        const favorites = await getUserFavorites() as FavoritesResponse;
+        let favorites: FavoritesResponse;
+        try {
+            favorites = await getUserFavorites() as FavoritesResponse;
+        } catch (error) {
+            console.warn('[PERF accounts] favorites sync failed, using current favorite flags for measurement', error);
+            return accounts;
+        }
+
         const favoriteIds = new Set((favorites.accounts || []).map((account) => account.id));
         const syncedAccounts = accounts.map((account) => ({
             ...account,
@@ -220,21 +248,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
 
-    const loadAccounts = async () => {
+    const loadAccounts = async (options: { forceFavoriteSync?: boolean } = {}) => {
+        // TEMP PERF MEASURE: remove this block after performance research.
+        const measureStarted = performance.now();
+        console.info('[PERF accounts] loadAccounts started');
+        let storageReadFinished = measureStarted;
+        let serverLoadFinished = measureStarted;
+        let decryptFinished = measureStarted;
+        let favoritesSyncFinished = measureStarted;
+        let filterSortFinished = measureStarted;
+        let renderFinished = measureStarted;
+
         let accounts = getStoredAccounts();
+        storageReadFinished = performance.now();
 
         if (!sessionStorage.getItem('accounts')) {
             const encryptedAccounts = await getAccounts() as Account[];
+            serverLoadFinished = performance.now();
             accounts = await decryptAccounts(encryptedAccounts, masterPassword, cryptoSalt);
+            decryptFinished = performance.now();
+        } else {
+            serverLoadFinished = storageReadFinished;
+            decryptFinished = storageReadFinished;
         }
 
-        accounts = await syncStoredFavoriteState(accounts);
+        if (options.forceFavoriteSync || !hasSyncedFavorites) {
+            accounts = await syncStoredFavoriteState(accounts);
+            hasSyncedFavorites = true;
+        }
+
+        favoritesSyncFinished = performance.now();
 
         const visibleAccounts = sortAccounts(filterAccounts(accounts));
+
+        filterSortFinished = performance.now();
+
         passwordCards.innerHTML = visibleAccounts.map((account) => {
+            const serviceName = escapeHtml(account.serviceName);
+            const login = escapeHtml(account.login);
+            const logoInitial = escapeHtml(getAccountInitial(account.serviceName));
             const logoUrl = account.url
-                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                : 'https://via.placeholder.com/32';
+                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}&sz=64`
+                : '';
 
             return `
                 <div class="card" data-account-id="${account.id}">
@@ -247,23 +302,44 @@ document.addEventListener('DOMContentLoaded', async () => {
                         title="${favoriteButtonLabel(Boolean(account.isFavorite))}"
                     >&starf;</button>
                     <div class="card-logo">
-                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                        ${logoUrl
+                            ? `<img src="${logoUrl}" alt="${serviceName} logo" loading="lazy" onload="if (this.naturalWidth <= 16 && this.naturalHeight <= 16) { this.style.display='none'; this.nextElementSibling.style.display='inline-flex'; }" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />`
+                            : ''}
+                        <span class="card-logo-initial" aria-hidden="true"${logoUrl ? ' style="display: none;"' : ''}>${logoInitial}</span>
                     </div>
                     <div class="card-details">
-                        <h3>${account.serviceName}</h3>
-                        <p>${account.login}</p>
+                        <h3>${serviceName}</h3>
+                        <p>${login}</p>
                     </div>
                 </div>
             `;
         }).join('') + '<button type="button" class="add-new-card" aria-label="Добавить аккаунт">+</button>';
 
+        renderFinished = performance.now();
+
         bindCards();
+
+        const measureFinished = performance.now();
+        console.info(`[PERF accounts] done: ${Number((measureFinished - measureStarted).toFixed(2))} ms, accounts: ${accounts.length}, visible: ${visibleAccounts.length}`);
+        console.table({
+            '1 sessionStorage read, ms': Number((storageReadFinished - measureStarted).toFixed(2)),
+            '2 server GetAccounts, ms': Number((serverLoadFinished - storageReadFinished).toFixed(2)),
+            '3 decrypt accounts, ms': Number((decryptFinished - serverLoadFinished).toFixed(2)),
+            '4 favorites sync, ms': Number((favoritesSyncFinished - decryptFinished).toFixed(2)),
+            '5 filter and sort, ms': Number((filterSortFinished - favoritesSyncFinished).toFixed(2)),
+            '6 render html, ms': Number((renderFinished - filterSortFinished).toFixed(2)),
+            '7 bind events, ms': Number((measureFinished - renderFinished).toFixed(2)),
+            'total, ms': Number((measureFinished - measureStarted).toFixed(2)),
+            'all accounts': accounts.length,
+            'visible accounts': visibleAccounts.length,
+        });
     };
 
     try {
         await loadAccounts();
         errorContainer.style.display = 'none';
-    } catch {
+    } catch (error) {
+        console.error('[PERF accounts] loadAccounts failed before measurement finished', error);
         errorContainer.style.display = 'block';
         const errorMessage = document.getElementById('errorMessage');
         if (errorMessage) {
@@ -342,7 +418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             accountModal.style.display = 'none';
             await loadAccounts();
         } catch (error: any) {
-            alert(`РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё Р°РєРєР°СѓРЅС‚Р°: ${error.message}`);
+            alert(`Ошибка при удалении аккаунта: ${error.message}`);
         }
     });
 
@@ -389,5 +465,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     searchInput.addEventListener('input', debounce(async () => await loadAccounts(), 300));
-    sortDropdown.addEventListener('change', debounce(async () => await loadAccounts(), 300));
+    sortDropdown.addEventListener('change', async () => await loadAccounts());
 });

@@ -186,7 +186,33 @@ async function sha256(input: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(hash);
 }
 
+let cachedMasterPassword: string | null = null;
+let cachedSalt: string | null = null;
+let cachedKuznyechikKey: Uint8Array | null = null;
+let pendingKuznyechikKey: Promise<Uint8Array> | null = null;
+
 export async function deriveKuznyechikKey(masterPassword: string, salt: string): Promise<Uint8Array> {
+  if (cachedKuznyechikKey && cachedMasterPassword === masterPassword && cachedSalt === salt) {
+    return cloneBytes(cachedKuznyechikKey);
+  }
+
+  if (pendingKuznyechikKey && cachedMasterPassword === masterPassword && cachedSalt === salt) {
+    return cloneBytes(await pendingKuznyechikKey);
+  }
+
+  cachedMasterPassword = masterPassword;
+  cachedSalt = salt;
+  pendingKuznyechikKey = computeKuznyechikKey(masterPassword, salt);
+
+  try {
+    cachedKuznyechikKey = cloneBytes(await pendingKuznyechikKey);
+    return cloneBytes(cachedKuznyechikKey);
+  } finally {
+    pendingKuznyechikKey = null;
+  }
+}
+
+async function computeKuznyechikKey(masterPassword: string, salt: string): Promise<Uint8Array> {
   const encoder = new TextEncoder();
   let material = cloneBytes(encoder.encode(`${masterPassword}:${salt}:kuznyechik-zk`)) as Uint8Array;
 
