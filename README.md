@@ -1,21 +1,32 @@
-
 # PasswordManager
 
-**PasswordManager** — это кроссплатформенное приложение для безопасного хранения паролей и заметок с применением криптографических методов защиты. Проект реализован в рамках курсовой работы и демонстрирует использование симметричного и асимметричного шифрования, а также безопасной аутентификации.
+**PasswordManager** - приложение для безопасного хранения учетных записей, паролей, заметок и TOTP-аккаунтов. Проект состоит из ASP.NET Core API, frontend на Vite + TypeScript, SQL Server и отдельных криптографических библиотек с реализациями RSA и алгоритма "Кузнечик".
 
-## Основные технологии
+Проект разработан в рамках выпускной квалификационной работы и демонстрирует работу с защищенной аутентификацией, JWT-сессиями, шифрованием пользовательских данных, мастер-паролем, двухфакторными кодами, избранным и аудитом действий.
 
-- **Backend:** ASP.NET Core (.NET 8), MS SQL Server, JWT, AES, кастомная реализация RSA
-- **Frontend:** Tauri, Vite, TypeScript, HTML, CSS
-- **Шифрование:**
-  - RSA — шифрование паролей и заметок (реализация вручную)
-  - AES — шифрование приватного ключа RSA (на основе мастер-пароля)
-  - SHA-256 — хэширование паролей пользователей
-  - JWT — авторизация и аутентификация
+## Основные возможности
 
----
+- регистрация и авторизация пользователей;
+- хранение зашифрованных учетных записей и заметок;
+- работа с избранным;
+- хранение и генерация TOTP-кодов;
+- генератор паролей;
+- смена и ротация мастер-пароля;
+- подтверждение email через SMTP;
+- аудит пользовательских действий;
+- JWT-аутентификация с проверкой активных сессий;
+- Swagger UI для API в режиме разработки.
 
-## Установка и запуск проекта
+## Технологии
+
+- **Backend:** ASP.NET Core (.NET 8), Entity Framework Core, SQL Server, JWT, Swagger
+- **Frontend:** Vite, TypeScript, HTML, CSS, Axios
+- **Криптография:** "Кузнечик", SHA-256, TOTP
+- **Инфраструктура:** Docker Compose для SQL Server
+
+Реализация алгоритма "Кузнечик" на C# вынесена в отдельный репозиторий: [fr1n1ss/Kuznyechik](https://github.com/fr1n1ss/Kuznyechik).
+
+## Установка и запуск
 
 ### 1. Клонирование репозитория
 
@@ -24,152 +35,137 @@ git clone https://github.com/fr1n1ss/PasswordManager.git
 cd PasswordManager
 ```
 
----
+### 2. Запуск SQL Server
 
-### 2. Настройка серверной части (ASP.NET Core API)
+В корне проекта создайте или заполните файл `.env`:
 
-#### Требования:
-- [.NET 8 SDK](https://dotnet.microsoft.com/en-us/download)
-- [MS SQL Server](https://www.microsoft.com/en-us/sql-server/sql-server-downloads)
+```env
+SA_PASSWORD=Your_strong_password123
+```
 
-#### Шаги:
+Запустите контейнер с базой данных:
 
-1. Перейдите в папку `PasswordManagerAPI`:
+```bash
+docker compose up -d
+```
+
+SQL Server будет доступен на порту `1433`.
+
+### 3. Настройка API
+
+Перейдите в папку backend-проекта:
 
 ```bash
 cd PasswordManagerAPI
 ```
 
-2. Настройте строку подключения к базе данных в `appsettings.json`:
+Заполните `appsettings.json` или пользовательские секреты:
 
 ```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=localhost;Database=PasswordManagerDb;Trusted_Connection=True;"
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost,1433;Database=PasswordManagerDb;User Id=sa;Password=Your_strong_password123;TrustServerCertificate=True;"
+  },
+  "Jwt": {
+    "Key": "your-long-secret-key",
+    "Issuer": "passwordmanager",
+    "Audience": "passwordmanager_users"
+  },
+  "Smtp": {
+    "Host": "smtp.example.com",
+    "Port": "587",
+    "From": "noreply@example.com",
+    "Username": "smtp-user",
+    "Password": "smtp-password",
+    "EnableSsl": "true"
+  },
+  "Kestrel": {
+    "Endpoints": {
+      "Https": {
+        "Url": "https://0.0.0.0:7163",
+        "Certificate": {
+          "Path": "../certificate.pfx",
+          "Password": "certificate-password"
+        }
+      }
+    }
+  }
 }
 ```
 
-3. Примените миграции (если не применены):
+Примените миграции:
 
 ```bash
 dotnet ef database update
 ```
 
-4. Запустите сервер:
+Запустите API:
 
 ```bash
 dotnet run
 ```
 
-Сервер по умолчанию запускается на `https://localhost:7163`.
+По умолчанию API используется на `https://localhost:7163`. Swagger доступен в режиме разработки по адресу:
 
----
+```text
+https://localhost:7163/swagger
+```
 
-### 3. Настройка клиентской части (Tauri + Vite + TypeScript)
+### 4. Настройка frontend
 
-#### Требования:
-- [Node.js](https://nodejs.org/)
-- [Rust](https://www.rust-lang.org/tools/install)
-- [Tauri CLI](https://tauri.app/v1/guides/getting-started/prerequisites/)
-
-#### Шаги:
-
-1. Перейдите в директорию с клиентом:
+Откройте папку клиента:
 
 ```bash
 cd ../password-manager-ui
 ```
 
-2. Установите зависимости:
+Установите зависимости:
 
 ```bash
 npm install
 ```
 
-3. Запустите клиентское приложение:
+Запустите dev-сервер:
 
 ```bash
-npm run tauri dev
+npm run dev
 ```
 
----
+Frontend запускается на:
 
-## Настройка HTTPS-сертификата
-
-Приложение использует **HTTPS** для безопасной связи между клиентом и сервером. Для локального запуска необходимо создать самоподписанный сертификат с поддержкой SAN (Subject Alternative Name).
-
-### Установка OpenSSL (если не установлен)
-
-1. Перейдите на сайт: https://slproweb.com/products/Win32OpenSSL.html
-2. Скачайте **Win64 OpenSSL Light**
-3. Установите с параметрами по умолчанию
-4. В PowerShell проверьте:
-```powershell
-openssl version
+```text
+http://localhost:3000
 ```
-Если команда не найдена, добавьте путь к OpenSSL (например, `C:\Program Files\OpenSSL-Win64\bin`) в переменную среды `Path`.
 
-### Создание сертификата
+Vite проксирует запросы `/api` на backend. Если API запущен на другом адресе, измените `target` в `password-manager-ui/vite.config.ts`.
 
-1. Перейдите в `PasswordManagerAPI`:
+## HTTPS-сертификат для локального запуска
+
+Backend настроен на HTTPS через Kestrel. Для локального запуска нужен `.pfx`-сертификат и пароль к нему.
+
+Пример создания сертификата через OpenSSL:
 
 ```bash
-cd PasswordManagerAPI
+openssl req -x509 -newkey rsa:2048 -keyout localhost.key -out localhost.crt -days 365 -nodes -subj "/CN=localhost"
+openssl pkcs12 -export -out localhost.pfx -inkey localhost.key -in localhost.crt -passout pass:certificate-password
 ```
 
-2. Создайте файл `cert.conf` со следующим содержимым:
+После создания укажите путь к `.pfx` и пароль в настройках `Kestrel:Endpoints:Https:Certificate`.
 
-```
-[req]
-distinguished_name = req_distinguished_name
-x509_extensions = v3_req
-prompt = no
+## Сборка
 
-[req_distinguished_name]
-CN = 192.168.0.101
-
-[v3_req]
-subjectAltName = IP:192.168.0.101
-```
-
-Замените `192.168.0.101` на ваш IP или `localhost`.
-
-3. Выполните команды:
+Сборка backend:
 
 ```bash
-openssl req -x509 -newkey rsa:2048 -keyout localhost.key -out localhost.crt -days 365 -nodes -config cert.conf
-openssl pkcs12 -export -out localhost.pfx -inkey localhost.key -in localhost.crt -passout pass:yourpassword
+dotnet build PasswordManager.sln
 ```
 
-4. Установите сертификат (Windows):
-- Дважды щёлкните по `localhost.crt`
-- Нажмите "Установить сертификат" → "Локальный компьютер" → "Доверенные корневые центры сертификации"
-- Перезагрузите компьютер
-
-5. В `appsettings.json` укажите путь к `localhost.pfx` и используемый пароль
-
-
----
-
-## Как пользоваться
-
-1. Зарегистрируйтесь и авторизуйтесь.
-2. Введите **мастер-пароль**, который будет использоваться для шифрования приватного ключа.
-3. Добавляйте пароли и заметки — они будут зашифрованы алгоритмом RSA.
-4. Используйте избранное, модальные окна и сортировку для удобства.
-5. Все чувствительные данные хранятся в базе в зашифрованном виде.
-
----
-
-## Тестирование
-
-В проекте реализовано юнит-тестирование кастомной реализации RSA. Для запуска тестов используйте:
+Сборка frontend:
 
 ```bash
-cd PasswordManagerTests
-dotnet test
+cd password-manager-ui
+npm run build
 ```
-
----
 
 ## Ссылка на репозиторий
 
