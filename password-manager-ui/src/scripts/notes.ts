@@ -64,6 +64,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let currentNoteId: number | null = null;
     let isNoteEditMode = false;
+    const copyNoteContentBtn = document.getElementById('copy-note-content') as HTMLButtonElement | null;
+
+    const markCopyButtonCopied = (button: HTMLButtonElement, defaultLabel: string) => {
+        button.classList.add('is-copied');
+        button.setAttribute('aria-label', 'Скопировано');
+        button.setAttribute('title', 'Скопировано');
+        window.setTimeout(() => {
+            button.classList.remove('is-copied');
+            button.setAttribute('aria-label', defaultLabel);
+            button.setAttribute('title', defaultLabel);
+        }, 1200);
+    };
 
     const getStoredNotes = () => JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
     const setStoredNotes = (notes: Note[]) => sessionStorage.setItem('notes', JSON.stringify(notes));
@@ -313,6 +325,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error: any) {
             alert(`Ошибка при удалении заметки: ${error.message}`);
         }
+    });
+
+    copyNoteContentBtn?.addEventListener('click', async () => {
+        const content = (document.getElementById('modal-note-content') as HTMLElement | null)?.textContent || '';
+        if (!content) {
+            return;
+        }
+
+        await navigator.clipboard.writeText(content);
+        markCopyButtonCopied(copyNoteContentBtn, 'Скопировать содержимое');
     });
 
     (document.getElementById('note-update-btn') as HTMLButtonElement).addEventListener('click', async () => {

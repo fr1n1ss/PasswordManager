@@ -14,6 +14,7 @@ import {
 } from '../services/api.ts';
 import { getAuthToken, getMasterPassword } from '../services/security-session.ts';
 import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { enhancePasswordField } from './password-visibility.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
@@ -44,6 +45,8 @@ interface FavoritesResponse {
     accounts?: Array<{ id: number }>;
     notes?: Array<{ id: number }>;
 }
+
+const PASSWORD_MASK = '********';
 
 function debounce(func: Function, delay: number) {
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -102,6 +105,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentNoteId: number | null = null;
     let isAccountEditMode = false;
     let isNoteEditMode = false;
+    let passwordRevealTimer: number | undefined;
+    const accountPasswordInput = document.getElementById('account-password') as HTMLInputElement | null;
+    const copyAccountPasswordBtn = document.getElementById('copy-account-password') as HTMLButtonElement | null;
+    const copyNoteContentBtn = document.getElementById('copy-note-content') as HTMLButtonElement | null;
+
+    if (accountPasswordInput) {
+        enhancePasswordField(accountPasswordInput);
+    }
+
+    const markCopyButtonCopied = (button: HTMLButtonElement, defaultLabel: string) => {
+        button.classList.add('is-copied');
+        button.setAttribute('aria-label', 'Скопировано');
+        button.setAttribute('title', 'Скопировано');
+        window.setTimeout(() => {
+            button.classList.remove('is-copied');
+            button.setAttribute('aria-label', defaultLabel);
+            button.setAttribute('title', defaultLabel);
+        }, 1200);
+    };
+
+    const getCurrentAccount = () => getStoredAccounts().find((item) => item.id === currentAccountId);
+
+    const maskModalPassword = () => {
+        const passwordNode = document.getElementById('modal-encrypted-password') as HTMLElement | null;
+        if (!passwordNode) {
+            return;
+        }
+
+        const account = getCurrentAccount();
+        passwordNode.textContent = account?.encryptedPassword ? PASSWORD_MASK : UI_TEXT.common.notSpecified;
+        passwordNode.classList.toggle('is-masked', Boolean(account?.encryptedPassword));
+    };
+
+    const revealModalPasswordTemporarily = (password: string) => {
+        const passwordNode = document.getElementById('modal-encrypted-password') as HTMLElement | null;
+        if (!passwordNode) {
+            return;
+        }
+
+        if (passwordRevealTimer) {
+            window.clearTimeout(passwordRevealTimer);
+        }
+
+        passwordNode.textContent = password;
+        passwordNode.classList.remove('is-masked');
+        passwordRevealTimer = window.setTimeout(maskModalPassword, 2200);
+    };
 
     const getStoredAccounts = () => JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
     const getStoredNotes = () => JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
@@ -485,25 +535,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         const url = document.getElementById('modal-url') as HTMLElement;
         const creationDate = document.getElementById('modal-creation-date') as HTMLElement;
         const accountUpdateBtn = document.getElementById('account-update-btn') as HTMLButtonElement;
+        const account = getCurrentAccount();
 
         if (enable) {
+            if (passwordRevealTimer) {
+                window.clearTimeout(passwordRevealTimer);
+            }
             serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
             login.innerHTML = `<input type="text" id="edit-login" value="${login.textContent || ''}" />`;
-            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${encryptedPassword.textContent || ''}" />`;
+            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${account?.encryptedPassword || ''}" />`;
+            encryptedPassword.classList.remove('is-masked');
             description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
             accountUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
 
-        const account = getStoredAccounts().find((item) => item.id === currentAccountId);
         if (account) {
             serviceName.textContent = account.serviceName;
             login.textContent = account.login;
-            encryptedPassword.textContent = account.encryptedPassword || UI_TEXT.common.notSpecified;
             description.textContent = account.description || UI_TEXT.common.notSpecifiedNeuter;
             url.textContent = account.url || UI_TEXT.common.notSpecified;
             creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+            maskModalPassword();
         }
 
         accountUpdateBtn.textContent = UI_TEXT.common.edit;
@@ -544,10 +598,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentAccountId = accountId;
         (document.getElementById('modal-service-name') as HTMLElement).textContent = account.serviceName;
         (document.getElementById('modal-login') as HTMLElement).textContent = account.login;
-        (document.getElementById('modal-encrypted-password') as HTMLElement).textContent = account.encryptedPassword || UI_TEXT.common.notSpecified;
         (document.getElementById('modal-description') as HTMLElement).textContent = account.description || UI_TEXT.common.notSpecifiedNeuter;
         (document.getElementById('modal-url') as HTMLElement).textContent = account.url || UI_TEXT.common.notSpecified;
         (document.getElementById('modal-creation-date') as HTMLElement).textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+        maskModalPassword();
         accountModal.style.display = 'flex';
     };
 
@@ -674,6 +728,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error: any) {
             alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
         }
+    });
+
+    copyAccountPasswordBtn?.addEventListener('click', async () => {
+        const password = getCurrentAccount()?.encryptedPassword || '';
+        if (!password || password === UI_TEXT.common.notSpecified) {
+            return;
+        }
+
+        await navigator.clipboard.writeText(password);
+        revealModalPasswordTemporarily(password);
+        markCopyButtonCopied(copyAccountPasswordBtn, 'Скопировать пароль');
+    });
+
+    copyNoteContentBtn?.addEventListener('click', async () => {
+        const content = (document.getElementById('modal-note-content') as HTMLElement | null)?.textContent || '';
+        if (!content) {
+            return;
+        }
+
+        await navigator.clipboard.writeText(content);
+        markCopyButtonCopied(copyNoteContentBtn, 'Скопировать содержимое');
     });
 
     (document.getElementById('note-delete-btn') as HTMLButtonElement).addEventListener('click', async () => {

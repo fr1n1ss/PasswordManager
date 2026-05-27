@@ -38,6 +38,8 @@ interface FavoritesResponse {
     notes: Note[];
 }
 
+const PASSWORD_MASK = '********';
+
 function debounce(func: Function, delay: number) {
     let timeoutId: ReturnType<typeof setTimeout>;
     return (...args: any[]) => {
@@ -77,6 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentNoteId: number | null = null;
     let isAccountEditMode = false;
     let isNoteEditMode = false;
+    let passwordRevealTimer: number | undefined;
 
     const syncAccountFavoriteState = (accountId: number, isFavorite: boolean) => {
         const accounts = JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
@@ -311,7 +314,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
                 <div class="modal-field">
                     <span class="modal-label">Пароль:</span>
-                    <span id="modal-encrypted-password"></span>
+                    <div class="modal-copy-field">
+                        <span id="modal-encrypted-password" class="modal-copy-value"></span>
+                        <button class="modal-copy-icon-btn" id="copy-account-password" type="button" aria-label="Скопировать пароль" title="Скопировать пароль">
+                            <span class="visually-hidden">Скопировать пароль</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="modal-field">
                     <span class="modal-label">Описание:</span>
@@ -339,7 +347,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <h2 id="modal-note-title"></h2>
                 <div class="modal-field">
                     <span class="modal-label">Содержимое:</span>
-                    <span id="modal-note-content"></span>
+                    <div class="modal-copy-field modal-copy-field-multiline">
+                        <span id="modal-note-content" class="modal-copy-value"></span>
+                        <button class="modal-copy-icon-btn" id="copy-note-content" type="button" aria-label="Скопировать содержимое" title="Скопировать содержимое">
+                            <span class="visually-hidden">Скопировать содержимое</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="modal-field">
                     <span class="modal-label">Дата создания:</span>
@@ -366,6 +379,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
     const accountUnfavoriteBtn = document.getElementById('account-unfavorite-btn') as HTMLButtonElement;
     const noteUnfavoriteBtn = document.getElementById('note-unfavorite-btn') as HTMLButtonElement;
+    const copyAccountPasswordBtn = document.getElementById('copy-account-password') as HTMLButtonElement;
+    const copyNoteContentBtn = document.getElementById('copy-note-content') as HTMLButtonElement;
+
+    const markCopyButtonCopied = (button: HTMLButtonElement, defaultLabel: string) => {
+        button.classList.add('is-copied');
+        button.setAttribute('aria-label', 'Скопировано');
+        button.setAttribute('title', 'Скопировано');
+        window.setTimeout(() => {
+            button.classList.remove('is-copied');
+            button.setAttribute('aria-label', defaultLabel);
+            button.setAttribute('title', defaultLabel);
+        }, 1200);
+    };
+
+    const getCurrentAccount = () => favorites.accounts.find((item) => item.id === currentAccountId);
+
+    const maskModalPassword = () => {
+        const passwordNode = document.getElementById('modal-encrypted-password') as HTMLElement | null;
+        if (!passwordNode) {
+            return;
+        }
+
+        const account = getCurrentAccount();
+        passwordNode.textContent = account?.encryptedPassword ? PASSWORD_MASK : 'Не указан';
+        passwordNode.classList.toggle('is-masked', Boolean(account?.encryptedPassword));
+    };
+
+    const revealModalPasswordTemporarily = (password: string) => {
+        const passwordNode = document.getElementById('modal-encrypted-password') as HTMLElement | null;
+        if (!passwordNode) {
+            return;
+        }
+
+        if (passwordRevealTimer) {
+            window.clearTimeout(passwordRevealTimer);
+        }
+
+        passwordNode.textContent = password;
+        passwordNode.classList.remove('is-masked');
+        passwordRevealTimer = window.setTimeout(maskModalPassword, 2200);
+    };
 
     const toggleAccountEditMode = (enable: boolean) => {
         isAccountEditMode = enable;
@@ -375,25 +429,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         const description = document.getElementById('modal-description') as HTMLElement;
         const url = document.getElementById('modal-url') as HTMLElement;
         const creationDate = document.getElementById('modal-creation-date') as HTMLElement;
+        const account = getCurrentAccount();
 
         if (enable) {
+            if (passwordRevealTimer) {
+                window.clearTimeout(passwordRevealTimer);
+            }
             serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
             login.innerHTML = `<input type="text" id="edit-login" value="${login.textContent || ''}" />`;
-            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${encryptedPassword.textContent || ''}" />`;
+            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${account?.encryptedPassword || ''}" />`;
+            encryptedPassword.classList.remove('is-masked');
             description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
             accountUpdateBtn.textContent = 'Сохранить';
             return;
         }
 
-        const account = favorites.accounts.find(item => item.id === currentAccountId);
         if (account) {
             serviceName.textContent = account.serviceName;
             login.textContent = account.login;
-            encryptedPassword.textContent = account.encryptedPassword || 'Не указан';
             description.textContent = account.description || 'Не указано';
             url.textContent = account.url || 'Не указан';
             creationDate.textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+            maskModalPassword();
         }
         accountUpdateBtn.textContent = 'Изменить';
     };
@@ -431,10 +489,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentAccountId = accountId;
         (document.getElementById('modal-service-name') as HTMLElement).textContent = account.serviceName;
         (document.getElementById('modal-login') as HTMLElement).textContent = account.login;
-        (document.getElementById('modal-encrypted-password') as HTMLElement).textContent = account.encryptedPassword || 'Не указан';
         (document.getElementById('modal-description') as HTMLElement).textContent = account.description || 'Не указано';
         (document.getElementById('modal-url') as HTMLElement).textContent = account.url || 'Не указан';
         (document.getElementById('modal-creation-date') as HTMLElement).textContent = new Date(account.creationDate).toLocaleString('ru-RU');
+        maskModalPassword();
         accountModal.style.display = 'flex';
     };
 
@@ -485,6 +543,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error: any) {
             alert(`Failed to remove account from favorites: ${error.message}`);
         }
+    });
+
+    copyAccountPasswordBtn.addEventListener('click', async () => {
+        const password = getCurrentAccount()?.encryptedPassword || '';
+        if (!password || password === 'Не указан') {
+            return;
+        }
+
+        await navigator.clipboard.writeText(password);
+        revealModalPasswordTemporarily(password);
+        markCopyButtonCopied(copyAccountPasswordBtn, 'Скопировать пароль');
+    });
+
+    copyNoteContentBtn.addEventListener('click', async () => {
+        const content = (document.getElementById('modal-note-content') as HTMLElement | null)?.textContent || '';
+        if (!content) {
+            return;
+        }
+
+        await navigator.clipboard.writeText(content);
+        markCopyButtonCopied(copyNoteContentBtn, 'Скопировать содержимое');
     });
 
     noteUnfavoriteBtn.addEventListener('click', async () => {

@@ -135,7 +135,12 @@
         </div>
         <div class="modal-field">
             <span class="modal-label">Пароль:</span>
-            <span id="modal-encrypted-password"></span>
+            <div class="modal-copy-field">
+                <span id="modal-encrypted-password" class="modal-copy-value"></span>
+                <button class="modal-copy-icon-btn" id="copy-account-password" type="button" aria-label="Скопировать пароль" title="Скопировать пароль">
+                    <span class="visually-hidden">Скопировать пароль</span>
+                </button>
+            </div>
         </div>
         <div class="modal-field">
             <span class="modal-label">Описание:</span>
@@ -161,7 +166,12 @@
         <h2 id="modal-note-title"></h2>
         <div class="modal-field">
             <span class="modal-label">Содержимое:</span>
-            <span id="modal-note-content" class="note-text"></span>
+            <div class="modal-copy-field modal-copy-field-multiline">
+                <span id="modal-note-content" class="note-text modal-copy-value"></span>
+                <button class="modal-copy-icon-btn" id="copy-note-content" type="button" aria-label="Скопировать содержимое" title="Скопировать содержимое">
+                    <span class="visually-hidden">Скопировать содержимое</span>
+                </button>
+            </div>
         </div>
         <div class="modal-field">
             <span class="modal-label">Дата создания:</span>

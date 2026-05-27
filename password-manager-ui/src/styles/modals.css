@@ -149,6 +149,102 @@
     font-weight: 700;
 }
 
+.modal-copy-field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 10px 10px 10px 14px;
+    border: 1px solid rgba(0, 163, 255, 0.24);
+    border-radius: 12px;
+    background: rgba(0, 163, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.modal-copy-field-multiline {
+    align-items: flex-start;
+}
+
+.modal-field .modal-copy-value {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 1.55;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.modal-field .modal-copy-value.is-masked {
+    letter-spacing: 0.14em;
+    font-weight: 800;
+}
+
+.modal-copy-icon-btn {
+    position: relative;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgba(0, 163, 255, 0.28);
+    border-radius: 10px;
+    background: rgba(0, 163, 255, 0.14);
+    color: #dff4ff;
+    cursor: pointer;
+}
+
+.modal-copy-icon-btn::before,
+.modal-copy-icon-btn::after {
+    content: "";
+    position: absolute;
+    box-sizing: border-box;
+}
+
+.modal-copy-icon-btn::before {
+    left: 11px;
+    top: 9px;
+    width: 13px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-radius: 3px;
+}
+
+.modal-copy-icon-btn::after {
+    left: 8px;
+    top: 6px;
+    width: 13px;
+    height: 16px;
+    border: 2px solid rgba(223, 244, 255, 0.66);
+    border-radius: 3px;
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+}
+
+.modal-copy-icon-btn:hover {
+    background: rgba(0, 163, 255, 0.18);
+}
+
+.modal-copy-icon-btn.is-copied {
+    border-color: rgba(123, 208, 255, 0.52);
+    background: rgba(123, 208, 255, 0.18);
+    color: #7bd0ff;
+}
+
+.modal-copy-icon-btn.is-copied::before {
+    left: 12px;
+    top: 8px;
+    width: 9px;
+    height: 16px;
+    border-width: 0 3px 3px 0;
+    border-radius: 0;
+    transform: rotate(45deg);
+}
+
+.modal-copy-icon-btn.is-copied::after {
+    display: none;
+}
+
 .modal-close-btn {
     background: rgba(255, 255, 255, 0.08);
     color: var(--text-primary);
