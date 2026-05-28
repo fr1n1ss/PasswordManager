@@ -32,12 +32,6 @@ namespace PasswordManagerAPI.Entities
         public string PasswordHash { get; set; }
         [Required]
         public string Salt { get; set; }
-        [Required]
-        public string EncryptedPrivateKey { get; set; }
-        [Required]
-        public string PublicKey { get; set; }
-        [Required]
-        public string Modulus { get; set; }
         public string? MasterPasswordVerifier { get; set; }
         public string? TotpSecret { get; set; }
         public bool Is2FaEnabled { get; set; }

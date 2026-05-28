@@ -145,9 +145,6 @@ namespace PasswordManagerAPI.Controllers
                 EmailConfirmed = false,
                 Salt = model.Salt,
                 PasswordHash = _securityHelper.HashPassword(model.Password, model.Salt),
-                EncryptedPrivateKey = string.Empty,
-                PublicKey = string.Empty,
-                Modulus = string.Empty,
                 MasterPasswordVerifier = string.IsNullOrWhiteSpace(model.MasterPasswordVerifier) ? null : model.MasterPasswordVerifier
             };
 
