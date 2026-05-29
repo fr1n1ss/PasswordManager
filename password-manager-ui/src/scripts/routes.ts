@@ -8,6 +8,7 @@ export const ROUTES = {
     settings: '/settings',
     login: '/login',
     register: '/register',
+    confirmEmail: '/confirm-email',
     loading: '/loading'
 } as const;
 

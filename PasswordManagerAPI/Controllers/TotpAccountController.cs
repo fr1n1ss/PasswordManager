@@ -25,7 +25,7 @@ namespace PasswordManagerAPI.Controllers
         {
             if (string.IsNullOrWhiteSpace(model.EncryptedPayload) || string.IsNullOrWhiteSpace(model.Nonce))
             {
-                return BadRequest("Encrypted payload and nonce are required.");
+                return BadRequest("Зашифрованные данные и nonce обязательны.");
             }
 
             var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
@@ -50,12 +50,12 @@ namespace PasswordManagerAPI.Controllers
         [Consumes("multipart/form-data")]
         public IActionResult ImportQrText(IFormFile file)
         {
-            if (file == null || file.Length == 0) return BadRequest("File not upload");
+            if (file == null || file.Length == 0) return BadRequest("Файл не загружен");
 
             using var stream = file.OpenReadStream();
             var qrText = _qrCodeService.ReadQrCode(stream);
 
-            if (string.IsNullOrEmpty(qrText)) return BadRequest("QR is not recognized");
+            if (string.IsNullOrEmpty(qrText)) return BadRequest("QR-код не распознан");
 
             return Ok(new { qrText });
         }
@@ -77,7 +77,7 @@ namespace PasswordManagerAPI.Controllers
 
             if (account == null)
             {
-                return NotFound(new { message = "TOTP account not found." });
+                return NotFound(new { message = "TOTP-аккаунт не найден." });
             }
 
             _context.TotpAccounts.Remove(account);

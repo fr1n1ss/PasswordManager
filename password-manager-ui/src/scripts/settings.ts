@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const scanStoredPasswordsBtn = document.getElementById('scanStoredPasswordsBtn') as HTMLButtonElement | null;
     const storedPasswordScanResults = document.getElementById('storedPasswordScanResults') as HTMLDivElement | null;
     const sessionsList = document.getElementById('sessionsList') as HTMLDivElement | null;
+    const refreshSessionsBtn = document.getElementById('refreshSessionsBtn') as HTMLButtonElement | null;
     const revokeOtherSessionsBtn = document.getElementById('revokeOtherSessionsBtn') as HTMLButtonElement | null;
     const auditLogList = document.getElementById('auditLogList') as HTMLDivElement | null;
     const start2faSetupBtn = document.getElementById('start2faSetupBtn') as HTMLButtonElement | null;
@@ -159,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         !emailChangePanel || !newEmailInput || !emailCurrentPasswordInput || !emailChangeCodeInput || !changePasswordBtn ||
         !currentPasswordInput || !newPasswordInput || !confirmNewPasswordInput || !loginPasswordFeedback || !changeMasterPasswordBtn ||
         !currentAccountPasswordForMasterInput || !currentMasterPasswordInput || !newMasterPasswordInput || !confirmNewMasterPasswordInput || !masterPasswordFeedback ||
-        !passwordAnalyzerInput || !analyzePasswordBtn || !passwordAnalyzerResult || !scanStoredPasswordsBtn || !storedPasswordScanResults || !sessionsList || !revokeOtherSessionsBtn ||
+        !passwordAnalyzerInput || !analyzePasswordBtn || !passwordAnalyzerResult || !scanStoredPasswordsBtn || !storedPasswordScanResults || !sessionsList || !refreshSessionsBtn || !revokeOtherSessionsBtn ||
         !auditLogList || !start2faSetupBtn || !disable2faBtn || !verify2faBtn || !twofaStatusText || !twofaStatusBadge ||
         !twofaSetupPanel || !twofaUri || !twofaCode || !twofaQrImage || !settingsNotice
     ) {
@@ -237,7 +238,57 @@ document.addEventListener('DOMContentLoaded', async () => {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
-    const formatDate = (value: string) => new Date(value).toLocaleString('ru-RU');
+    const parseServerDate = (value: string) => {
+        const hasTimeZone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(value);
+        return new Date(hasTimeZone ? value : `${value}Z`);
+    };
+
+    const formatDate = (value: string) => parseServerDate(value).toLocaleString('ru-RU');
+
+    const getBrowserName = (userAgent: string) => {
+        const edge = userAgent.match(/Edg\/([\d.]+)/);
+        if (edge) return `Edge ${edge[1]}`;
+
+        const opera = userAgent.match(/(?:OPR|Opera)\/([\d.]+)/);
+        if (opera) return `Opera ${opera[1]}`;
+
+        const firefox = userAgent.match(/Firefox\/([\d.]+)/);
+        if (firefox) return `Firefox ${firefox[1]}`;
+
+        const chrome = userAgent.match(/Chrome\/([\d.]+)/);
+        if (chrome && !/Chromium/.test(userAgent)) return `Chrome ${chrome[1]}`;
+
+        const safari = userAgent.match(/Version\/([\d.]+).*Safari\//);
+        if (safari) return `Safari ${safari[1]}`;
+
+        return 'Браузер';
+    };
+
+    const getDeviceName = (userAgent: string) => {
+        const ios = userAgent.match(/CPU (?:iPhone )?OS ([\d_]+)/i);
+        if (/iPhone/i.test(userAgent)) return ios ? `iPhone · iOS ${ios[1].replace(/_/g, '.')}` : 'iPhone';
+        if (/iPad/i.test(userAgent)) return ios ? `iPad · iPadOS ${ios[1].replace(/_/g, '.')}` : 'iPad';
+
+        const android = userAgent.match(/Android ([\d.]+)/i);
+        if (android) return `Android ${android[1]}`;
+
+        const windows = userAgent.match(/Windows NT ([\d.]+)/i);
+        if (windows) return `Windows ${windows[1]}`;
+
+        const mac = userAgent.match(/Mac OS X ([\d_]+)/i);
+        if (mac) return `Mac · macOS ${mac[1].replace(/_/g, '.')}`;
+
+        if (/Linux/i.test(userAgent)) return 'Linux';
+        return 'Устройство';
+    };
+
+    const formatUserAgent = (userAgent?: string | null) => {
+        if (!userAgent) {
+            return 'Устройство не определено';
+        }
+
+        return `${getDeviceName(userAgent)} · ${getBrowserName(userAgent)}`;
+    };
 
     const refreshLoginPasswordFeedback = () => {
         renderPasswordFeedback(
@@ -367,7 +418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <strong>${session.isCurrent ? 'Текущее устройство' : 'Активная сессия'}</strong>
                         ${session.isCurrent ? '<span class="settings-inline-badge">Сейчас</span>' : ''}
                     </div>
-                    <p>${escapeHtml(session.userAgent || 'Браузер или приложение не определены')}</p>
+                    <p title="${escapeHtml(session.userAgent || '')}">${escapeHtml(formatUserAgent(session.userAgent))}</p>
                     <p>IP: ${escapeHtml(session.ipAddress || 'неизвестно')}</p>
                     <p>Создана: ${formatDate(session.createdAt)}</p>
                     <p>Последняя активность: ${formatDate(session.lastSeenAt)}</p>
@@ -805,6 +856,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotice(`Завершено сессий: ${result.revokedCount}.`, 'success');
         } catch (error: any) {
             showNotice(`Не удалось завершить остальные сессии: ${error.response?.data?.message || error.message}`, 'error');
+        }
+    });
+
+    refreshSessionsBtn.addEventListener('click', async () => {
+        try {
+            hideNotice();
+            refreshSessionsBtn.disabled = true;
+            refreshSessionsBtn.classList.add('is-loading');
+            await loadSessions();
+            showNotice('Список активных сессий обновлен.', 'success');
+        } catch (error: any) {
+            showNotice(`Не удалось обновить список сессий: ${error.response?.data?.message || error.message}`, 'error');
+        } finally {
+            refreshSessionsBtn.disabled = false;
+            refreshSessionsBtn.classList.remove('is-loading');
         }
     });
 

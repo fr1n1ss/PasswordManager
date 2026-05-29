@@ -19,26 +19,52 @@ namespace PasswordManagerAPI.Controllers
         private readonly ITotpService _totpService;
         private readonly IAuditService _auditService;
         private readonly PasswordPolicyService _passwordPolicyService;
-        private const int UsernameMaxLength = 25;
+        private readonly IEmailVerificationService _emailVerificationService;
 
-        public AuthController(AppDbContext context, IConfiguration config, ITotpService totpService, IAuditService auditService, PasswordPolicyService passwordPolicyService)
+        public AuthController(AppDbContext context, IConfiguration config, ITotpService totpService, IAuditService auditService, PasswordPolicyService passwordPolicyService, IEmailVerificationService emailVerificationService)
         {
             _context = context;
             _securityHelper = new SecurityHelper(config);
             _totpService = totpService;
             _auditService = auditService;
             _passwordPolicyService = passwordPolicyService;
+            _emailVerificationService = emailVerificationService;
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginModel model)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == model.Username);
+            var login = model.Username?.Trim();
+
+            if (string.IsNullOrWhiteSpace(login) ||
+                UserInputLimits.IsTooLong(login, UserInputLimits.EmailMaxLength) ||
+                string.IsNullOrWhiteSpace(model.Password) ||
+                UserInputLimits.IsTooLong(model.Password, UserInputLimits.AuthPasswordMaxLength))
+            {
+                await _auditService.LogAsync("login_failed", details: $"login={login}");
+                return Unauthorized(new { message = "Неверный логин или пароль" });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == login || u.Email == login);
 
             if (user == null || !_securityHelper.VerifyPassword(model.Password, user.PasswordHash, user.Salt))
             {
-                await _auditService.LogAsync("login_failed", details: $"username={model.Username}");
+                await _auditService.LogAsync("login_failed", details: $"login={login}");
                 return Unauthorized(new { message = "Неверный логин или пароль" });
+            }
+
+            if (!user.EmailConfirmed)
+            {
+                var result = await _emailVerificationService.SendCodeAsync(user.Id, user.Email, "confirm-email");
+                await _auditService.LogAsync("login_email_not_confirmed", user.Id, details: $"email={user.Email}");
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "Email не подтвержден. Введите код подтверждения из письма.",
+                    emailConfirmationRequired = true,
+                    email = user.Email,
+                    result.Delivered,
+                    result.PreviewCode
+                });
             }
 
             if (user.Is2FaEnabled)
@@ -93,11 +119,11 @@ namespace PasswordManagerAPI.Controllers
             if (string.IsNullOrWhiteSpace(username))
                 return BadRequest(new { message = "Введите имя пользователя." });
 
-            if (username.Length > UsernameMaxLength)
+            if (username.Length > UserInputLimits.UsernameMaxLength)
             {
                 return BadRequest(new
                 {
-                    message = $"Имя пользователя должно быть не длиннее {UsernameMaxLength} символов."
+                    message = $"Имя пользователя должно быть не длиннее {UserInputLimits.UsernameMaxLength} символов."
                 });
             }
 
@@ -111,6 +137,9 @@ namespace PasswordManagerAPI.Controllers
 
             if (string.IsNullOrWhiteSpace(email))
                 return BadRequest(new { message = "Введите email." });
+
+            if (UserInputLimits.IsTooLong(email, UserInputLimits.EmailMaxLength))
+                return BadRequest(new { message = $"Email должен быть не длиннее {UserInputLimits.EmailMaxLength} символов." });
 
             if (await _context.Users.AnyAsync(u => u.Email == email))
             {
@@ -128,6 +157,15 @@ namespace PasswordManagerAPI.Controllers
 
             if (string.IsNullOrWhiteSpace(model.Salt))
                 return BadRequest(new { message = "Не передана криптографическая соль." });
+
+            if (UserInputLimits.IsTooLong(model.Password, UserInputLimits.AuthPasswordMaxLength))
+                return BadRequest(new { message = $"Пароль должен быть не длиннее {UserInputLimits.AuthPasswordMaxLength} символов." });
+
+            if (UserInputLimits.IsTooLong(model.Salt, UserInputLimits.MasterPasswordVerifierMaxLength))
+                return BadRequest(new { message = "Передана слишком длинная криптографическая соль." });
+
+            if (UserInputLimits.IsTooLong(model.MasterPasswordVerifier, UserInputLimits.MasterPasswordVerifierMaxLength))
+                return BadRequest(new { message = "Проверочные данные мастер-пароля слишком длинные." });
 
             var passwordValidation = _passwordPolicyService.Validate(model.Password);
             if (!passwordValidation.IsValid)
@@ -150,9 +188,139 @@ namespace PasswordManagerAPI.Controllers
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
+
+            var emailResult = await _emailVerificationService.SendCodeAsync(user.Id, user.Email, "confirm-email");
             await _auditService.LogAsync("register_success", user.Id, details: $"username={user.Username}");
 
-            return Ok("Регистрация прошла успешно. Теперь можно войти.");
+            return Ok(new
+            {
+                registered = true,
+                emailConfirmationRequired = true,
+                email = user.Email,
+                emailResult.Delivered,
+                emailResult.PreviewCode,
+                message = "Регистрация завершена. Подтвердите email перед входом."
+            });
+        }
+
+        [HttpPost("confirm-registration-email")]
+        public async Task<IActionResult> ConfirmRegistrationEmail([FromBody] ConfirmRegistrationEmailModel model)
+        {
+            var email = model.Email?.Trim();
+            var code = model.Code?.Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
+                return BadRequest(new { message = "Email и код подтверждения обязательны." });
+
+            if (UserInputLimits.IsTooLong(email, UserInputLimits.EmailMaxLength))
+                return BadRequest(new { message = $"Email должен быть не длиннее {UserInputLimits.EmailMaxLength} символов." });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+                return BadRequest(new { message = "Неверный код подтверждения." });
+
+            var verifiedEmail = await _emailVerificationService.VerifyCodeAsync(user.Id, "confirm-email", code);
+            if (verifiedEmail == null || !string.Equals(verifiedEmail, user.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                await _auditService.LogAsync("email_confirmation_failed", user.Id);
+                return BadRequest(new { message = "Код подтверждения неверный или истек." });
+            }
+
+            user.EmailConfirmed = true;
+            await _context.SaveChangesAsync();
+            await _auditService.LogAsync("email_confirmed", user.Id, details: $"email={user.Email}");
+            return Ok(new { confirmed = true });
+        }
+
+        [HttpPost("resend-registration-email")]
+        public async Task<IActionResult> ResendRegistrationEmail([FromBody] RequestPasswordResetModel model)
+        {
+            var email = model.Email?.Trim();
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { message = "Введите email." });
+
+            if (UserInputLimits.IsTooLong(email, UserInputLimits.EmailMaxLength))
+                return BadRequest(new { message = $"Email должен быть не длиннее {UserInputLimits.EmailMaxLength} символов." });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+                return Ok(new { delivered = true });
+
+            if (user.EmailConfirmed)
+                return Ok(new { confirmed = true });
+
+            var result = await _emailVerificationService.SendCodeAsync(user.Id, user.Email, "confirm-email");
+            await _auditService.LogAsync("email_confirmation_requested", user.Id, details: $"email={user.Email}");
+            return Ok(result);
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] RequestPasswordResetModel model)
+        {
+            var email = model.Email?.Trim();
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { message = "Введите email." });
+
+            if (UserInputLimits.IsTooLong(email, UserInputLimits.EmailMaxLength))
+                return BadRequest(new { message = $"Email должен быть не длиннее {UserInputLimits.EmailMaxLength} символов." });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null || !user.EmailConfirmed)
+            {
+                return Ok(new { delivered = true });
+            }
+
+            var result = await _emailVerificationService.SendCodeAsync(user.Id, user.Email, "password-reset");
+            await _auditService.LogAsync("password_reset_requested", user.Id, details: $"email={user.Email}");
+            return Ok(result);
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordModel model)
+        {
+            var email = model.Email?.Trim();
+            var code = model.Code?.Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(model.NewPassword))
+                return BadRequest(new { message = "Email, код и новый пароль обязательны." });
+
+            if (UserInputLimits.IsTooLong(email, UserInputLimits.EmailMaxLength))
+                return BadRequest(new { message = $"Email должен быть не длиннее {UserInputLimits.EmailMaxLength} символов." });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null || !user.EmailConfirmed)
+                return BadRequest(new { message = "Код восстановления неверный или истек." });
+
+            var verifiedEmail = await _emailVerificationService.VerifyCodeAsync(user.Id, "password-reset", code);
+            if (verifiedEmail == null || !string.Equals(verifiedEmail, user.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                await _auditService.LogAsync("password_reset_failed", user.Id);
+                return BadRequest(new { message = "Код восстановления неверный или истек." });
+            }
+
+            if (UserInputLimits.IsTooLong(model.NewPassword, UserInputLimits.AuthPasswordMaxLength))
+                return BadRequest(new { message = $"Пароль должен быть не длиннее {UserInputLimits.AuthPasswordMaxLength} символов." });
+
+            var passwordValidation = _passwordPolicyService.Validate(model.NewPassword);
+            if (!passwordValidation.IsValid)
+            {
+                return BadRequest(new { message = string.Join(" ", passwordValidation.Errors) });
+            }
+
+            user.PasswordHash = _securityHelper.HashPassword(model.NewPassword, user.Salt);
+            var activeSessions = await _context.UserSessions
+                .Where(x => x.UserId == user.Id && x.RevokedAt == null)
+                .ToListAsync();
+            var now = DateTime.UtcNow;
+            foreach (var session in activeSessions)
+            {
+                session.RevokedAt = now;
+                session.RevokedReason = "password_reset";
+            }
+
+            await _context.SaveChangesAsync();
+            await _auditService.LogAsync("password_reset_success", user.Id);
+            return Ok(new { reset = true });
         }
 
         [Authorize]
@@ -168,6 +336,10 @@ namespace PasswordManagerAPI.Controllers
 
             if (string.IsNullOrWhiteSpace(model.CurrentPassword) || string.IsNullOrWhiteSpace(model.NewPassword))
                 return BadRequest(new { message = "Текущий и новый пароль обязательны" });
+
+            if (UserInputLimits.IsTooLong(model.CurrentPassword, UserInputLimits.AuthPasswordMaxLength) ||
+                UserInputLimits.IsTooLong(model.NewPassword, UserInputLimits.AuthPasswordMaxLength))
+                return BadRequest(new { message = $"Пароль должен быть не длиннее {UserInputLimits.AuthPasswordMaxLength} символов." });
 
             if (!_securityHelper.VerifyPassword(model.CurrentPassword, user.PasswordHash, user.Salt))
             {
@@ -295,6 +467,9 @@ namespace PasswordManagerAPI.Controllers
             if (user == null)
                 return Unauthorized();
 
+            if (UserInputLimits.IsTooLong(model.MasterPasswordVerifier, UserInputLimits.MasterPasswordVerifierMaxLength))
+                return BadRequest(new { message = "Проверочные данные мастер-пароля слишком длинные." });
+
             user.MasterPasswordVerifier = string.IsNullOrWhiteSpace(model.MasterPasswordVerifier)
                 ? null
                 : model.MasterPasswordVerifier;
@@ -343,7 +518,7 @@ namespace PasswordManagerAPI.Controllers
             if (!isValid)
             {
                 await _auditService.LogAsync("2fa_enable_failed", userId, sessionId);
-                return BadRequest("Invalid 2FA code.");
+                return BadRequest("Неверный код 2FA.");
             }
 
             user.Is2FaEnabled = true;

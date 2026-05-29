@@ -1,6 +1,6 @@
 import { analyzePassword, generatePassword } from '../services/password-security.ts';
 import { enhancePasswordField } from './password-visibility.ts';
-import { initializeSharedPageShell } from './shared-page.ts';
+import { applyFieldInputRules, initializeSharedPageShell } from './shared-page.ts';
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeSharedPageShell();
@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     enhancePasswordField(passwordAnalyzerInput);
+    applyFieldInputRules();
 
     const escapeHtml = (value: string) => value
         .replace(/&/g, '&amp;')
@@ -71,8 +72,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     generatePasswordBtn.addEventListener('click', () => {
+        const requestedLength = Number(generatorLengthInput.value || '20');
+        const length = Math.min(256, Math.max(4, Number.isFinite(requestedLength) ? requestedLength : 20));
+        generatorLengthInput.value = String(length);
+
         const generatedPassword = generatePassword({
-            length: Math.max(4, Number(generatorLengthInput.value || '20')),
+            length,
             includeLowercase: generatorIncludeLowercaseInput.checked,
             includeUppercase: generatorIncludeUppercaseInput.checked,
             includeDigits: generatorIncludeDigitsInput.checked,

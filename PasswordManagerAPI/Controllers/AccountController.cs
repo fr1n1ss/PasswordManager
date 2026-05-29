@@ -24,7 +24,11 @@ namespace PasswordManagerAPI.Controllers
         {
 
             if (string.IsNullOrEmpty(account.Login) || string.IsNullOrEmpty(account.ServiceName) || string.IsNullOrEmpty(account.Password))
-                return BadRequest("Not all required fields are filled in");
+                return BadRequest("Заполнены не все обязательные поля");
+
+            var validationError = ValidateAccountInput(account.Login, account.ServiceName, account.Password, account.URL, account.Description);
+            if (validationError != null)
+                return BadRequest(validationError);
 
             try
             {
@@ -45,6 +49,10 @@ namespace PasswordManagerAPI.Controllers
         {
             try
             {
+                var validationError = ValidateAccountInput(updatedAccount.NewLogin, updatedAccount.NewServiceName, updatedAccount.NewPassword, updatedAccount.NewURL, updatedAccount.NewDescription);
+                if (validationError != null)
+                    return BadRequest(validationError);
+
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
                 await _accountService.UpdateAccountAsync(userId, updatedAccount.ID, updatedAccount.NewLogin, updatedAccount.NewServiceName, updatedAccount.NewPassword, updatedAccount.NewURL, updatedAccount.NewDescription);
@@ -100,5 +108,25 @@ namespace PasswordManagerAPI.Controllers
             }
         }
         #endregion
+
+        private static string? ValidateAccountInput(string? login, string? serviceName, string? password, string? url, string? description)
+        {
+            if (UserInputLimits.IsTooLong(serviceName, UserInputLimits.AccountServiceNameMaxLength))
+                return $"Название сервиса должно быть не длиннее {UserInputLimits.AccountServiceNameMaxLength} символов";
+
+            if (UserInputLimits.IsTooLong(login, UserInputLimits.AccountLoginMaxLength))
+                return $"Логин должен быть не длиннее {UserInputLimits.AccountLoginMaxLength} символов";
+
+            if (UserInputLimits.IsTooLong(password, UserInputLimits.AccountPasswordPayloadMaxLength))
+                return $"Пароль слишком длинный";
+
+            if (UserInputLimits.IsTooLong(url, UserInputLimits.AccountUrlMaxLength))
+                return $"URL должен быть не длиннее {UserInputLimits.AccountUrlMaxLength} символов";
+
+            if (UserInputLimits.IsTooLong(description, UserInputLimits.AccountDescriptionMaxLength))
+                return $"Описание должно быть не длиннее {UserInputLimits.AccountDescriptionMaxLength} символов";
+
+            return null;
+        }
     }
 }

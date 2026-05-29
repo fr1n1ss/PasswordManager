@@ -116,6 +116,11 @@ body {
     filter: brightness(1.05);
 }
 
+.register-container .auth-secondary-button {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
 .register-container p {
     margin-top: 16px;
     text-align: center;
@@ -160,4 +165,111 @@ body {
 .auth-password-feedback.is-invalid {
     border-color: rgba(239, 68, 68, 0.28);
     color: #fecaca;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background-color: rgba(4, 8, 11, 0.74);
+    backdrop-filter: blur(8px);
+}
+
+.modal[style*="flex"] {
+    display: flex;
+}
+
+.auth-modal-card {
+    width: min(92vw, 450px);
+    padding: 28px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(42, 59, 71, 0.98) 0%, rgba(26, 33, 39, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+}
+
+.auth-modal-badge-accent {
+    background: rgba(0, 163, 255, 0.16);
+    color: #7bd0ff;
+}
+
+.auth-modal-title {
+    margin-bottom: 10px;
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 800;
+}
+
+.auth-modal-text {
+    margin-bottom: 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.auth-modal-input {
+    width: 100%;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: rgba(13, 18, 22, 0.78);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-family: inherit;
+}
+
+.auth-modal-code-input {
+    text-align: center;
+    letter-spacing: 0.32em;
+    font-weight: 700;
+}
+
+.auth-modal-primary,
+.auth-modal-secondary {
+    width: 100%;
+    padding: 14px 16px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.auth-modal-primary {
+    background: linear-gradient(90deg, #00a3ff 0%, #33c1ff 100%);
+    color: #f4fbff;
+}
+
+.auth-modal-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+@media (max-width: 520px) {
+    body {
+        align-items: flex-start;
+        padding: 14px;
+    }
+
+    .auth-panel {
+        padding: 24px 18px;
+        border-radius: 18px;
+    }
+
+    .register-container h2,
+    .auth-modal-title {
+        font-size: 24px;
+    }
+
+    .auth-modal-card {
+        padding: 22px 18px;
+        border-radius: 18px;
+    }
 }

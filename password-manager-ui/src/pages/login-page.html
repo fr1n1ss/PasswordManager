@@ -10,8 +10,9 @@
 <div class="login-container">
   <form id="loginForm">
     <h2>Вход</h2>
-    <input type="text" id="username" placeholder="Имя пользователя" required />
+    <input type="text" id="username" placeholder="Логин или email" required />
     <input type="password" id="password" placeholder="Пароль" required />
+    <a href="#" id="forgot-password-button" class="auth-text-link">Забыли пароль?</a>
     <button type="submit">Войти</button>
     <p>Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
   </form>
@@ -39,6 +40,21 @@
     <input type="text" id="totp-code-input" class="auth-modal-input auth-modal-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
     <button id="submit-totp-button" class="auth-modal-primary">Подтвердить</button>
     <button id="cancel-totp-button" class="auth-modal-secondary">Отмена</button>
+  </div>
+</div>
+
+<div id="forgot-password-modal" class="modal">
+  <div class="modal-content auth-modal-card auth-modal-card-compact">
+    <div class="auth-modal-badge auth-modal-badge-accent">Сброс</div>
+    <h2 class="auth-modal-title">Восстановление пароля</h2>
+    <p class="auth-modal-text">Восстановление доступно только для аккаунтов с подтвержденным email.</p>
+    <input type="email" id="reset-email-input" class="auth-modal-input" placeholder="email@example.com" autocomplete="email">
+    <input type="text" id="reset-code-input" class="auth-modal-input auth-modal-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code">
+    <input type="password" id="reset-password-input" class="auth-modal-input" placeholder="Новый пароль" autocomplete="new-password">
+    <p id="reset-error-message" class="auth-modal-error" style="display: none;"></p>
+    <button id="request-reset-code-button" class="auth-modal-secondary">Отправить код</button>
+    <button id="submit-reset-password-button" class="auth-modal-primary">Изменить пароль</button>
+    <button id="cancel-reset-password-button" class="auth-modal-secondary">Отмена</button>
   </div>
 </div>
 

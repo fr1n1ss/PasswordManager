@@ -373,3 +373,4 @@ PasswordManagerAPI/cert.key
 PasswordManagerAPI/localhost.crt
 PasswordManagerAPI/localhost.key
 password-manager-ui/certs
+build-check/

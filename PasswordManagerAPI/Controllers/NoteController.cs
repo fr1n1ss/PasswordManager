@@ -24,7 +24,11 @@ namespace PasswordManagerAPI.Controllers
         {
 
             if (string.IsNullOrEmpty(note.Title) || string.IsNullOrEmpty(note.Content))
-                return BadRequest("Not all required fields are filled in");
+                return BadRequest("Заполнены не все обязательные поля");
+
+            var validationError = ValidateNoteInput(note.Title, note.Content);
+            if (validationError != null)
+                return BadRequest(validationError);
 
             try
             {
@@ -47,6 +51,10 @@ namespace PasswordManagerAPI.Controllers
         {
             try
             {
+                var validationError = ValidateNoteInput(updatedNote.NewTitle, updatedNote.NewContent);
+                if (validationError != null)
+                    return BadRequest(validationError);
+
                 var userId = int.Parse(User.FindFirst("userId")?.Value ?? throw new UnauthorizedAccessException("User ID not found in token"));
 
                 await _noteService.UpdateNoteAsync(userId, updatedNote.ID, updatedNote.NewTitle, updatedNote.NewContent);
@@ -102,5 +110,16 @@ namespace PasswordManagerAPI.Controllers
             }
         }
         #endregion
+
+        private static string? ValidateNoteInput(string? title, string? content)
+        {
+            if (UserInputLimits.IsTooLong(title, UserInputLimits.NoteTitleMaxLength))
+                return $"Заголовок заметки должен быть не длиннее {UserInputLimits.NoteTitleMaxLength} символов";
+
+            if (UserInputLimits.IsTooLong(content, UserInputLimits.NoteContentPayloadMaxLength))
+                return $"Содержимое заметки слишком длинное";
+
+            return null;
+        }
     }
 }

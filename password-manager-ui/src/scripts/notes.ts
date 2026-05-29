@@ -1,23 +1,10 @@
-import { addNote, addToFavorites, deleteNote, getUserFavorites, getUserNotes, removeFromFavorites, updateNote } from '../services/api.ts';
+import { addNote, addToFavorites, deleteNote, removeFromFavorites, updateNote } from '../services/api.ts';
 import { getMasterPassword } from '../services/security-session.ts';
-import { decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
+import { type Note, getStoredNotes, loadNotesFromCacheOrApi, setStoredNotes, syncFavoriteStateForNotes } from './shared-data.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
-
-interface Note {
-    id: number;
-    userID: number;
-    title: string;
-    encryptedContent: string;
-    createdAt: string;
-    updatedAt: string;
-    isFavorite?: boolean;
-}
-
-interface FavoritesResponse {
-    notes?: Array<{ id: number }>;
-}
 
 function debounce(func: Function, delay: number) {
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -77,17 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 1200);
     };
 
-    const getStoredNotes = () => JSON.parse(sessionStorage.getItem('notes') || '[]') as Note[];
-    const setStoredNotes = (notes: Note[]) => sessionStorage.setItem('notes', JSON.stringify(notes));
     const syncStoredFavoriteState = async (notes: Note[]) => {
-        const favorites = await getUserFavorites() as FavoritesResponse;
-        const favoriteIds = new Set((favorites.notes || []).map((note) => note.id));
-        const syncedNotes = notes.map((note) => ({
-            ...note,
-            isFavorite: favoriteIds.has(note.id)
-        }));
-        setStoredNotes(syncedNotes);
-        return syncedNotes;
+        return await syncFavoriteStateForNotes(notes);
     };
 
     const closeAllModals = () => {
@@ -221,10 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadNotes = async () => {
         let notes = getStoredNotes();
 
-        if (!sessionStorage.getItem('notes')) {
-            const encryptedNotes = await getUserNotes() as Note[];
-            notes = await decryptNotes(encryptedNotes, masterPassword, cryptoSalt);
-        }
+        notes = await loadNotesFromCacheOrApi(masterPassword, cryptoSalt);
 
         notes = await syncStoredFavoriteState(notes);
 

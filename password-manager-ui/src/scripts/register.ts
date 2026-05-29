@@ -2,9 +2,12 @@ import { register } from '../services/api.ts';
 import { analyzePassword } from '../services/password-security.ts';
 import { createMasterPasswordVerifier, generateClientSalt } from '../services/zero-knowledge.ts';
 import { enhancePasswordField } from './password-visibility.ts';
-import { navigateTo } from './routes.ts';
 
 const USERNAME_MAX_LENGTH = 25;
+const EMAIL_MAX_LENGTH = 256;
+const AUTH_PASSWORD_MAX_LENGTH = 128;
+const MASTER_PASSWORD_MIN_LENGTH = 7;
+const MASTER_PASSWORD_MAX_LENGTH = 256;
 
 document.addEventListener('DOMContentLoaded', () => {
     const registerForm = document.getElementById('registerForm') as HTMLFormElement | null;
@@ -21,28 +24,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    registerForm.setAttribute('autocomplete', 'off');
-    [usernameInput, emailInput].forEach((input) => {
-        input.setAttribute('autocomplete', 'off');
-        input.setAttribute('autocorrect', 'off');
-        input.setAttribute('autocapitalize', 'off');
-        input.spellcheck = false;
-    });
-    usernameInput.maxLength = USERNAME_MAX_LENGTH;
-    [passwordInput, passwordConfirm, masterPasswordInput].forEach((input) => {
-        input.setAttribute('autocomplete', 'new-password');
-        input.setAttribute('autocorrect', 'off');
-        input.setAttribute('autocapitalize', 'off');
-        input.spellcheck = false;
-    });
+    const showError = (message: string) => {
+        errorContainer.style.display = 'block';
+        errorMessage.textContent = message;
+    };
 
-    enhancePasswordField(passwordInput);
-    enhancePasswordField(passwordConfirm);
-    enhancePasswordField(masterPasswordInput);
+    const hideError = () => {
+        errorContainer.style.display = 'none';
+        errorMessage.textContent = '';
+    };
 
     const getApiErrorMessage = (error: any): string => {
         const responseData = error?.response?.data;
-
         if (typeof responseData === 'string' && responseData.trim()) {
             return responseData;
         }
@@ -53,6 +46,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return error?.message || 'Неизвестная ошибка';
     };
+
+    const showDevCode = (email: string, code?: string) => {
+        if (code) {
+            console.info(`[DEV] Код подтверждения email для ${email}: ${code}`);
+        }
+    };
+
+    registerForm.setAttribute('autocomplete', 'off');
+    [usernameInput, emailInput].forEach((input) => {
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'off');
+        input.spellcheck = false;
+    });
+
+    usernameInput.maxLength = USERNAME_MAX_LENGTH;
+    emailInput.maxLength = EMAIL_MAX_LENGTH;
+    passwordInput.maxLength = AUTH_PASSWORD_MAX_LENGTH;
+    passwordConfirm.maxLength = AUTH_PASSWORD_MAX_LENGTH;
+    masterPasswordInput.minLength = MASTER_PASSWORD_MIN_LENGTH;
+    masterPasswordInput.maxLength = MASTER_PASSWORD_MAX_LENGTH;
+
+    [passwordInput, passwordConfirm, masterPasswordInput].forEach((input) => {
+        input.setAttribute('autocomplete', 'new-password');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('autocapitalize', 'off');
+        input.spellcheck = false;
+    });
+
+    enhancePasswordField(passwordInput);
+    enhancePasswordField(passwordConfirm);
+    enhancePasswordField(masterPasswordInput);
 
     const renderPasswordFeedback = () => {
         const analysis = analyzePassword(passwordInput.value, {
@@ -86,20 +111,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const masterPassword = masterPasswordInput.value.trim();
 
         if (!username || !password || !email || !masterPassword) {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = 'Заполните все поля';
+            showError('Заполните все поля');
             return;
         }
 
         if (username.length > USERNAME_MAX_LENGTH) {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = `Имя пользователя должно быть не длиннее ${USERNAME_MAX_LENGTH} символов`;
+            showError(`Имя пользователя должно быть не длиннее ${USERNAME_MAX_LENGTH} символов`);
+            return;
+        }
+
+        if (email.length > EMAIL_MAX_LENGTH) {
+            showError(`Email должен быть не длиннее ${EMAIL_MAX_LENGTH} символов`);
+            return;
+        }
+
+        if (password.length > AUTH_PASSWORD_MAX_LENGTH || confirmPassword.length > AUTH_PASSWORD_MAX_LENGTH) {
+            showError(`Пароль должен быть не длиннее ${AUTH_PASSWORD_MAX_LENGTH} символов`);
+            return;
+        }
+
+        if (masterPassword.length < MASTER_PASSWORD_MIN_LENGTH) {
+            showError(`Мастер-пароль должен быть не короче ${MASTER_PASSWORD_MIN_LENGTH} символов`);
+            return;
+        }
+
+        if (masterPassword.length > MASTER_PASSWORD_MAX_LENGTH) {
+            showError(`Мастер-пароль должен быть не длиннее ${MASTER_PASSWORD_MAX_LENGTH} символов`);
             return;
         }
 
         if (password !== confirmPassword) {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = 'Введённые пароли не совпадают';
+            showError('Введенные пароли не совпадают');
             return;
         }
 
@@ -108,26 +150,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (!analysis.isPolicyCompliant) {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = analysis.vulnerabilities[0] || 'Пароль не соответствует требованиям сложности';
+            showError(analysis.vulnerabilities[0] || 'Пароль не соответствует требованиям сложности');
             return;
         }
 
         if (password === masterPassword) {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = 'Пароль и мастер-пароль должны отличаться';
+            showError('Пароль и мастер-пароль должны отличаться');
             return;
         }
 
         try {
+            hideError();
             const salt = generateClientSalt();
             const verifier = await createMasterPasswordVerifier(masterPassword, salt);
-            await register(username, email, password, salt, verifier);
-            alert('Регистрация прошла успешно');
-            navigateTo('login');
+            const result = await register(username, email, password, salt, verifier);
+            showDevCode(email, result.previewCode);
+            sessionStorage.setItem('pendingEmailConfirmation', email);
+            window.location.href = `/confirm-email?email=${encodeURIComponent(email)}`;
         } catch (error: any) {
-            errorContainer.style.display = 'block';
-            errorMessage.textContent = `Ошибка регистрации: ${getApiErrorMessage(error)}`;
+            showError(`Ошибка регистрации: ${getApiErrorMessage(error)}`);
         }
     });
 });

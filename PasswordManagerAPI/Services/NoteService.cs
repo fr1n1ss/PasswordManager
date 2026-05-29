@@ -15,7 +15,7 @@ namespace PasswordManagerAPI.Services
         {
             var user = _context.Users.FirstOrDefault(u => u.Id == userId);
             if (user == null)
-                throw new ArgumentException("User with this userId not found");
+                throw new ArgumentException("Пользователь не найден");
 
             var note = new Note(userId, title, encryptedContent, DateTime.Now, DateTime.Now);
 
@@ -30,11 +30,11 @@ namespace PasswordManagerAPI.Services
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null)
-                throw new ArgumentException("User with this userId not found");
+                throw new ArgumentException("Пользователь не найден");
 
             var note = await _context.Notes.FirstOrDefaultAsync(n => n.ID == noteId && n.UserID == userId);
             if(note == null)
-                throw new ArgumentException("Note with this noteId not found");
+                throw new ArgumentException("Заметка не найдена");
 
             var favorite = await _context.Favorites.FirstOrDefaultAsync(f => f.UserId == userId && f.EntityType == "note" && f.EntityId == note.ID);
             if (favorite != null)
@@ -58,9 +58,9 @@ namespace PasswordManagerAPI.Services
         {
             var wasChanged = false;
 
-            var note = await _context.Notes.FirstOrDefaultAsync(n => n.ID == noteId);
+            var note = await _context.Notes.FirstOrDefaultAsync(n => n.ID == noteId && n.UserID == userId);
             if (note == null)
-                throw new ArgumentException("Note with this noteId not found");
+                throw new ArgumentException("Заметка не найдена");
 
             if (!string.IsNullOrEmpty(newTitle))
             {

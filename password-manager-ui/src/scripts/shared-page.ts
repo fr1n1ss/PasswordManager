@@ -1,6 +1,53 @@
-import { logout } from '../services/api.ts';
+import { logout, ping } from '../services/api.ts';
 import { clearAuthToken, clearSensitiveSession, touchSensitiveSession } from '../services/security-session.ts';
 import { navigateTo } from './routes.ts';
+
+const FIELD_LIMITS: Record<string, number> = {
+    username: 25,
+    email: 256,
+    'account-service-name': 450,
+    'edit-service-name': 450,
+    'account-login': 450,
+    'edit-login': 450,
+    'account-password': 512,
+    'edit-encrypted-password': 512,
+    'account-url': 2048,
+    'edit-url': 2048,
+    'account-description': 1000,
+    'edit-description': 1000,
+    'note-title': 100,
+    'edit-note-title': 100,
+    'note-content': 4000,
+    'edit-note-content': 4000,
+    generatorLength: 3,
+    totpCodeInput: 6,
+    'totp-code-input': 6
+};
+
+const NUMERIC_FIELD_IDS = new Set([
+    'generatorLength',
+    'totpCodeInput',
+    'totp-code-input'
+]);
+
+export function applyFieldInputRules(root: ParentNode = document): void {
+    root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach((field) => {
+        const limit = FIELD_LIMITS[field.id];
+        if (limit) {
+            field.maxLength = limit;
+        }
+
+        if (NUMERIC_FIELD_IDS.has(field.id)) {
+            field.inputMode = 'numeric';
+            if (field instanceof HTMLInputElement) {
+                field.pattern = '[0-9]*';
+            }
+            field.addEventListener('input', () => {
+                field.value = field.value.replace(/\D/g, '');
+            });
+        }
+    });
+}
 
 function disableAutocompleteOutsideLogin(): void {
     document.querySelectorAll<HTMLFormElement>('form').forEach((form) => {
@@ -33,6 +80,7 @@ export function initializeSharedPageShell(): void {
     const emailElement = document.querySelector('.user-email');
 
     disableAutocompleteOutsideLogin();
+    applyFieldInputRules();
     touchSensitiveSession();
 
     const activityEvents: Array<keyof DocumentEventMap> = ['click', 'keydown', 'pointerdown'];
@@ -94,7 +142,8 @@ export function initializeSharedPageShell(): void {
     });
 
     const sidebarList = document.querySelector('.sidebar ul');
-    if (sidebarList && !sidebarList.querySelector('a[href="/password-generator"]')) {
+    const passwordGeneratorLink = sidebarList?.querySelector<HTMLAnchorElement>('a[href="/password-generator"]');
+    if (sidebarList && !passwordGeneratorLink) {
         const item = document.createElement('li');
         const link = document.createElement('a');
         link.href = '/password-generator';
@@ -107,6 +156,10 @@ export function initializeSharedPageShell(): void {
 
         item.appendChild(link);
         sidebarList.appendChild(item);
+    }
+
+    if (passwordGeneratorLink && window.location.pathname === '/password-generator') {
+        passwordGeneratorLink.classList.add('active');
     }
 
     const sidebar = document.getElementById('sidebar');
@@ -126,4 +179,10 @@ export function initializeSharedPageShell(): void {
             renderSidebarToggle();
         });
     }
+
+    window.setInterval(() => {
+        void ping().catch(() => {
+            // The API response interceptor handles expired or revoked sessions.
+        });
+    }, 15000);
 }

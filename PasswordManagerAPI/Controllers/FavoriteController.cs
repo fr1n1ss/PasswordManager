@@ -25,7 +25,7 @@ namespace PasswordManagerAPI.Controllers
         {
 
             if (string.IsNullOrEmpty(entityType))
-                return BadRequest("Not all required fields are filled in");
+                return BadRequest("Заполнены не все обязательные поля");
 
             try
             {

@@ -43,7 +43,12 @@ namespace PasswordManagerAPI.Services
 
             await _context.SaveChangesAsync();
 
-            var subject = purpose == "change-email" ? "Подтверждение смены email" : "Подтверждение email";
+            var subject = purpose switch
+            {
+                "change-email" => "Подтверждение смены email",
+                "password-reset" => "Код восстановления пароля",
+                _ => "Подтверждение email"
+            };
             var body = $"Ваш код подтверждения: {code}\n\nКод действует 10 минут.";
             return await _emailSender.SendAsync(targetEmail, subject, body, code);
         }

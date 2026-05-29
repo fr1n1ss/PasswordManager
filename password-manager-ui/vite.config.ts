@@ -15,6 +15,7 @@ const routePageMap: Record<string, string> = {
     settings: 'settings-page.html',
     login: 'login-page.html',
     register: 'register-page.html',
+    'confirm-email': 'confirm-email-page.html',
     loading: 'loading-page.html'
 }
 
@@ -58,6 +59,7 @@ export default defineConfig({
                 'settings/index': path.resolve(__dirname, 'src/pages/settings-page.html'),
                 'login/index': path.resolve(__dirname, 'src/pages/login-page.html'),
                 'register/index': path.resolve(__dirname, 'src/pages/register-page.html'),
+                'confirm-email/index': path.resolve(__dirname, 'src/pages/confirm-email-page.html'),
                 'loading/index': path.resolve(__dirname, 'src/pages/loading-page.html')
             }
         }
@@ -76,6 +78,7 @@ export default defineConfig({
                     '/settings': '/pages/settings-page.html',
                     '/login': '/pages/login-page.html',
                     '/register': '/pages/register-page.html',
+                    '/confirm-email': '/pages/confirm-email-page.html',
                     '/loading': '/pages/loading-page.html'
                 };
 

@@ -1,26 +1,12 @@
-import { addAccount, addToFavorites, deleteAccount, getAccounts, getUserFavorites, removeFromFavorites, updateAccount } from '../services/api.ts';
+import { addAccount, addToFavorites, deleteAccount, removeFromFavorites, updateAccount } from '../services/api.ts';
 import { getMasterPassword } from '../services/security-session.ts';
-import { decryptAccounts, encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { escapeHtml } from './card-renderers.ts';
 import { enhancePasswordField } from './password-visibility.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
+import { type Account, getStoredAccounts, loadAccountsFromCacheOrApi, setStoredAccounts, syncFavoriteStateForAccounts } from './shared-data.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
-
-interface Account {
-    id: number;
-    userID: number;
-    serviceName: string;
-    login: string;
-    encryptedPassword: string;
-    description: string;
-    url: string;
-    creationDate: string;
-    isFavorite?: boolean;
-}
-
-interface FavoritesResponse {
-    accounts?: Array<{ id: number }>;
-}
 
 function debounce(func: Function, delay: number) {
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -28,16 +14,6 @@ function debounce(func: Function, delay: number) {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => func(...args), delay);
     };
-}
-
-function escapeHtml(value: string): string {
-    return value.replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;',
-    }[char] || char));
 }
 
 function getAccountInitial(serviceName: string): string {
@@ -137,24 +113,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         passwordRevealTimer = window.setTimeout(maskModalPassword, 2200);
     };
 
-    const getStoredAccounts = () => JSON.parse(sessionStorage.getItem('accounts') || '[]') as Account[];
-    const setStoredAccounts = (accounts: Account[]) => sessionStorage.setItem('accounts', JSON.stringify(accounts));
     const syncStoredFavoriteState = async (accounts: Account[]) => {
-        let favorites: FavoritesResponse;
         try {
-            favorites = await getUserFavorites() as FavoritesResponse;
+            return await syncFavoriteStateForAccounts(accounts);
         } catch (error) {
             console.warn('[PERF accounts] favorites sync failed, using current favorite flags for measurement', error);
             return accounts;
         }
-
-        const favoriteIds = new Set((favorites.accounts || []).map((account) => account.id));
-        const syncedAccounts = accounts.map((account) => ({
-            ...account,
-            isFavorite: favoriteIds.has(account.id)
-        }));
-        setStoredAccounts(syncedAccounts);
-        return syncedAccounts;
     };
 
     const closeAllModals = () => {
@@ -316,9 +281,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         storageReadFinished = performance.now();
 
         if (!sessionStorage.getItem('accounts')) {
-            const encryptedAccounts = await getAccounts() as Account[];
+            accounts = await loadAccountsFromCacheOrApi(masterPassword, cryptoSalt);
             serverLoadFinished = performance.now();
-            accounts = await decryptAccounts(encryptedAccounts, masterPassword, cryptoSalt);
             decryptFinished = performance.now();
         } else {
             serverLoadFinished = storageReadFinished;

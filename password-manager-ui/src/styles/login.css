@@ -102,6 +102,21 @@ body {
     filter: brightness(1.05);
 }
 
+.login-container .auth-text-link {
+    display: inline-block;
+    width: 100%;
+    margin: -2px 0 8px;
+    color: #7bd0ff;
+    text-align: center;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.login-container .auth-text-link:hover {
+    text-decoration: underline;
+}
+
 .login-container p {
     margin-top: 16px;
     text-align: center;
@@ -214,6 +229,13 @@ body {
     font-weight: 700;
 }
 
+.auth-modal-error {
+    color: #ffb4b4;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 6px;
+}
+
 .auth-modal-primary,
 .auth-modal-secondary {
     width: 100%;
@@ -240,4 +262,28 @@ body {
 .auth-modal-primary:hover,
 .auth-modal-secondary:hover {
     filter: brightness(1.05);
+}
+
+@media (max-width: 520px) {
+    body {
+        padding: 14px;
+        align-items: flex-start;
+    }
+
+    .login-container {
+        margin-top: 24px;
+        padding: 24px 18px;
+        border-radius: 18px;
+    }
+
+    .login-container h2,
+    .auth-modal-title {
+        font-size: 24px;
+    }
+
+    .auth-modal-card {
+        width: calc(100vw - 28px);
+        padding: 22px 18px;
+        border-radius: 18px;
+    }
 }

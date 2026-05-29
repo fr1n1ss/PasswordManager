@@ -15,14 +15,14 @@ namespace PasswordManagerAPI.Services
         {
             var user = _context.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId);
             if (user == null)
-                throw new ArgumentException("User with this userId not found");
+                throw new ArgumentException("Пользователь не найден");
                 
             var existingAccount = _context.Accounts.AsNoTracking().FirstOrDefault(a => a.UserID == userId && a.Login == login && a.ServiceName == serviceName);
             if (existingAccount != null)
-                throw new ArgumentException("Account with these parameters already exists");
+                throw new ArgumentException("Аккаунт с такими параметрами уже существует");
 
             if (!ValidURL(url))
-                throw new ArgumentException("URL is invalid");
+                throw new ArgumentException("Некорректный URL");
 
             var account = new Account
             {
@@ -46,7 +46,7 @@ namespace PasswordManagerAPI.Services
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
 
             if(account == null)
-                throw new ArgumentNullException("Account with this ID not found");
+                throw new ArgumentNullException("Аккаунт не найден");
 
             var favorite = await _context.Favorites.FirstOrDefaultAsync(f => f.UserId == userId && f.EntityType == "account" && f.EntityId == account.ID);
             if (favorite != null)
@@ -74,7 +74,7 @@ namespace PasswordManagerAPI.Services
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.ID == accountId && a.UserID == userId);
 
             if (account == null)
-                throw new ArgumentNullException("Account with this ID not found");
+                throw new ArgumentNullException("Аккаунт не найден");
 
             if (!string.IsNullOrEmpty(newLogin))
             {

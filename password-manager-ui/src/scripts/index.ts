@@ -16,7 +16,7 @@ import { getAuthToken, getMasterPassword } from '../services/security-session.ts
 import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { enhancePasswordField } from './password-visibility.ts';
 import { navigateTo } from './routes.ts';
-import { initializeSharedPageShell } from './shared-page.ts';
+import { applyFieldInputRules, initializeSharedPageShell } from './shared-page.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
 interface Account {
@@ -329,7 +329,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     title="${favoriteButtonLabel(Boolean(account.isFavorite))}"
                 >&starf;</button>
                 <div class="card-logo">
-                    <img src="${account.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}&sz=64` : 'https://via.placeholder.com/32'}" alt="${account.serviceName} logo" loading="lazy" onload="if (this.naturalWidth <= 16 && this.naturalHeight <= 16) { const fallback=document.createElement('span'); fallback.className='card-logo-initial'; fallback.textContent=(this.alt || '?').trim()[0].toUpperCase(); this.replaceWith(fallback); }" onerror="const fallback=document.createElement('span'); fallback.className='card-logo-initial'; fallback.textContent=(this.alt || '?').trim()[0].toUpperCase(); this.replaceWith(fallback);" />
+                    ${account.url
+                        ? `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}&sz=64" alt="${account.serviceName} logo" loading="lazy" onload="if (this.naturalWidth <= 16 && this.naturalHeight <= 16) { const fallback=document.createElement('span'); fallback.className='card-logo-initial'; fallback.textContent=(this.alt || '?').trim()[0].toUpperCase(); this.replaceWith(fallback); }" onerror="const fallback=document.createElement('span'); fallback.className='card-logo-initial'; fallback.textContent=(this.alt || '?').trim()[0].toUpperCase(); this.replaceWith(fallback);" />`
+                        : `<span class="card-logo-initial" aria-hidden="true">${account.serviceName.trim() ? account.serviceName.trim()[0].toUpperCase() : '?'}</span>`}
                 </div>
                 <div class="card-details">
                     <h3>${account.serviceName}</h3>
@@ -547,6 +549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             encryptedPassword.classList.remove('is-masked');
             description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
+            applyFieldInputRules(accountModal);
             accountUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
@@ -574,6 +577,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (enable) {
             title.innerHTML = `<input type="text" id="edit-note-title" class="modal-inline-input" value="${title.textContent || ''}" />`;
             content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${content.textContent || ''}</textarea>`;
+            applyFieldInputRules(noteModal);
             noteUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }

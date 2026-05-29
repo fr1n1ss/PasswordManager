@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getAuthToken } from './security-session.ts';
+import { clearAuthToken, clearSensitiveSession, getAuthToken } from './security-session.ts';
 
 const api = axios.create({
   baseURL: '/api',
@@ -18,6 +18,20 @@ api.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
+api.interceptors.response.use((response) => response, (error) => {
+  const status = error?.response?.status;
+  const hasToken = Boolean(getAuthToken());
+  const isAuthPage = window.location.pathname === '/login' || window.location.pathname === '/register' || window.location.pathname === '/confirm-email';
+
+  if (status === 401 && hasToken && !isAuthPage) {
+    clearAuthToken();
+    clearSensitiveSession();
+    window.location.href = '/login?sessionExpired=1';
+  }
+
+  return Promise.reject(error);
+});
+
 export const login = async (username: string, password: string) => {
   const response = await api.post('/auth/login', { username, password });
   return response.data as { token?: string; requires2FA?: boolean; tempToken?: string };
@@ -30,7 +44,27 @@ export const loginWith2FA = async (tempToken: string, code: string) => {
 
 export const register = async (username: string, email: string, password: string, salt: string, masterPasswordVerifier?: string | null) => {
   const response = await api.post('/auth/register', { username, email, password, salt, masterPasswordVerifier });
-  return response.data;
+  return response.data as { registered: boolean; emailConfirmationRequired: boolean; email: string; delivered: boolean; previewCode?: string; message: string };
+};
+
+export const confirmRegistrationEmail = async (email: string, code: string) => {
+  const response = await api.post('/auth/confirm-registration-email', { email, code });
+  return response.data as { confirmed: boolean };
+};
+
+export const resendRegistrationEmail = async (email: string) => {
+  const response = await api.post('/auth/resend-registration-email', { email });
+  return response.data as { delivered?: boolean; previewCode?: string; confirmed?: boolean };
+};
+
+export const requestPasswordReset = async (email: string) => {
+  const response = await api.post('/auth/forgot-password', { email });
+  return response.data as { delivered: boolean; previewCode?: string };
+};
+
+export const resetPassword = async (email: string, code: string, newPassword: string) => {
+  const response = await api.post('/auth/reset-password', { email, code, newPassword });
+  return response.data as { reset: boolean };
 };
 
 export const getAccounts = async () => {

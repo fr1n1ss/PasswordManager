@@ -1,5 +1,4 @@
 import {
-    getUserFavorites,
     deleteAccount,
     deleteNote,
     updateAccount,
@@ -7,36 +6,10 @@ import {
     removeFromFavorites
 } from '../services/api.ts';
 import { getMasterPassword } from '../services/security-session.ts';
-import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
-
-interface Account {
-    id: number;
-    userID: number;
-    serviceName: string;
-    login: string;
-    encryptedPassword: string;
-    description: string;
-    url: string;
-    creationDate: string;
-    isFavorite?: boolean;
-}
-
-interface Note {
-    id: number;
-    userID: number;
-    title: string;
-    encryptedContent: string;
-    createdAt: string;
-    updatedAt: string;
-    isFavorite?: boolean;
-}
-
-interface FavoritesResponse {
-    accounts: Account[];
-    notes: Note[];
-}
+import { type Account, type FavoritesResponse, type Note, loadFavoriteItems } from './shared-data.ts';
 
 const PASSWORD_MASK = '********';
 
@@ -214,8 +187,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         passwordCards.innerHTML = visibleFavorites.accounts.map((account) => {
             const logoUrl = account.url
-                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}`
-                : 'https://via.placeholder.com/32';
+                ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(account.url)}&sz=64`
+                : '';
 
             return `
                 <div class="card" data-account-id="${account.id}">
@@ -227,7 +200,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         title="Убрать из избранного"
                     >&starf;</button>
                     <div class="card-logo">
-                        <img src="${logoUrl}" alt="${account.serviceName} logo" />
+                        ${logoUrl
+                            ? `<img src="${logoUrl}" alt="${account.serviceName} logo" loading="lazy" onload="if (this.naturalWidth <= 16 && this.naturalHeight <= 16) { this.style.display='none'; this.nextElementSibling.style.display='inline-flex'; }" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />`
+                            : ''}
+                        <span class="card-logo-initial" aria-hidden="true"${logoUrl ? ' style="display: none;"' : ''}>${account.serviceName.trim() ? account.serviceName.trim()[0].toUpperCase() : '?'}</span>
                     </div>
                     <div class="card-details">
                         <h3>${account.serviceName}</h3>
@@ -259,11 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const loadFavorites = async () => {
         try {
-            const payload = await getUserFavorites() as FavoritesResponse;
-            favorites = {
-                accounts: await decryptAccounts(payload.accounts, masterPassword, cryptoSalt),
-                notes: await decryptNotes(payload.notes, masterPassword, cryptoSalt)
-            };
+            favorites = await loadFavoriteItems(masterPassword, cryptoSalt);
             renderFavorites();
             errorContainer.style.display = 'none';
         } catch (error: any) {

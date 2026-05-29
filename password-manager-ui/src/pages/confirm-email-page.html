@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Подтверждение email</title>
+  <link rel="stylesheet" href="../styles/register.css" />
+</head>
+<body>
+<div class="register-container auth-panel">
+  <form id="confirmEmailForm" autocomplete="off">
+    <div class="auth-panel-badge">Email</div>
+    <h2>Подтверждение email</h2>
+    <p id="confirmEmailSubtitle" class="auth-panel-subtitle">Введите email и код из письма.</p>
+    <input type="email" id="email" placeholder="E-mail" autocomplete="off" required />
+    <input type="text" id="code" class="auth-modal-code-input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" required />
+    <button type="submit">Подтвердить</button>
+    <button type="button" id="resendCodeBtn" class="auth-secondary-button">Отправить код повторно</button>
+    <p>Уже подтвердили? <a class="login-link" href="/login">Войти</a></p>
+  </form>
+  <div id="errorContainer" style="display: none;">
+    <p id="errorMessage" class="error-message"></p>
+  </div>
+</div>
+
+<script type="module" src="../scripts/confirm-email.ts"></script>
+</body>
+</html>
