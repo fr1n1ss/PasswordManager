@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -8,11 +6,57 @@ services:
       ACCEPT_EULA: "Y"
       SA_PASSWORD: "${SA_PASSWORD}"
       MSSQL_PID: "Developer"
-    ports:
-      - "1433:1433"
     volumes:
       - sql_data:/var/opt/mssql
     restart: unless-stopped
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: passwordmanager-api
+    depends_on:
+      - sqlserver
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=PasswordManagerDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
+      Jwt__Key: "${JWT_KEY}"
+      Jwt__Issuer: "passwordmanager"
+      Jwt__Audience: "passwordmanager_users"
+      Smtp__Host: "${SMTP_HOST}"
+      Smtp__Port: "${SMTP_PORT}"
+      Smtp__From: "${SMTP_FROM}"
+      Smtp__Username: "${SMTP_USERNAME}"
+      Smtp__Password: "${SMTP_PASSWORD}"
+      Smtp__EnableSsl: "${SMTP_ENABLE_SSL}"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./password-manager-ui
+      dockerfile: Dockerfile
+    container_name: passwordmanager-frontend
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: passwordmanager-caddy
+    depends_on:
+      - frontend
+    environment:
+      APP_HOST: "${APP_HOST}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
 volumes:
   sql_data:
+  caddy_data:
+  caddy_config:

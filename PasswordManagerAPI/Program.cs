@@ -88,13 +88,7 @@ namespace PasswordManagerAPI
 
             builder.WebHost.UseKestrel(options =>
             {
-                var certPath = builder.Configuration["Kestrel:Endpoints:Https:Certificate:Path"];
-                var certPassword = builder.Configuration["Kestrel:Endpoints:Https:Certificate:Password"];
-
-                options.ListenAnyIP(7163, listenOptions =>
-                {
-                    listenOptions.UseHttps(certPath, certPassword);
-                });
+                options.ListenAnyIP(8080);
             });
 
             builder.Services.AddSwaggerGen(options =>

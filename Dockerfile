@@ -1,27 +1,20 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-RUN mkdir -p src/PasswordManagerAPI
-RUN mkdir -p src/Security
+COPY Security/Security.csproj Security/
+COPY PasswordManagerAPI/PasswordManagerAPI.csproj PasswordManagerAPI/
 
-COPY PasswordManagerAPI/PasswordManagerAPI.csproj src/PasswordManagerAPI/
-COPY Security/Security.csproj src/Security/
+RUN dotnet restore PasswordManagerAPI/PasswordManagerAPI.csproj
 
-RUN dotnet restore src/PasswordManagerAPI/PasswordManagerAPI.csproj
+COPY . .
 
-COPY PasswordManagerAPI src/PasswordManagerAPI
-COPY Security src/Security
+RUN dotnet publish PasswordManagerAPI/PasswordManagerAPI.csproj -c Release -o /app/publish
 
-WORKDIR /src/src/PasswordManagerAPI
-
-RUN dotnet publish -c Release -o /app/publish
-
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
 COPY --from=build /app/publish .
 
 EXPOSE 8080
-EXPOSE 8443
 
-ENTRYPOINT ["dotnet","PasswordManagerAPI.dll"]
+ENTRYPOINT ["dotnet", "PasswordManagerAPI.dll"]
