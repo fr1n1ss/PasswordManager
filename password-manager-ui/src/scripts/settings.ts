@@ -544,10 +544,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     sendEmailCodeBtn.addEventListener('click', async () => {
         try {
             hideNotice();
-            const result = await sendEmailConfirmation();
+            await sendEmailConfirmation();
             emailVerificationPanel.style.display = 'block';
-            const preview = result.previewCode ? ` Тестовый код: ${result.previewCode}` : '';
-            showNotice(`Код подтверждения отправлен на текущий email.${preview}`, 'success');
+            showNotice('Код подтверждения отправлен на текущий email.', 'success');
         } catch (error: any) {
             showNotice(`Не удалось отправить код подтверждения: ${error.response?.data?.message || error.message}`, 'error');
         }
@@ -582,10 +581,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            const result = await requestEmailChange(newEmail, currentPassword);
+            await requestEmailChange(newEmail, currentPassword);
             emailChangePanel.style.display = 'block';
-            const preview = result.previewCode ? ` Тестовый код: ${result.previewCode}` : '';
-            showNotice(`Код подтверждения отправлен на новый email.${preview}`, 'success');
+            showNotice('Код подтверждения отправлен на новый email.', 'success');
         } catch (error: any) {
             showNotice(`Не удалось запросить смену email: ${error.response?.data?.message || error.message}`, 'error');
         }

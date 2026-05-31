@@ -62,8 +62,7 @@ namespace PasswordManagerAPI.Controllers
                     message = "Email не подтвержден. Введите код подтверждения из письма.",
                     emailConfirmationRequired = true,
                     email = user.Email,
-                    result.Delivered,
-                    result.PreviewCode
+                    result.Delivered
                 });
             }
 
@@ -198,7 +197,6 @@ namespace PasswordManagerAPI.Controllers
                 emailConfirmationRequired = true,
                 email = user.Email,
                 emailResult.Delivered,
-                emailResult.PreviewCode,
                 message = "Регистрация завершена. Подтвердите email перед входом."
             });
         }

@@ -8,17 +8,15 @@ namespace PasswordManagerAPI.Services
     public class SmtpEmailSender : IEmailSender
     {
         private readonly IConfiguration _configuration;
-        private readonly IWebHostEnvironment _environment;
         private readonly ILogger<SmtpEmailSender> _logger;
 
-        public SmtpEmailSender(IConfiguration configuration, IWebHostEnvironment environment, ILogger<SmtpEmailSender> logger)
+        public SmtpEmailSender(IConfiguration configuration, ILogger<SmtpEmailSender> logger)
         {
             _configuration = configuration;
-            _environment = environment;
             _logger = logger;
         }
 
-        public async Task<EmailDispatchResult> SendAsync(string recipientEmail, string subject, string body, string fallbackCode)
+        public async Task<EmailDispatchResult> SendAsync(string recipientEmail, string subject, string body)
         {
             var host = _configuration["Smtp:Host"];
             var from = _configuration["Smtp:From"];
@@ -28,8 +26,7 @@ namespace PasswordManagerAPI.Services
                 _logger.LogWarning("SMTP is not configured. Email to {RecipientEmail} was not sent.", recipientEmail);
                 return new EmailDispatchResult
                 {
-                    Delivered = false,
-                    PreviewCode = _environment.IsDevelopment() ? fallbackCode : null
+                    Delivered = false
                 };
             }
 
@@ -48,10 +45,17 @@ namespace PasswordManagerAPI.Services
                 client.Credentials = new NetworkCredential(username, password);
             }
 
-            using var message = new MailMessage(from, recipientEmail, subject, body);
-            await client.SendMailAsync(message);
-
-            return new EmailDispatchResult { Delivered = true };
+            try
+            {
+                using var message = new MailMessage(from, recipientEmail, subject, body);
+                await client.SendMailAsync(message);
+                return new EmailDispatchResult { Delivered = true };
+            }
+            catch (SmtpException exception)
+            {
+                _logger.LogError(exception, "SMTP failed to send email to {RecipientEmail}.", recipientEmail);
+                return new EmailDispatchResult { Delivered = false };
+            }
         }
     }
 }

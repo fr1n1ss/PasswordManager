@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetEmailInput = document.getElementById('reset-email-input') as HTMLInputElement | null;
     const resetCodeInput = document.getElementById('reset-code-input') as HTMLInputElement | null;
     const resetPasswordInput = document.getElementById('reset-password-input') as HTMLInputElement | null;
+    const resetStepText = document.getElementById('reset-step-text') as HTMLParagraphElement | null;
     const resetErrorMessage = document.getElementById('reset-error-message') as HTMLParagraphElement | null;
     const requestResetCodeButton = document.getElementById('request-reset-code-button') as HTMLButtonElement | null;
     const submitResetPasswordButton = document.getElementById('submit-reset-password-button') as HTMLButtonElement | null;
@@ -43,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         !loginForm || !usernameInput || !passwordInput || !errorContainer || !errorMessage ||
         !masterPasswordModal || !totpModal || !totpCodeInput || !submitTotpButton || !cancelTotpButton ||
         !forgotPasswordButton || !forgotPasswordModal || !resetEmailInput || !resetCodeInput ||
-        !resetPasswordInput || !resetErrorMessage || !requestResetCodeButton ||
+        !resetPasswordInput || !resetStepText || !resetErrorMessage || !requestResetCodeButton ||
         !submitResetPasswordButton || !cancelResetPasswordButton
     ) {
         return;
@@ -51,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     enhancePasswordField(passwordInput);
     enhancePasswordField(resetPasswordInput);
+    const resetPasswordField = resetPasswordInput.closest('.password-input-group') as HTMLElement | null;
     usernameInput.maxLength = EMAIL_MAX_LENGTH;
     passwordInput.maxLength = AUTH_PASSWORD_MAX_LENGTH;
     resetEmailInput.maxLength = EMAIL_MAX_LENGTH;
@@ -64,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     let pendingTempToken = '';
+    let resetEmail = '';
+    let resetCode = '';
+    let resetStep: 'email' | 'code' | 'password' = 'email';
 
     const showError = (message: string) => {
         errorContainer.style.display = 'block';
@@ -83,6 +88,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const hideResetMessage = () => {
         resetErrorMessage.style.display = 'none';
         resetErrorMessage.textContent = '';
+    };
+
+    const setResetStep = (step: 'email' | 'code' | 'password') => {
+        resetStep = step;
+        resetEmailInput.style.display = step === 'email' ? 'block' : 'none';
+        resetCodeInput.style.display = step === 'code' ? 'block' : 'none';
+        if (resetPasswordField) {
+            resetPasswordField.style.display = step === 'password' ? 'block' : 'none';
+        } else {
+            resetPasswordInput.style.display = step === 'password' ? 'block' : 'none';
+        }
+        requestResetCodeButton.style.display = step === 'password' ? 'none' : 'block';
+        submitResetPasswordButton.style.display = step === 'password' ? 'block' : 'none';
+
+        if (step === 'email') {
+            resetStepText.textContent = 'Восстановление доступно только для аккаунтов с подтвержденным email.';
+            requestResetCodeButton.textContent = 'Отправить код';
+        } else if (step === 'code') {
+            resetStepText.textContent = `Письмо с кодом подтверждения было отправлено на ${resetEmail}.`;
+            requestResetCodeButton.textContent = 'Подтвердить код';
+        } else {
+            resetStepText.textContent = 'Код введен. Теперь задайте новый пароль для входа.';
+            submitResetPasswordButton.textContent = 'Изменить пароль';
+        }
     };
 
     if (new URLSearchParams(window.location.search).get('sessionExpired')) {
@@ -133,18 +162,25 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const openForgotPasswordModal = () => {
+        resetEmail = '';
+        resetCode = '';
         resetEmailInput.value = '';
         resetCodeInput.value = '';
         resetPasswordInput.value = '';
         hideResetMessage();
+        setResetStep('email');
         forgotPasswordModal.style.display = 'flex';
         resetEmailInput.focus();
     };
 
     const closeForgotPasswordModal = () => {
         forgotPasswordModal.style.display = 'none';
+        resetEmail = '';
+        resetCode = '';
+        resetEmailInput.value = '';
         resetCodeInput.value = '';
         resetPasswordInput.value = '';
+        setResetStep('email');
         hideResetMessage();
     };
 
@@ -185,6 +221,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     requestResetCodeButton.addEventListener('click', async () => {
+        if (resetStep === 'code') {
+            const code = resetCodeInput.value.trim();
+            if (!code) {
+                showResetMessage('Введите код из письма');
+                return;
+            }
+
+            if (code.length !== CONFIRMATION_CODE_LENGTH) {
+                showResetMessage(`Код должен состоять из ${CONFIRMATION_CODE_LENGTH} цифр`);
+                return;
+            }
+
+            resetCode = code;
+            hideResetMessage();
+            setResetStep('password');
+            resetPasswordInput.focus();
+            return;
+        }
+
         const email = resetEmailInput.value.trim();
         if (!email) {
             showResetMessage('Введите email аккаунта');
@@ -198,22 +253,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             hideResetMessage();
-            const response = await requestPasswordReset(email);
-            if (response.previewCode) {
-                console.info(`[DEV] Код восстановления пароля для ${email}: ${response.previewCode}`);
-            }
-
-            showResetMessage(response.previewCode
-                ? `Код восстановления отправлен. Код для разработки: ${response.previewCode}`
-                : 'Код восстановления отправлен, если email подтвержден.');
+            await requestPasswordReset(email);
+            resetEmail = email;
+            setResetStep('code');
+            resetCodeInput.focus();
         } catch (error: any) {
             showResetMessage(`Ошибка запроса восстановления: ${error.response?.data?.message || error.message}`);
         }
     });
 
     submitResetPasswordButton.addEventListener('click', async () => {
-        const email = resetEmailInput.value.trim();
-        const code = resetCodeInput.value.trim();
+        const email = resetEmail || resetEmailInput.value.trim();
+        const code = resetCode || resetCodeInput.value.trim();
         const newPassword = resetPasswordInput.value.trim();
 
         if (!email || !code || !newPassword) {
@@ -293,10 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error: any) {
             if (error.response?.status === 403 && error.response?.data?.emailConfirmationRequired) {
                 const email = error.response.data.email || '';
-                if (error.response.data.previewCode) {
-                    console.info(`[DEV] Код подтверждения email для ${email}: ${error.response.data.previewCode}`);
-                }
-
                 if (email) {
                     sessionStorage.setItem('pendingEmailConfirmation', email);
                 }

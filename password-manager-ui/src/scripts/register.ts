@@ -47,12 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return error?.message || 'Неизвестная ошибка';
     };
 
-    const showDevCode = (email: string, code?: string) => {
-        if (code) {
-            console.info(`[DEV] Код подтверждения email для ${email}: ${code}`);
-        }
-    };
-
     registerForm.setAttribute('autocomplete', 'off');
     [usernameInput, emailInput].forEach((input) => {
         input.setAttribute('autocomplete', 'off');
@@ -163,8 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hideError();
             const salt = generateClientSalt();
             const verifier = await createMasterPasswordVerifier(masterPassword, salt);
-            const result = await register(username, email, password, salt, verifier);
-            showDevCode(email, result.previewCode);
+            await register(username, email, password, salt, verifier);
             sessionStorage.setItem('pendingEmailConfirmation', email);
             window.location.href = `/confirm-email?email=${encodeURIComponent(email)}`;
         } catch (error: any) {

@@ -50,7 +50,7 @@ namespace PasswordManagerAPI.Services
                 _ => "Подтверждение email"
             };
             var body = $"Ваш код подтверждения: {code}\n\nКод действует 10 минут.";
-            return await _emailSender.SendAsync(targetEmail, subject, body, code);
+            return await _emailSender.SendAsync(targetEmail, subject, body);
         }
 
         public async Task<string?> VerifyCodeAsync(int userId, string purpose, string code)

@@ -54,12 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return error?.message || 'Неизвестная ошибка';
     };
 
-    const logDevCode = (email: string, code?: string) => {
-        if (code) {
-            console.info(`[DEV] Код подтверждения email для ${email}: ${code}`);
-        }
-    };
-
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
 
@@ -100,11 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             hideMessage();
-            const result = await resendRegistrationEmail(email);
-            logDevCode(email, result.previewCode);
-            showMessage(result.previewCode
-                ? `Код отправлен повторно. Код для разработки: ${result.previewCode}`
-                : 'Код отправлен повторно.');
+            await resendRegistrationEmail(email);
+            showMessage('Код отправлен повторно.');
         } catch (error: any) {
             showMessage(`Ошибка повторной отправки: ${getApiErrorMessage(error)}`);
         }

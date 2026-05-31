@@ -44,7 +44,7 @@ export const loginWith2FA = async (tempToken: string, code: string) => {
 
 export const register = async (username: string, email: string, password: string, salt: string, masterPasswordVerifier?: string | null) => {
   const response = await api.post('/auth/register', { username, email, password, salt, masterPasswordVerifier });
-  return response.data as { registered: boolean; emailConfirmationRequired: boolean; email: string; delivered: boolean; previewCode?: string; message: string };
+  return response.data as { registered: boolean; emailConfirmationRequired: boolean; email: string; delivered: boolean; message: string };
 };
 
 export const confirmRegistrationEmail = async (email: string, code: string) => {
@@ -54,12 +54,12 @@ export const confirmRegistrationEmail = async (email: string, code: string) => {
 
 export const resendRegistrationEmail = async (email: string) => {
   const response = await api.post('/auth/resend-registration-email', { email });
-  return response.data as { delivered?: boolean; previewCode?: string; confirmed?: boolean };
+  return response.data as { delivered?: boolean; confirmed?: boolean };
 };
 
 export const requestPasswordReset = async (email: string) => {
   const response = await api.post('/auth/forgot-password', { email });
-  return response.data as { delivered: boolean; previewCode?: string };
+  return response.data as { delivered: boolean };
 };
 
 export const resetPassword = async (email: string, code: string, newPassword: string) => {
@@ -142,7 +142,7 @@ export const getUserInfo = async  () => {
 
 export const sendEmailConfirmation = async () => {
   const response = await api.post('/User/SendEmailConfirmation');
-  return response.data as { delivered: boolean; previewCode?: string };
+  return response.data as { delivered: boolean };
 }
 
 export const verifyEmailConfirmation = async (code: string) => {
@@ -152,7 +152,7 @@ export const verifyEmailConfirmation = async (code: string) => {
 
 export const requestEmailChange = async (newEmail: string, currentPassword: string) => {
   const response = await api.post('/User/RequestEmailChange', { newEmail, currentPassword });
-  return response.data as { delivered: boolean; previewCode?: string };
+  return response.data as { delivered: boolean };
 }
 
 export const confirmEmailChange = async (code: string) => {
