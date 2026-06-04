@@ -1,32 +1,53 @@
 # PasswordManager
 
-**PasswordManager** - приложение для безопасного хранения учетных записей, паролей, заметок и TOTP-аккаунтов. Проект состоит из ASP.NET Core API, frontend на Vite + TypeScript, SQL Server и отдельных криптографических библиотек с реализациями RSA и алгоритма "Кузнечик".
+**PasswordManager** - веб-приложение для безопасного хранения учетных записей, паролей, заметок и TOTP-аккаунтов.
 
-Проект разработан в рамках выпускной квалификационной работы и демонстрирует работу с защищенной аутентификацией, JWT-сессиями, шифрованием пользовательских данных, мастер-паролем, двухфакторными кодами, избранным и аудитом действий.
+Проект разработан в рамках выпускной квалификационной работы и демонстрирует работу с защищенной аутентификацией, JWT-сессиями, мастер-паролем, двухфакторной аутентификацией, клиентским шифрованием пользовательских данных, избранным и аудитом действий.
+
+Приложение состоит из ASP.NET Core API, frontend на Vite + TypeScript, SQL Server и Docker-инфраструктуры с Nginx и Caddy.
 
 ## Основные возможности
 
 - регистрация и авторизация пользователей;
-- хранение зашифрованных учетных записей и заметок;
-- работа с избранным;
-- хранение и генерация TOTP-кодов;
-- генератор паролей;
-- смена и ротация мастер-пароля;
 - подтверждение email через SMTP;
-- аудит пользовательских действий;
 - JWT-аутентификация с проверкой активных сессий;
+- управление активными сессиями пользователя;
+- хранение зашифрованных учетных записей;
+- хранение зашифрованных заметок;
+- работа с избранным;
+- хранение TOTP-аккаунтов и генерация одноразовых кодов;
+- импорт TOTP из OTPAuth URI и QR-кода;
+- генератор паролей;
+- смена пароля аккаунта;
+- смена и ротация мастер-пароля;
+- двухфакторная аутентификация;
+- аудит пользовательских действий;
 - Swagger UI для API в режиме разработки.
 
 ## Технологии
 
-- **Backend:** ASP.NET Core (.NET 8), Entity Framework Core, SQL Server, JWT, Swagger
+- **Backend:** ASP.NET Core 8, Entity Framework Core, SQL Server, JWT, Swagger
 - **Frontend:** Vite, TypeScript, HTML, CSS, Axios
-- **Криптография:** "Кузнечик", SHA-256, TOTP
-- **Инфраструктура:** Docker Compose для SQL Server
+- **Криптография:** клиентское zero-knowledge шифрование, алгоритм "Кузнечик", TOTP
+- **Инфраструктура:** Docker Compose, SQL Server 2022, Nginx, Caddy
 
 Реализация алгоритма "Кузнечик" на C# вынесена в отдельный репозиторий: [fr1n1ss/Kuznyechik](https://github.com/fr1n1ss/Kuznyechik).
 
-## Установка и запуск
+## Структура проекта
+
+```text
+PasswordManager/
+|-- PasswordManagerAPI/      # ASP.NET Core API
+|-- password-manager-ui/     # frontend на Vite + TypeScript
+|-- Security/                # криптографическая библиотека
+|-- docker-compose.yml       # основной Docker Compose
+|-- docker-compose.local.yml # локальный override для проброса SQL Server
+|-- Dockerfile               # Dockerfile для API
+|-- Caddyfile                # reverse proxy
+`-- .env.example             # пример переменных окружения
+```
+
+## Запуск через Docker
 
 ### 1. Клонирование репозитория
 
@@ -35,23 +56,71 @@ git clone https://github.com/fr1n1ss/PasswordManager.git
 cd PasswordManager
 ```
 
-### 2. Запуск SQL Server
+### 2. Создание `.env`
 
-В корне проекта создайте или заполните файл `.env`:
-
-```env
-SA_PASSWORD=Your_strong_password123
-```
-
-Запустите контейнер с базой данных:
+Скопируйте пример переменных окружения:
 
 ```bash
-docker compose up -d
+cp .env.example .env
 ```
 
-SQL Server будет доступен на порту `1433`.
+Для Windows PowerShell:
 
-### 3. Настройка API
+```powershell
+Copy-Item .env.example .env
+```
+
+### 3. Настройка `.env`
+
+Заполните значения в файле `.env`:
+
+```env
+APP_HOST=http://localhost
+
+SA_PASSWORD=ChangeMe_StrongPassword_123!
+JWT_KEY=ChangeMe_Long_Jwt_Key_At_Least_32_Chars
+
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=587
+SMTP_FROM=your_email@example.com
+SMTP_USERNAME=your_email@example.com
+SMTP_PASSWORD=your_smtp_app_password
+SMTP_ENABLE_SSL=true
+```
+
+Описание переменных:
+
+- `APP_HOST` - адрес, на котором Caddy будет принимать запросы. Для локального запуска используйте `http://localhost`.
+- `SA_PASSWORD` - пароль администратора SQL Server. Пароль должен быть сложным.
+- `JWT_KEY` - секретный ключ для подписи JWT. Используйте длинную строку, минимум 32 символа.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_ENABLE_SSL` - настройки SMTP для отправки писем подтверждения email и восстановления доступа.
+
+### 4. Запуск приложения
+
+Запустите все сервисы:
+
+```bash
+docker compose up --build -d
+```
+
+После запуска приложение будет доступно по адресу:
+
+```text
+http://localhost
+```
+
+Docker Compose поднимает следующие контейнеры:
+
+- `passwordmanager-database` - SQL Server;
+- `passwordmanager-api` - ASP.NET Core API;
+- `passwordmanager-frontend` - собранный frontend через Nginx;
+- `passwordmanager-caddy` - reverse proxy для доступа к приложению.
+
+Frontend отправляет запросы на `/api`, Nginx проксирует их в контейнер API на порт `8080`.
+
+## Локальный запуск без Docker
+
+### Backend
 
 Перейдите в папку backend-проекта:
 
@@ -59,36 +128,27 @@ SQL Server будет доступен на порту `1433`.
 cd PasswordManagerAPI
 ```
 
-Заполните `appsettings.json` или пользовательские секреты:
+В текущем `appsettings.json` значения секретов пустые, поэтому для локального запуска нужно указать настройки через `appsettings.json`, пользовательские секреты или переменные окружения.
+
+Пример настроек:
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost,1433;Database=PasswordManagerDb;User Id=sa;Password=Your_strong_password123;TrustServerCertificate=True;"
+    "DefaultConnection": "Server=localhost,14330;Database=PasswordManagerDb;User Id=sa;Password=YOUR_SA_PASSWORD;TrustServerCertificate=True;"
   },
   "Jwt": {
-    "Key": "your-long-secret-key",
+    "Key": "ChangeMe_Long_Jwt_Key_At_Least_32_Chars",
     "Issuer": "passwordmanager",
     "Audience": "passwordmanager_users"
   },
   "Smtp": {
-    "Host": "smtp.example.com",
+    "Host": "smtp.mail.ru",
     "Port": "587",
-    "From": "noreply@example.com",
-    "Username": "smtp-user",
-    "Password": "smtp-password",
+    "From": "your_email@example.com",
+    "Username": "your_email@example.com",
+    "Password": "your_smtp_app_password",
     "EnableSsl": "true"
-  },
-  "Kestrel": {
-    "Endpoints": {
-      "Https": {
-        "Url": "https://0.0.0.0:7163",
-        "Certificate": {
-          "Path": "../certificate.pfx",
-          "Password": "certificate-password"
-        }
-      }
-    }
   }
 }
 ```
@@ -105,18 +165,20 @@ dotnet ef database update
 dotnet run
 ```
 
-По умолчанию API используется на `https://localhost:7163`. Swagger доступен в режиме разработки по адресу:
+API слушает порт `8080`.
+
+Swagger UI доступен только в режиме разработки:
 
 ```text
-https://localhost:7163/swagger
+http://localhost:8080/swagger
 ```
 
-### 4. Настройка frontend
+### Frontend
 
-Откройте папку клиента:
+Перейдите в папку frontend:
 
 ```bash
-cd ../password-manager-ui
+cd password-manager-ui
 ```
 
 Установите зависимости:
@@ -137,34 +199,10 @@ Frontend запускается на:
 http://localhost:3000
 ```
 
-Vite проксирует запросы `/api` на backend. Если API запущен на другом адресе, измените `target` в `password-manager-ui/vite.config.ts`.
+Vite проксирует запросы `/api` на backend. Если API запущен на другом адресе, измените `target` в файле:
 
-## HTTPS-сертификат для локального запуска
-
-Backend настроен на HTTPS через Kestrel. Для локального запуска нужен `.pfx`-сертификат и пароль к нему.
-
-Пример создания сертификата через OpenSSL:
-
-```bash
-openssl req -x509 -newkey rsa:2048 -keyout localhost.key -out localhost.crt -days 365 -nodes -subj "/CN=localhost"
-openssl pkcs12 -export -out localhost.pfx -inkey localhost.key -in localhost.crt -passout pass:certificate-password
-```
-
-После создания укажите путь к `.pfx` и пароль в настройках `Kestrel:Endpoints:Https:Certificate`.
-
-## Сборка
-
-Сборка backend:
-
-```bash
-dotnet build PasswordManager.sln
-```
-
-Сборка frontend:
-
-```bash
-cd password-manager-ui
-npm run build
+```text
+password-manager-ui/vite.config.ts
 ```
 
 ## Ссылка на репозиторий
