@@ -4,8 +4,8 @@ import { encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { escapeHtml } from './card-renderers.ts';
 import { enhancePasswordField } from './password-visibility.ts';
 import { navigateTo } from './routes.ts';
-import { initializeSharedPageShell } from './shared-page.ts';
-import { type Account, getStoredAccounts, loadAccountsFromCacheOrApi, setStoredAccounts, syncFavoriteStateForAccounts } from './shared-data.ts';
+import { applyFieldInputRules, initializeSharedPageShell } from './shared-page.ts';
+import { type Account, decryptAccountPassword, getStoredAccounts, loadAccountsFromCacheOrApi, setStoredAccounts, syncFavoriteStateForAccounts } from './shared-data.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
 function debounce(func: Function, delay: number) {
@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return sortedAccounts;
     };
 
-    const toggleAccountEditMode = (enable: boolean) => {
+    const toggleAccountEditMode = async (enable: boolean) => {
         isAccountEditMode = enable;
         const serviceName = document.getElementById('modal-service-name') as HTMLElement;
         const login = document.getElementById('modal-login') as HTMLElement;
@@ -185,15 +185,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const account = getCurrentAccount();
 
         if (enable) {
+            const plainPassword = account ? await decryptAccountPassword(account, masterPassword, cryptoSalt) : '';
             if (passwordRevealTimer) {
                 window.clearTimeout(passwordRevealTimer);
             }
             serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
             login.innerHTML = `<input type="text" id="edit-login" value="${login.textContent || ''}" />`;
-            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${account?.encryptedPassword || ''}" />`;
+            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${plainPassword}" />`;
             encryptedPassword.classList.remove('is-masked');
             description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
+            applyFieldInputRules(accountModal);
             accountUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
@@ -397,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             setStoredAccounts([...getStoredAccounts(), {
                 ...newAccount,
-                encryptedPassword: password,
+                encryptedPassword,
                 isFavorite: false
             }]);
 
@@ -413,14 +415,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     accountModal.addEventListener('click', (event) => {
         if (event.target === accountModal) {
             accountModal.style.display = 'none';
-            toggleAccountEditMode(false);
+            void toggleAccountEditMode(false);
         }
     });
 
     document.querySelectorAll('.modal-close-btn').forEach((button) => {
         button.addEventListener('click', () => {
             accountModal.style.display = 'none';
-            toggleAccountEditMode(false);
+            void toggleAccountEditMode(false);
         });
     });
 
@@ -440,11 +442,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     copyAccountPasswordBtn?.addEventListener('click', async () => {
-        const password = getCurrentAccount()?.encryptedPassword || '';
-        if (!password || password === UI_TEXT.common.notSpecified) {
+        const account = getCurrentAccount();
+        if (!account?.encryptedPassword) {
             return;
         }
 
+        const password = await decryptAccountPassword(account, masterPassword, cryptoSalt);
         await navigator.clipboard.writeText(password);
         revealModalPasswordTemporarily(password);
         markCopyButtonCopied(copyAccountPasswordBtn, 'Скопировать пароль');
@@ -452,7 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     (document.getElementById('account-update-btn') as HTMLButtonElement).addEventListener('click', async () => {
         if (!isAccountEditMode) {
-            toggleAccountEditMode(true);
+            await toggleAccountEditMode(true);
             return;
         }
 
@@ -479,13 +482,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             updateStoredAccount(currentAccountId, {
                 login,
-                encryptedPassword: password,
+                encryptedPassword,
                 serviceName,
                 url,
                 description
             });
 
-            toggleAccountEditMode(false);
+            await toggleAccountEditMode(false);
             await loadAccounts();
         } catch (error: any) {
             alert(`Ошибка при обновлении аккаунта: ${error.message}`);

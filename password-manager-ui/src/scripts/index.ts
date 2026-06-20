@@ -13,7 +13,7 @@ import {
     updateNote
 } from '../services/api.ts';
 import { getAuthToken, getMasterPassword } from '../services/security-session.ts';
-import { decryptAccounts, decryptNotes, encryptOpaquePayload } from '../services/zero-knowledge.ts';
+import { decryptOpaquePayload, encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { enhancePasswordField } from './password-visibility.ts';
 import { navigateTo } from './routes.ts';
 import { applyFieldInputRules, initializeSharedPageShell } from './shared-page.ts';
@@ -163,6 +163,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         sessionStorage.setItem('accountsServerHash', accountsHash);
         sessionStorage.setItem('notesServerHash', notesHash);
     };
+    const decryptAccountPassword = (account: Account) => decryptOpaquePayload(account.encryptedPassword, masterPassword, cryptoSalt);
+    const decryptNoteContent = (note: Note) => decryptOpaquePayload(note.encryptedContent, masterPassword, cryptoSalt);
     const syncStoredFavoriteStates = async (accounts: Account[], notes: Note[]) => {
         const favorites = await getUserFavorites() as FavoritesResponse;
         const favoriteAccountIds = new Set((favorites.accounts || []).map((account) => account.id));
@@ -301,9 +303,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         storageReadFinished = performance.now();
 
         if (!sessionStorage.getItem('accounts')) {
-            const encryptedAccounts = await getAccounts() as Account[];
+            accounts = await getAccounts() as Account[];
             serverLoadFinished = performance.now();
-            accounts = await decryptAccounts(encryptedAccounts, masterPassword, cryptoSalt);
             decryptFinished = performance.now();
         } else {
             serverLoadFinished = storageReadFinished;
@@ -368,9 +369,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         storageReadFinished = performance.now();
 
         if (!sessionStorage.getItem('notes')) {
-            const encryptedNotes = await getUserNotes() as Note[];
+            notes = await getUserNotes() as Note[];
             serverLoadFinished = performance.now();
-            notes = await decryptNotes(encryptedNotes, masterPassword, cryptoSalt);
             decryptFinished = performance.now();
         } else {
             serverLoadFinished = storageReadFinished;
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         notesCards.querySelectorAll<HTMLElement>('.card[data-note-id]').forEach((card) => {
-            card.addEventListener('click', () => openNoteModal(Number(card.dataset.noteId)));
+            card.addEventListener('click', () => void openNoteModal(Number(card.dataset.noteId)));
         });
 
         passwordCards.querySelectorAll<HTMLElement>('.add-new-card').forEach((card) => {
@@ -497,13 +497,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (previousAccountsHash !== accountsHash) {
                 accountsChanged = true;
-                setStoredAccounts(await decryptAccounts(await getAccounts() as Account[], masterPassword, cryptoSalt));
+                setStoredAccounts(await getAccounts() as Account[]);
             }
             accountsRefreshFinished = performance.now();
 
             if (previousNotesHash !== notesHash) {
                 notesChanged = true;
-                setStoredNotes(await decryptNotes(await getUserNotes() as Note[], masterPassword, cryptoSalt));
+                setStoredNotes(await getUserNotes() as Note[]);
             }
             notesRefreshFinished = performance.now();
 
@@ -528,7 +528,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    const toggleAccountEditMode = (enable: boolean) => {
+    const toggleAccountEditMode = async (enable: boolean) => {
         isAccountEditMode = enable;
         const serviceName = document.getElementById('modal-service-name') as HTMLElement;
         const login = document.getElementById('modal-login') as HTMLElement;
@@ -540,12 +540,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const account = getCurrentAccount();
 
         if (enable) {
+            const plainPassword = account ? await decryptAccountPassword(account) : '';
             if (passwordRevealTimer) {
                 window.clearTimeout(passwordRevealTimer);
             }
             serviceName.innerHTML = `<input type="text" id="edit-service-name" value="${serviceName.textContent || ''}" />`;
             login.innerHTML = `<input type="text" id="edit-login" value="${login.textContent || ''}" />`;
-            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${account?.encryptedPassword || ''}" />`;
+            encryptedPassword.innerHTML = `<input type="text" id="edit-encrypted-password" value="${plainPassword}" />`;
             encryptedPassword.classList.remove('is-masked');
             description.innerHTML = `<textarea id="edit-description">${description.textContent || ''}</textarea>`;
             url.innerHTML = `<input type="text" id="edit-url" value="${url.textContent || ''}" />`;
@@ -566,26 +567,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         accountUpdateBtn.textContent = UI_TEXT.common.edit;
     };
 
-    const toggleNoteEditMode = (enable: boolean) => {
+    const toggleNoteEditMode = async (enable: boolean) => {
         isNoteEditMode = enable;
         const title = document.getElementById('modal-note-title') as HTMLElement;
         const content = document.getElementById('modal-note-content') as HTMLElement;
         const creationDate = document.getElementById('modal-note-creation-date') as HTMLElement;
         const updatedDate = document.getElementById('modal-note-updated-date') as HTMLElement;
         const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
+        const note = getStoredNotes().find((item) => item.id === currentNoteId);
 
         if (enable) {
+            const plainContent = note ? await decryptNoteContent(note) : '';
             title.innerHTML = `<input type="text" id="edit-note-title" class="modal-inline-input" value="${title.textContent || ''}" />`;
-            content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${content.textContent || ''}</textarea>`;
+            content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${plainContent}</textarea>`;
             applyFieldInputRules(noteModal);
             noteUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
 
-        const note = getStoredNotes().find((item) => item.id === currentNoteId);
         if (note) {
             title.textContent = note.title;
-            content.textContent = note.encryptedContent;
+            content.textContent = await decryptNoteContent(note);
             creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU');
             updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
         }
@@ -609,7 +611,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         accountModal.style.display = 'flex';
     };
 
-    const openNoteModal = (noteId: number) => {
+    const openNoteModal = async (noteId: number) => {
         const note = getStoredNotes().find((item) => item.id === noteId);
         if (!note) {
             return;
@@ -617,7 +619,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         currentNoteId = noteId;
         (document.getElementById('modal-note-title') as HTMLElement).textContent = note.title;
-        (document.getElementById('modal-note-content') as HTMLElement).textContent = note.encryptedContent;
+        (document.getElementById('modal-note-content') as HTMLElement).textContent = await decryptNoteContent(note);
         (document.getElementById('modal-note-creation-date') as HTMLElement).textContent = new Date(note.createdAt).toLocaleString('ru-RU');
         (document.getElementById('modal-note-updated-date') as HTMLElement).textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
         noteModal.style.display = 'flex';
@@ -646,8 +648,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         modal.addEventListener('click', (event) => {
             if (event.target === modal) {
                 closeAllModals();
-                toggleAccountEditMode(false);
-                toggleNoteEditMode(false);
+                void toggleAccountEditMode(false);
+                void toggleNoteEditMode(false);
             }
         });
     });
@@ -678,7 +680,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const encryptedPassword = await encryptOpaquePayload(password, masterPassword, cryptoSalt);
             const newAccount = await addAccount({ serviceName, login, password: encryptedPassword, description, url });
-            setStoredAccounts([...getStoredAccounts(), { ...newAccount, encryptedPassword: password, isFavorite: false }]);
+            setStoredAccounts([...getStoredAccounts(), { ...newAccount, encryptedPassword, isFavorite: false }]);
             clearAccountForm();
             closeAllModals();
             await reloadVisibleCards();
@@ -701,7 +703,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const encryptedContent = await encryptOpaquePayload(content, masterPassword, cryptoSalt);
             const newNote = await addNote(title, encryptedContent);
-            setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent: content, isFavorite: false }]);
+            setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent, isFavorite: false }]);
             clearNoteForm();
             closeAllModals();
             await reloadVisibleCards();
@@ -714,8 +716,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('.modal-close-btn').forEach((button) => {
         button.addEventListener('click', () => {
             closeAllModals();
-            toggleAccountEditMode(false);
-            toggleNoteEditMode(false);
+            void toggleAccountEditMode(false);
+            void toggleNoteEditMode(false);
         });
     });
 
@@ -735,11 +737,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     copyAccountPasswordBtn?.addEventListener('click', async () => {
-        const password = getCurrentAccount()?.encryptedPassword || '';
-        if (!password || password === UI_TEXT.common.notSpecified) {
+        const account = getCurrentAccount();
+        if (!account?.encryptedPassword) {
             return;
         }
 
+        const password = await decryptAccountPassword(account);
         await navigator.clipboard.writeText(password);
         revealModalPasswordTemporarily(password);
         markCopyButtonCopied(copyAccountPasswordBtn, 'Скопировать пароль');
@@ -772,7 +775,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     (document.getElementById('account-update-btn') as HTMLButtonElement).addEventListener('click', async () => {
         if (!isAccountEditMode) {
-            toggleAccountEditMode(true);
+            await toggleAccountEditMode(true);
             return;
         }
 
@@ -799,13 +802,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             updateStoredAccount(currentAccountId, {
                 login,
-                encryptedPassword: password,
+                encryptedPassword,
                 serviceName,
                 url,
                 description
             });
 
-            toggleAccountEditMode(false);
+            await toggleAccountEditMode(false);
             await reloadVisibleCards();
         } catch (error: any) {
             alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);
@@ -814,7 +817,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     (document.getElementById('note-update-btn') as HTMLButtonElement).addEventListener('click', async () => {
         if (!isNoteEditMode) {
-            toggleNoteEditMode(true);
+            await toggleNoteEditMode(true);
             return;
         }
 
@@ -830,10 +833,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             await updateNote(currentNoteId, newTitle, encryptedContent);
             updateStoredNote(currentNoteId, {
                 title: newTitle,
-                encryptedContent: newContent,
+                encryptedContent,
                 updatedAt: new Date().toISOString()
             });
-            toggleNoteEditMode(false);
+            await toggleNoteEditMode(false);
             await reloadVisibleCards();
         } catch (error: any) {
             alert(`${UI_TEXT.common.errorPrefix}: ${error.message}`);

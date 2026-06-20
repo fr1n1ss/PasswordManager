@@ -1,5 +1,5 @@
 import { getAccounts, getUserFavorites, getUserNotes } from '../services/api.ts';
-import { decryptAccounts, decryptNotes } from '../services/zero-knowledge.ts';
+import { decryptOpaquePayload } from '../services/zero-knowledge.ts';
 
 export interface Account {
     id: number;
@@ -43,8 +43,7 @@ export async function loadAccountsFromCacheOrApi(masterPassword: string, cryptoS
         return getStoredAccounts();
     }
 
-    const encryptedAccounts = await getAccounts() as Account[];
-    const accounts = await decryptAccounts(encryptedAccounts, masterPassword, cryptoSalt);
+    const accounts = await getAccounts() as Account[];
     setStoredAccounts(accounts);
     return accounts;
 }
@@ -54,10 +53,17 @@ export async function loadNotesFromCacheOrApi(masterPassword: string, cryptoSalt
         return getStoredNotes();
     }
 
-    const encryptedNotes = await getUserNotes() as Note[];
-    const notes = await decryptNotes(encryptedNotes, masterPassword, cryptoSalt);
+    const notes = await getUserNotes() as Note[];
     setStoredNotes(notes);
     return notes;
+}
+
+export async function decryptAccountPassword(account: Account, masterPassword: string, cryptoSalt: string): Promise<string> {
+    return decryptOpaquePayload(account.encryptedPassword, masterPassword, cryptoSalt);
+}
+
+export async function decryptNoteContent(note: Note, masterPassword: string, cryptoSalt: string): Promise<string> {
+    return decryptOpaquePayload(note.encryptedContent, masterPassword, cryptoSalt);
 }
 
 export async function syncFavoriteStateForAccounts(accounts: Account[]): Promise<Account[]> {
@@ -105,7 +111,7 @@ export async function syncStoredFavoriteStates(accounts: Account[], notes: Note[
 export async function loadFavoriteItems(masterPassword: string, cryptoSalt: string): Promise<FavoritesResponse> {
     const payload = await getUserFavorites() as FavoritesResponse;
     return {
-        accounts: await decryptAccounts(payload.accounts, masterPassword, cryptoSalt),
-        notes: await decryptNotes(payload.notes, masterPassword, cryptoSalt),
+        accounts: payload.accounts,
+        notes: payload.notes,
     };
 }

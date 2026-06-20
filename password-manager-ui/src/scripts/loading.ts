@@ -167,6 +167,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const hasEncryptedPayloads = accountPayloads.some((item) => item.encryptedPassword.startsWith('zk1:'))
                 || notePayloads.some((item) => item.encryptedContent.startsWith('zk1:'))
                 || totpPayloads.some((item) => item.secret.startsWith('zk1:'));
+            let storedAccountPayloads = accountPayloads;
+            let storedNotePayloads = notePayloads;
 
             if (verifierStatus === false) {
                 throw new Error('INVALID_MASTER_PASSWORD');
@@ -176,7 +178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error('INVALID_MASTER_PASSWORD');
             }
 
-            const [accounts, notes] = await Promise.all([
+            await Promise.all([
                 decryptAccounts(accountPayloads, masterPassword, user.salt),
                 decryptNotes(notePayloads, masterPassword, user.salt)
             ]);
@@ -200,14 +202,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                         masterPasswordVerifier: verifier,
                         clearServerVerifier: false
                     });
+
+                    const rotatedAccountById = new Map(rotatedAccounts.map((item) => [item.id, item.encryptedPassword]));
+                    const rotatedNoteById = new Map(rotatedNotes.map((item) => [item.id, item.encryptedContent]));
+                    storedAccountPayloads = accountPayloads.map((item) => ({
+                        ...item,
+                        encryptedPassword: rotatedAccountById.get(item.id) || item.encryptedPassword
+                    }));
+                    storedNotePayloads = notePayloads.map((item) => ({
+                        ...item,
+                        encryptedContent: rotatedNoteById.get(item.id) || item.encryptedContent
+                    }));
                 }
 
                 user.masterPasswordVerifier = verifier;
             }
 
             persistUserContext(masterPassword);
-            sessionStorage.setItem('accounts', JSON.stringify(accounts));
-            sessionStorage.setItem('notes', JSON.stringify(notes));
+            sessionStorage.setItem('accounts', JSON.stringify(storedAccountPayloads));
+            sessionStorage.setItem('notes', JSON.stringify(storedNotePayloads));
 
             sessionStorage.setItem('isDataLoaded', 'true');
             navigateTo('home');

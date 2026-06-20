@@ -3,7 +3,7 @@ import { getMasterPassword } from '../services/security-session.ts';
 import { encryptOpaquePayload } from '../services/zero-knowledge.ts';
 import { navigateTo } from './routes.ts';
 import { initializeSharedPageShell } from './shared-page.ts';
-import { type Note, getStoredNotes, loadNotesFromCacheOrApi, setStoredNotes, syncFavoriteStateForNotes } from './shared-data.ts';
+import { type Note, decryptNoteContent, getStoredNotes, loadNotesFromCacheOrApi, setStoredNotes, syncFavoriteStateForNotes } from './shared-data.ts';
 import { favoriteButtonLabel, UI_TEXT } from './ui-text.ts';
 
 function debounce(func: Function, delay: number) {
@@ -116,25 +116,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         return sortedNotes;
     };
 
-    const toggleNoteEditMode = (enable: boolean) => {
+    const toggleNoteEditMode = async (enable: boolean) => {
         isNoteEditMode = enable;
         const title = document.getElementById('modal-note-title') as HTMLElement;
         const content = document.getElementById('modal-note-content') as HTMLElement;
         const creationDate = document.getElementById('modal-note-creation-date') as HTMLElement;
         const updatedDate = document.getElementById('modal-note-updated-date') as HTMLElement;
         const noteUpdateBtn = document.getElementById('note-update-btn') as HTMLButtonElement;
+        const note = getStoredNotes().find((item) => item.id === currentNoteId);
 
         if (enable) {
+            const plainContent = note ? await decryptNoteContent(note, masterPassword, cryptoSalt) : '';
             title.innerHTML = `<input type="text" id="edit-note-title" class="modal-inline-input" value="${title.textContent || ''}" />`;
-            content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${content.textContent || ''}</textarea>`;
+            content.innerHTML = `<textarea id="edit-note-content" class="modal-inline-textarea">${plainContent}</textarea>`;
             noteUpdateBtn.textContent = UI_TEXT.common.save;
             return;
         }
 
-        const note = getStoredNotes().find((item) => item.id === currentNoteId);
         if (note) {
             title.textContent = note.title;
-            content.textContent = note.encryptedContent;
+            content.textContent = await decryptNoteContent(note, masterPassword, cryptoSalt);
             creationDate.textContent = new Date(note.createdAt).toLocaleString('ru-RU');
             updatedDate.textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
         }
@@ -142,7 +143,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         noteUpdateBtn.textContent = UI_TEXT.common.edit;
     };
 
-    const openNoteModal = (noteId: number) => {
+    const openNoteModal = async (noteId: number) => {
         const note = getStoredNotes().find((item) => item.id === noteId);
         if (!note) {
             return;
@@ -150,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         currentNoteId = noteId;
         (document.getElementById('modal-note-title') as HTMLElement).textContent = note.title;
-        (document.getElementById('modal-note-content') as HTMLElement).textContent = note.encryptedContent;
+        (document.getElementById('modal-note-content') as HTMLElement).textContent = await decryptNoteContent(note, masterPassword, cryptoSalt);
         (document.getElementById('modal-note-creation-date') as HTMLElement).textContent = new Date(note.createdAt).toLocaleString('ru-RU');
         (document.getElementById('modal-note-updated-date') as HTMLElement).textContent = new Date(note.updatedAt).toLocaleString('ru-RU');
         noteModal.style.display = 'flex';
@@ -169,7 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const bindCards = () => {
         notesCards.querySelectorAll<HTMLElement>('.card[data-note-id]').forEach((card) => {
             card.addEventListener('click', () => {
-                openNoteModal(Number(card.dataset.noteId));
+                void openNoteModal(Number(card.dataset.noteId));
             });
         });
 
@@ -263,7 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const encryptedContent = await encryptOpaquePayload(content, masterPassword, cryptoSalt);
             const newNote = await addNote(title, encryptedContent);
-            setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent: content, isFavorite: false }]);
+            setStoredNotes([...getStoredNotes(), { ...newNote, encryptedContent, isFavorite: false }]);
             await loadNotes();
             clearAddForm();
             closeAllModals();
@@ -276,14 +277,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     noteModal.addEventListener('click', (event) => {
         if (event.target === noteModal) {
             noteModal.style.display = 'none';
-            toggleNoteEditMode(false);
+            void toggleNoteEditMode(false);
         }
     });
 
     document.querySelectorAll('.modal-close-btn').forEach((button) => {
         button.addEventListener('click', () => {
             noteModal.style.display = 'none';
-            toggleNoteEditMode(false);
+                void toggleNoteEditMode(false);
         });
     });
 
@@ -314,7 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     (document.getElementById('note-update-btn') as HTMLButtonElement).addEventListener('click', async () => {
         if (!isNoteEditMode) {
-            toggleNoteEditMode(true);
+            await toggleNoteEditMode(true);
             return;
         }
 
@@ -330,10 +331,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             await updateNote(currentNoteId, newTitle, encryptedContent);
             updateStoredNote(currentNoteId, {
                 title: newTitle,
-                encryptedContent: newContent,
+                encryptedContent,
                 updatedAt: new Date().toISOString()
             });
-            toggleNoteEditMode(false);
+            await toggleNoteEditMode(false);
             await loadNotes();
         } catch (error: any) {
             alert(`Ошибка при обновлении заметки: ${error.message}`);
