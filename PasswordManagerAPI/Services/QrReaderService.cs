@@ -1,25 +1,26 @@
-﻿using System.Drawing;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using ZXing;
-using ZXing.Common;
-using ZXing.Windows.Compatibility;
+using ZXing.ImageSharp;
 
 namespace PasswordManagerAPI.Services
 {
     public class QrReaderService : IQrReaderService
     {
-        public string ReadQrCode(Stream stream)
+        public string? ReadQrCode(Stream stream)
         {
-            using var bitmap = new Bitmap(stream);
+            using var image = Image.Load<Rgba32>(stream);
+            var reader = new ZXing.ImageSharp.BarcodeReader<Rgba32>
+            {
+                Options =
+                {
+                    PossibleFormats = new[] { BarcodeFormat.QR_CODE },
+                    TryHarder = true
+                },
+                AutoRotate = true
+            };
 
-            var source = new BitmapLuminanceSource(bitmap);
-            var binarizer = new HybridBinarizer(source);
-            var binaryBitmap = new BinaryBitmap(binarizer);
-
-            var reader = new MultiFormatReader();
-
-            var result = reader.decode(binaryBitmap);
-
-            return result?.Text;
+            return reader.Decode(image)?.Text;
         }
     }
 }

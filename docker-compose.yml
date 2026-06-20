@@ -22,7 +22,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=PasswordManagerDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
-      Jwt__Key: "${JWT_KEY}"
+      Jwt__PrivateKeyPem: "${JWT_PRIVATE_KEY_PEM}"
+      Jwt__PublicKeyPem: "${JWT_PUBLIC_KEY_PEM}"
+      Jwt__KeyId: "${JWT_KEY_ID:-passwordmanager-rsa}"
       Jwt__Issuer: "passwordmanager"
       Jwt__Audience: "passwordmanager_users"
       Smtp__Host: "${SMTP_HOST}"

@@ -352,6 +352,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            if (error.response?.status === 429) {
+                showError('Слишком много попыток входа. Попробуйте снова через несколько минут.');
+                return;
+            }
+
+            if (error.response?.status === 500) {
+                showError('Внутренняя ошибка сервера. Попробуйте позже.');
+                return;
+            }
+
             if (!error.response && (error.message.includes('Network') || error.message.includes('Failed to fetch'))) {
                 showError('Ошибка сети. Перенаправляем на страницу загрузки...');
                 setTimeout(() => navigateTo('loading'), 2000);

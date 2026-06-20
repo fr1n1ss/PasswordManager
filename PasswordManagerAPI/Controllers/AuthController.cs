@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
@@ -21,10 +22,10 @@ namespace PasswordManagerAPI.Controllers
         private readonly PasswordPolicyService _passwordPolicyService;
         private readonly IEmailVerificationService _emailVerificationService;
 
-        public AuthController(AppDbContext context, IConfiguration config, ITotpService totpService, IAuditService auditService, PasswordPolicyService passwordPolicyService, IEmailVerificationService emailVerificationService)
+        public AuthController(AppDbContext context, SecurityHelper securityHelper, ITotpService totpService, IAuditService auditService, PasswordPolicyService passwordPolicyService, IEmailVerificationService emailVerificationService)
         {
             _context = context;
-            _securityHelper = new SecurityHelper(config);
+            _securityHelper = securityHelper;
             _totpService = totpService;
             _auditService = auditService;
             _passwordPolicyService = passwordPolicyService;
@@ -32,6 +33,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("login")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> Login([FromBody] LoginModel model)
         {
             var login = model.Username?.Trim();
@@ -79,6 +81,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("2fa/login")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> LoginWith2FA([FromBody] TwoFactorRequest request)
         {
             try
@@ -110,6 +113,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("register")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> Register([FromBody] RegisterModel model)
         {
             var username = model.Username?.Trim();
@@ -202,6 +206,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("confirm-registration-email")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> ConfirmRegistrationEmail([FromBody] ConfirmRegistrationEmailModel model)
         {
             var email = model.Email?.Trim();
@@ -231,6 +236,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("resend-registration-email")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> ResendRegistrationEmail([FromBody] RequestPasswordResetModel model)
         {
             var email = model.Email?.Trim();
@@ -253,6 +259,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("forgot-password")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> ForgotPassword([FromBody] RequestPasswordResetModel model)
         {
             var email = model.Email?.Trim();
@@ -274,6 +281,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("reset-password")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordModel model)
         {
             var email = model.Email?.Trim();
@@ -500,6 +508,7 @@ namespace PasswordManagerAPI.Controllers
 
         [Authorize]
         [HttpPost("2fa/verify")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> Verify2FA([FromBody] string code)
         {
             var userId = GetCurrentUserId();

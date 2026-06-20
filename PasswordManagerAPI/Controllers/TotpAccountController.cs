@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
+using SixLabors.ImageSharp;
 
 namespace PasswordManagerAPI.Controllers
 {
@@ -48,14 +50,38 @@ namespace PasswordManagerAPI.Controllers
 
         [HttpPost("importQrText")]
         [Consumes("multipart/form-data")]
+        [EnableRateLimiting("QrImport")]
         public IActionResult ImportQrText(IFormFile file)
         {
-            if (file == null || file.Length == 0) return BadRequest("Файл не загружен");
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest("Файл не загружен.");
+            }
 
-            using var stream = file.OpenReadStream();
-            var qrText = _qrCodeService.ReadQrCode(stream);
+            if (file.Length > 5 * 1024 * 1024)
+            {
+                return BadRequest("Файл слишком большой.");
+            }
 
-            if (string.IsNullOrEmpty(qrText)) return BadRequest("QR-код не распознан");
+            string? qrText;
+            try
+            {
+                using var stream = file.OpenReadStream();
+                qrText = _qrCodeService.ReadQrCode(stream);
+            }
+            catch (UnknownImageFormatException)
+            {
+                return BadRequest("Неподдерживаемый формат изображения.");
+            }
+            catch (InvalidImageContentException)
+            {
+                return BadRequest("Не удалось прочитать изображение.");
+            }
+
+            if (string.IsNullOrEmpty(qrText))
+            {
+                return BadRequest("QR-код не распознан.");
+            }
 
             return Ok(new { qrText });
         }

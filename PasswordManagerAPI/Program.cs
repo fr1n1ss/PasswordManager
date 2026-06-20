@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PasswordManagerAPI.Entities;
 using PasswordManagerAPI.Services;
 using System.IdentityModel.Tokens.Jwt;
-using System.Text;
+using System.Threading.RateLimiting;
 
 namespace PasswordManagerAPI
 {
@@ -18,7 +19,9 @@ namespace PasswordManagerAPI
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlServer(connectionString));
-            var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "default_key");
+            var jwtKeyProvider = new JwtKeyProvider(builder.Configuration);
+            builder.Services.AddSingleton(jwtKeyProvider);
+
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
                 {
@@ -27,7 +30,7 @@ namespace PasswordManagerAPI
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(key),
+                        IssuerSigningKey = jwtKeyProvider.ValidationKey,
                         ValidateIssuer = true,
                         ValidateAudience = true,
                         ValidIssuer = builder.Configuration["Jwt:Issuer"],
@@ -61,6 +64,37 @@ namespace PasswordManagerAPI
                     };
                 });
 
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetRateLimitPartitionKey(context),
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 100,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                            QueueLimit = 0
+                        }));
+
+                options.AddFixedWindowLimiter("Auth", limiterOptions =>
+                {
+                    limiterOptions.PermitLimit = 5;
+                    limiterOptions.Window = TimeSpan.FromMinutes(1);
+                    limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                    limiterOptions.QueueLimit = 0;
+                });
+
+                options.AddFixedWindowLimiter("QrImport", limiterOptions =>
+                {
+                    limiterOptions.PermitLimit = 10;
+                    limiterOptions.Window = TimeSpan.FromMinutes(1);
+                    limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                    limiterOptions.QueueLimit = 0;
+                });
+            });
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll", policy =>
@@ -83,6 +117,7 @@ namespace PasswordManagerAPI
             builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
             builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
             builder.Services.AddScoped<PasswordPolicyService>();
+            builder.Services.AddScoped<SecurityHelper>();
 
             builder.Services.AddEndpointsApiExplorer();
 
@@ -130,6 +165,7 @@ namespace PasswordManagerAPI
 
             app.UseHttpsRedirection();
             app.UseCors("AllowAll");
+            app.UseRateLimiter();
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
@@ -142,6 +178,11 @@ namespace PasswordManagerAPI
             }
 
             app.Run();
+        }
+
+        private static string GetRateLimitPartitionKey(HttpContext context)
+        {
+            return RequestMetadataHelper.GetClientIp(context) ?? "unknown";
         }
     }
 }

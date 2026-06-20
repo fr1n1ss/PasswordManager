@@ -13,16 +13,17 @@ namespace PasswordManagerAPI.Services
     public class SecurityHelper
     {
         private readonly IConfiguration _config;
+        private readonly JwtKeyProvider _jwtKeyProvider;
 
-        public SecurityHelper(IConfiguration config)
+        public SecurityHelper(IConfiguration config, JwtKeyProvider jwtKeyProvider)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            _jwtKeyProvider = jwtKeyProvider ?? throw new ArgumentNullException(nameof(jwtKeyProvider));
         }
 
         public string GenerateJwtToken(User user, Guid sessionId, string jwtId)
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var creds = _jwtKeyProvider.CreateSigningCredentials();
 
             var claims = new[]
             {
@@ -77,8 +78,7 @@ namespace PasswordManagerAPI.Services
                 new Claim("type", "temp")
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var creds = _jwtKeyProvider.CreateSigningCredentials();
 
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
@@ -97,7 +97,7 @@ namespace PasswordManagerAPI.Services
             var parameters = new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"])),
+                IssuerSigningKey = _jwtKeyProvider.ValidationKey,
                 ValidateIssuer = true,
                 ValidateAudience = true,
                 ValidIssuer = _config["Jwt:Issuer"],

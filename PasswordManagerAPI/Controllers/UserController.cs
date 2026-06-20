@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using PasswordManagerAPI.Models;
 using PasswordManagerAPI.Services;
@@ -15,12 +16,14 @@ namespace PasswordManagerAPI.Controllers
         private readonly AppDbContext _context;
         private readonly IEmailVerificationService _emailVerificationService;
         private readonly IAuditService _auditService;
+        private readonly SecurityHelper _securityHelper;
 
-        public UserController(AppDbContext context, IEmailVerificationService emailVerificationService, IAuditService auditService)
+        public UserController(AppDbContext context, IEmailVerificationService emailVerificationService, IAuditService auditService, SecurityHelper securityHelper)
         {
             _context = context;
             _emailVerificationService = emailVerificationService;
             _auditService = auditService;
+            _securityHelper = securityHelper;
         }
 
         [HttpGet("GetUserInfo")]
@@ -140,6 +143,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("SendEmailConfirmation")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> SendEmailConfirmation()
         {
             var userId = GetCurrentUserId();
@@ -155,6 +159,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("VerifyEmailConfirmation")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> VerifyEmailConfirmation([FromBody] ConfirmEmailCodeModel model)
         {
             var userId = GetCurrentUserId();
@@ -181,6 +186,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("RequestEmailChange")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> RequestEmailChange([FromBody] RequestEmailChangeModel model)
         {
             var userId = GetCurrentUserId();
@@ -199,8 +205,7 @@ namespace PasswordManagerAPI.Controllers
             if (string.Equals(user.Email, model.NewEmail, StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { message = "Новый email совпадает с текущим" });
 
-            var securityHelper = new SecurityHelper(HttpContext.RequestServices.GetRequiredService<IConfiguration>());
-            if (!securityHelper.VerifyPassword(model.CurrentPassword, user.PasswordHash, user.Salt))
+            if (!_securityHelper.VerifyPassword(model.CurrentPassword, user.PasswordHash, user.Salt))
             {
                 await _auditService.LogAsync("email_change_request_failed", userId, sessionId, "Неверный текущий пароль");
                 return BadRequest(new { message = "Текущий пароль указан неверно" });
@@ -215,6 +220,7 @@ namespace PasswordManagerAPI.Controllers
         }
 
         [HttpPost("ConfirmEmailChange")]
+        [EnableRateLimiting("Auth")]
         public async Task<IActionResult> ConfirmEmailChange([FromBody] ConfirmEmailCodeModel model)
         {
             var userId = GetCurrentUserId();

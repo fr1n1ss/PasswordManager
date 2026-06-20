@@ -12,10 +12,6 @@ RUN dotnet publish PasswordManagerAPI/PasswordManagerAPI.csproj -c Release -o /a
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 
-RUN apt-get update && \
-    apt-get install -y libgdiplus libc6-dev && \
-    rm -rf /var/lib/apt/lists/*
-    
 WORKDIR /app
 
 COPY --from=build /app/publish .

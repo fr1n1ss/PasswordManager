@@ -2,6 +2,6 @@
 {
     public interface IQrReaderService
     {
-        public string ReadQrCode(Stream stream);
+        public string? ReadQrCode(Stream stream);
     }
 }
