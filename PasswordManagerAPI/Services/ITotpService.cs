@@ -4,5 +4,6 @@
     {
         public (string base32, string uri) GenerateTotpSecret(string username);
         public bool Validate(string secret, string code);
+        public string Protect(string plainSecret);
     }
 }

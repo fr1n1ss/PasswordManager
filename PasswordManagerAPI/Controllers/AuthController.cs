@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ namespace PasswordManagerAPI.Controllers
         private readonly IAuditService _auditService;
         private readonly PasswordPolicyService _passwordPolicyService;
         private readonly IEmailVerificationService _emailVerificationService;
+        private readonly IDataProtector _protector;
 
         public AuthController(AppDbContext context, SecurityHelper securityHelper, ITotpService totpService, IAuditService auditService, PasswordPolicyService passwordPolicyService, IEmailVerificationService emailVerificationService)
         {
@@ -499,7 +501,7 @@ namespace PasswordManagerAPI.Controllers
                 return Unauthorized();
 
             var (secret, uri) = _totpService.GenerateTotpSecret(user.Username);
-            user.TotpSecret = secret;
+            user.TotpSecret = _totpService.Protect(secret);
             await _context.SaveChangesAsync();
             await _auditService.LogAsync("2fa_setup_started", userId, GetCurrentSessionId());
 

@@ -1,11 +1,11 @@
-﻿using System;
-using System.Security.Cryptography;
-using System.Text;
+﻿using PasswordManagerAPI.Entities;
+using KuznyechikLib;
+using KuznyechikLib.CipherMode;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using Microsoft.Extensions.Configuration;
-using global::PasswordManagerAPI.Entities;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PasswordManagerAPI.Services
 {
@@ -15,10 +15,27 @@ namespace PasswordManagerAPI.Services
         private readonly IConfiguration _config;
         private readonly JwtKeyProvider _jwtKeyProvider;
 
+        private const string PREFIX = "kuz1:";
+        private const int NONCESIZE = 16;
+        private readonly byte[] _key;
+        private readonly CounterMode_CTR_ _cipher;
+
         public SecurityHelper(IConfiguration config, JwtKeyProvider jwtKeyProvider)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _jwtKeyProvider = jwtKeyProvider ?? throw new ArgumentNullException(nameof(jwtKeyProvider));
+
+            var keyBase64 = _config["TotpEncryption:Key"] ?? Environment.GetEnvironmentVariable("TOTP_ENCRYPTION_KEY");
+
+            if (string.IsNullOrWhiteSpace(keyBase64))
+                throw new InvalidOperationException("Key with a base64-encoded 32-byte key.");
+
+            _key = Convert.FromBase64String(keyBase64);
+            if (_key.Length != 32)
+                throw new InvalidOperationException("Key must decode to exactly 32 bytes.");
+
+            _cipher = new CounterMode_CTR_(_key, LinearTransformImplementation.MatrixTables);
+
         }
 
         public string GenerateJwtToken(User user, Guid sessionId, string jwtId)
@@ -112,6 +129,35 @@ namespace PasswordManagerAPI.Services
             }
 
             return principal;
+        }
+        public string Protect(string plainText)
+        {
+            var plainBytes = Encoding.UTF8.GetBytes(plainText);
+            var nonce = RandomNumberGenerator.GetBytes(NONCESIZE);
+            var cipherBytes = _cipher.Encrypt(plainBytes, nonce);
+
+            return $"{PREFIX}{Convert.ToBase64String(nonce)}:{Convert.ToBase64String(cipherBytes)}";
+        }
+        public string Unprotect(string storedValue)
+        {
+            if (!storedValue.StartsWith(PREFIX, StringComparison.Ordinal))
+            {
+                return storedValue;
+            }
+
+            var payload = storedValue[PREFIX.Length..];
+            var separatorIndex = payload.IndexOf(':');
+            if (separatorIndex <= 0)
+            {
+                throw new CryptographicException("Invalid encrypted TOTP secret format.");
+            }
+
+            var nonce = Convert.FromBase64String(payload[..separatorIndex]);
+            var cipherBytes = Convert.FromBase64String(payload[(separatorIndex + 1)..]);
+
+            var plainBytes = _cipher.Decrypt(cipherBytes, nonce);
+
+            return Encoding.UTF8.GetString(plainBytes);
         }
     }
 }

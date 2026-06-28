@@ -22,6 +22,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=PasswordManagerDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
+      TotpEncryption__Key: "${TOTP_ENCRYPTION_KEY}"
       Jwt__PrivateKeyPem: "${JWT_PRIVATE_KEY_PEM}"
       Jwt__PublicKeyPem: "${JWT_PUBLIC_KEY_PEM}"
       Jwt__KeyId: "${JWT_KEY_ID:-passwordmanager-rsa}"

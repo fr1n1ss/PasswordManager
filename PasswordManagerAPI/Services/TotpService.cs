@@ -5,6 +5,11 @@ namespace PasswordManagerAPI.Services
 {
     public class TotpService : ITotpService
     {
+        private readonly SecurityHelper _secretProtector;
+        public TotpService(SecurityHelper helper)
+        {
+            _secretProtector = helper;
+        }
         public (string base32, string uri) GenerateTotpSecret(string username)
         {
             byte[] secret = new byte[20];
@@ -21,10 +26,15 @@ namespace PasswordManagerAPI.Services
             return (base32, uri);
         }
 
-        public bool Validate(string secret, string code)
+        public string Protect(string plainSecret) => _secretProtector.Protect(plainSecret);
+
+        public bool Validate(string storagedSecret, string code)
         {
+            var secret = _secretProtector.Unprotect(storagedSecret);
             var totp = new TotpGenerator(Base32.Decode(secret));
             return totp.Validate(code);
         }
+
+
     }
 }
